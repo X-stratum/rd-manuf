@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
+
+# Databricks (état local du bundle)
+.databricks/
+.bundle/
+
+# Secrets : ne jamais versionner
+.env
+*.token
+.databrickscfg
+
+# Éditeurs
+.vscode/
+.idea/
+
+# Dossier de travail libre, hors Git
+playground_libre/
