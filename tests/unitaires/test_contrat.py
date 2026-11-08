@@ -138,8 +138,27 @@ def test_le_vrai_contrat_est_valide():
         ("règle de type inconnu", lambda brut: brut["regles_inter_colonnes"][0].update(type="egal")),
         ("taux de rejet > 1", lambda brut: brut["seuils_qualite"].update(taux_rejet_max=2)),
         ("section obligatoire retirée", lambda brut: brut.pop("seuils_qualite")),
+        # --- clés manquantes ou de mauvais type : doivent dire QUOI corriger, pas lever un KeyError ---
+        ("colonne sans nom", lambda brut: brut["colonnes"][0].pop("nom")),
+        ("règle sans colonne gauche", lambda brut: brut["regles_inter_colonnes"][0].pop("gauche")),
+        ("règle sans type", lambda brut: brut["regles_inter_colonnes"][0].pop("type")),
+        ("taux de rejet absent", lambda brut: brut["seuils_qualite"].pop("taux_rejet_max")),
+        ("taux de rejet en texte", lambda brut: brut["seuils_qualite"].update(taux_rejet_max="deux pour cent")),
+        ("colonnes n'est pas une liste", lambda brut: brut.update(colonnes={"id_lot": 1})),
+        ("seuils_qualite n'est pas un dictionnaire", lambda brut: brut.update(seuils_qualite=0.02)),
+        # --- contrat incohérent mais syntaxiquement correct ---
+        ("colonne déclarée deux fois", lambda brut: brut["colonnes"].append(dict(brut["colonnes"][0]))),
+        ("minimum supérieur au maximum", lambda brut: brut["colonnes"][3].update(minimum=10, maximum=5)),
+        ("motif qui n'est pas une expression régulière", lambda brut: brut["colonnes"][0].update(motif="[LOT")),
     ],
 )
 def test_un_contrat_mal_forme_est_refuse(tmp_path, description, modification):
     with pytest.raises(ContratInvalide):
         charger_contrat(_contrat_modifie(tmp_path, modification))
+
+
+def test_un_yaml_illisible_est_refuse_avec_contrat_invalide(tmp_path):
+    chemin = tmp_path / "casse.yaml"
+    chemin.write_text("nom: [pas fermé\n  colonnes: : :", encoding="utf-8")
+    with pytest.raises(ContratInvalide):
+        charger_contrat(chemin)
