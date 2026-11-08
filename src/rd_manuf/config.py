@@ -38,5 +38,4 @@ def environnement_du_catalogue(catalogue: str) -> str:
         if nom == catalogue:
             return environnement
     connus = ", ".join(sorted(CATALOGUE_PAR_ENVIRONNEMENT.values()))
-    #return ENV_PLAYGROUND # commande pour tester que la fonction marche correctement / résultat rouge au test
     raise ErreurEnvironnement(f"Catalogue inconnu : « {catalogue} ». Catalogues autorisés : {connus}.")
