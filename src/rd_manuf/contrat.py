@@ -184,9 +184,12 @@ def charger_contrat(chemin: str | Path) -> Contrat:
 
     if not isinstance(brut["cle_primaire"], list) or not brut["cle_primaire"]:
         raise ContratInvalide("cle_primaire doit être une liste non vide de noms de colonnes (sans clé, aucun doublon n'est détecté).")
+    par_nom = {colonne.nom: colonne for colonne in colonnes}
     for cle in brut["cle_primaire"]:
-        if cle not in noms:
+        if cle not in par_nom:
             raise ContratInvalide(f"Clé primaire « {cle} » absente des colonnes.")
+        if not par_nom[cle].obligatoire:
+            raise ContratInvalide(f"Clé primaire « {cle} » : la colonne doit être obligatoire (une clé absente n'identifie rien).")
 
     regles = [_construire_regle(definition, set(noms)) for definition in brut.get("regles_inter_colonnes") or []]
 
@@ -273,15 +276,25 @@ def controler_ligne(contrat: Contrat, ligne: dict[str, Any]) -> list[str]:
 # ==============================================================================
 # 5. 📦 VALIDATION D'UNE LIVRAISON
 # ==============================================================================
-def _cle_primaire(contrat: Contrat, ligne: dict[str, Any]) -> tuple[str, ...]:
-    return tuple(str(ligne[nom]).strip() for nom in contrat.cle_primaire)
+def _valeurs_normalisees(contrat: Contrat, ligne: dict[str, Any]) -> dict[str, Any]:
+    """Valeurs de la ligne telles que le CONTRAT les comprend : toute forme d'absence devient None, le reste est converti.
+
+    Sert à juger si deux lignes sont « identiques » : 1000 et "1000", " L1 " et "L1", ou deux NaN créés séparément
+    (nan != nan en Python) sont la même information. À n'appeler que sur une ligne déjà validée par `controler_ligne`.
+    Les colonnes absentes du contrat ne comptent pas dans la comparaison.
+    """
+    valeurs: dict[str, Any] = {}
+    for colonne in contrat.colonnes:
+        brute = ligne.get(colonne.nom)
+        valeurs[colonne.nom] = None if est_absente(brute) else convertir_valeur(colonne.type, brute)
+    return valeurs
 
 
 def valider_livraison(contrat: Contrat, lignes: list[dict[str, Any]]) -> ResultatValidation:
     """Applique le contrat à une livraison : lignes valides / rejetées, doublons, puis décision selon le seuil.
 
     Pour une même clé primaire, la PREMIÈRE ligne valide arrivée fait foi :
-        - une ligne strictement identique est un rejeu technique : ignorée, sans rejet ;
+        - une ligne identique APRÈS normalisation par le contrat est un rejeu technique : ignorée, sans rejet ;
         - une ligne au contenu différent est un conflit : rejetée (on ne sait pas laquelle est juste).
     Une ligne invalide ne réserve pas sa clé.
     """
@@ -296,12 +309,13 @@ def valider_livraison(contrat: Contrat, lignes: list[dict[str, Any]]) -> Resulta
             rejetees.append(LigneRejetee(ligne=ligne, erreurs=tuple(erreurs)))
             continue
 
-        cle = _cle_primaire(contrat, ligne)
+        valeurs = _valeurs_normalisees(contrat, ligne)
+        cle = tuple(str(valeurs[nom]) for nom in contrat.cle_primaire)
         deja_vue = premiere_par_cle.get(cle)
         if deja_vue is None:
-            premiere_par_cle[cle] = ligne
+            premiere_par_cle[cle] = valeurs
             valides.append(ligne)
-        elif deja_vue == ligne:
+        elif deja_vue == valeurs:
             nb_doublons_exacts += 1
         else:
             message = f"clé primaire {list(contrat.cle_primaire)} en conflit : {', '.join(cle)} (même clé, contenu différent)"

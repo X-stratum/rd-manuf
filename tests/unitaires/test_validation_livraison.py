@@ -154,3 +154,36 @@ def test_la_meme_ligne_invalide_deux_fois_est_rejetee_deux_fois(contrat, ligne_c
     resultat = valider_livraison(contrat_tolerant, [invalide, dict(invalide)])
     assert len(resultat.lignes_rejetees) == 2
     assert resultat.nb_doublons_exacts == 0         # un doublon exact ne concerne que les lignes VALIDES
+
+
+# ==============================================================================
+# 5. 🧬 « IDENTIQUE » SE JUGE APRÈS NORMALISATION PAR LE CONTRAT, PAS SUR LA FORME BRUTE
+# ==============================================================================
+@pytest.mark.parametrize("absence", [None, "", "NA", "null", float("nan")], ids=["None", "vide", "NA", "null", "NaN-reel"])
+def test_toutes_les_formes_d_absence_d_une_colonne_optionnelle_sont_equivalentes(contrat, ligne_conforme, absence):
+    """Deux NaN créés séparément ne sont jamais égaux en Python (nan != nan) : un rejeu ne doit pas devenir un « conflit »."""
+    premiere = dict(ligne_conforme, temperature_c=None)
+    rejeu = dict(ligne_conforme, temperature_c=absence)
+    resultat = valider_livraison(contrat, [premiere, rejeu])
+    assert resultat.statut == StatutLivraison.ACCEPTEE
+    assert resultat.nb_doublons_exacts == 1
+
+
+def test_deux_nan_reels_crees_separement_forment_un_doublon_exact(contrat, ligne_conforme):
+    premiere = dict(ligne_conforme, temperature_c=float("nan"))
+    rejeu = dict(ligne_conforme, temperature_c=float("nan"))
+    resultat = valider_livraison(contrat, [premiere, rejeu])
+    assert resultat.statut == StatutLivraison.ACCEPTEE
+    assert resultat.nb_doublons_exacts == 1
+
+
+@pytest.mark.parametrize(
+    ("colonne", "autre_ecriture"),
+    [("quantite_produite", "1000"), ("id_ligne", " L1 "), ("temperature_c", "200")],
+    ids=["entier-en-texte", "espaces-autour", "decimal-en-texte"],
+)
+def test_une_autre_ecriture_de_la_meme_valeur_est_un_doublon_exact(contrat, ligne_conforme, colonne, autre_ecriture):
+    rejeu = dict(ligne_conforme, **{colonne: autre_ecriture})
+    resultat = valider_livraison(contrat, [ligne_conforme, rejeu])
+    assert resultat.statut == StatutLivraison.ACCEPTEE
+    assert resultat.nb_doublons_exacts == 1
