@@ -5,6 +5,7 @@ motif, règles entre colonnes). Le contrôle d'une livraison entière arrive au 
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -24,6 +25,10 @@ TYPES_SUPPORTES = (TYPE_CHAINE, TYPE_ENTIER, TYPE_DECIMAL, TYPE_DATE)
 
 REGLE_INFERIEUR_OU_EGAL = "inferieur_ou_egal"
 REGLES_INTER_SUPPORTEES = (REGLE_INFERIEUR_OU_EGAL,)
+
+# Textes qui, dans un export de capteur ou de CSV, signifient « pas de valeur » (comparés en minuscules, sans espaces).
+# La chaîne vide en fait partie : « " " » et « "" » se réduisent à "" après strip.
+MARQUEURS_ABSENCE = frozenset({"", "nan", "nans", "null", "na"})
 
 CLES_OBLIGATOIRES_CONTRAT = ("nom", "version", "cle_primaire", "colonnes", "seuils_qualite")
 
@@ -127,8 +132,15 @@ def charger_contrat(chemin: str | Path) -> Contrat:
 # 4. 🔎 CONTRÔLE D'UNE LIGNE
 # ==============================================================================
 def est_absente(valeur: Any) -> bool:
-    """Une valeur est absente si elle est None ou une chaîne vide/blanche."""
-    return valeur is None or (isinstance(valeur, str) and valeur.strip() == "")
+    """Une valeur est absente si elle est None, un NaN réel, une chaîne vide/blanche ou un marqueur d'absence.
+
+    La comparaison aux marqueurs est EXACTE (après strip et minuscules) : « nano » ou « 0 » restent des valeurs.
+    """
+    if valeur is None:
+        return True
+    if isinstance(valeur, float):
+        return math.isnan(valeur)
+    return isinstance(valeur, str) and valeur.strip().lower() in MARQUEURS_ABSENCE
 
 
 def convertir_valeur(type_colonne: str, valeur: Any) -> Any:
@@ -142,7 +154,10 @@ def convertir_valeur(type_colonne: str, valeur: Any) -> Any:
     if type_colonne == TYPE_DECIMAL:
         if isinstance(valeur, bool):
             raise ValueError("décimal attendu")
-        return float(valeur)
+        nombre = float(valeur)
+        if not math.isfinite(nombre):   # inf / -inf : de vrais nombres aberrants, jamais une absence
+            raise ValueError("décimal fini attendu")
+        return nombre
     if type_colonne == TYPE_DATE:
         return valeur if isinstance(valeur, date) else date.fromisoformat(str(valeur).strip())
     raise ValueError(f"type inconnu {type_colonne}")

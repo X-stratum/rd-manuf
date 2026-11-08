@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from rd_manuf.contrat import ContratInvalide, charger_contrat, controler_ligne
+from rd_manuf.contrat import ContratInvalide, charger_contrat, controler_ligne, est_absente
 
 CHEMIN_CONTRAT_REEL = Path(__file__).resolve().parents[2] / "contracts" / "data" / "livraison_production.yaml"
 
@@ -59,6 +59,42 @@ def test_les_bornes_du_contrat_sont_incluses(contrat, ligne_conforme, modificati
     """Frontière : une valeur EXACTEMENT égale à minimum/maximum est conforme (comparaison stricte, pas >=)."""
     ligne_conforme.update(modifications)
     assert controler_ligne(contrat, ligne_conforme) == []
+
+
+MARQUEURS_D_ABSENCE = [
+    "nan", "NaN", "NAN", "Nan",
+    "nans", "Nans",
+    "null", "Null", "NULL",
+    "na", "NA", "Na",
+    "", " ", "   ",
+    None, float("nan"),   # None et un vrai NaN (pandas / Spark), distincts du texte « nan »
+]
+
+
+@pytest.mark.parametrize("valeur", MARQUEURS_D_ABSENCE)
+def test_un_marqueur_d_absence_est_accepte_sur_une_colonne_optionnelle(contrat, ligne_conforme, valeur):
+    ligne_conforme["temperature_c"] = valeur
+    assert controler_ligne(contrat, ligne_conforme) == []
+
+
+@pytest.mark.parametrize("valeur", MARQUEURS_D_ABSENCE)
+def test_un_marqueur_d_absence_est_refuse_sur_une_colonne_obligatoire(contrat, ligne_conforme, valeur):
+    ligne_conforme["quantite_produite"] = valeur
+    erreurs = controler_ligne(contrat, ligne_conforme)
+    assert any("quantite_produite" in erreur and "obligatoire" in erreur for erreur in erreurs), erreurs
+
+
+@pytest.mark.parametrize("valeur", ["inf", "-inf", "Infinity", float("inf"), float("-inf")])
+def test_une_valeur_infinie_n_est_pas_une_absence_c_est_une_erreur(contrat, ligne_conforme, valeur):
+    ligne_conforme["temperature_c"] = valeur
+    erreurs = controler_ligne(contrat, ligne_conforme)
+    assert any("temperature_c" in erreur and "invalide" in erreur for erreur in erreurs), erreurs
+
+
+@pytest.mark.parametrize("valeur", ["nano", "nul", "n/a", "NaNa", "0"])
+def test_un_texte_proche_d_un_marqueur_n_est_pas_une_absence(valeur):
+    """Correspondance EXACTE (après strip et minuscules) : « nano » ou « 0 » ne sont pas des marqueurs."""
+    assert not est_absente(valeur)
 
 
 def test_le_rebut_ne_peut_pas_depasser_la_production(contrat, ligne_conforme):
