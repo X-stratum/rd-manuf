@@ -1,0 +1,58 @@
+# ==============================================================================
+# ✅ CI — exécutée sur chaque Pull Request vers main
+# ==============================================================================
+# Version 1 : statique → unitaires. Elle s'enrichira (performance, fonctionnels Databricks)
+# au fil des tickets.
+#
+#   statique ──► unitaires
+#
+# Ordre voulu : du moins cher au plus cher. Si le lint échoue, inutile de lancer les tests.
+# ==============================================================================
+name: CI
+
+on:
+  pull_request:
+    branches: [main]          # se déclenche pour toute PR dont la cible est main
+
+permissions:
+  contents: read              # moindre privilège : la CI peut lire le dépôt, rien d'autre
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true    # un nouveau push sur la PR annule l'exécution précédente
+
+env:
+  VERSION_PYTHON: "3.12"      # même version que l'environnement conda de développement
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # 1. Statique : style et erreurs évidentes, sans exécuter le code (quelques secondes)
+  # ----------------------------------------------------------------------------
+  statique:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4           # récupère le code de la PR
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.VERSION_PYTHON }}
+          cache: pip                        # réutilise les paquets téléchargés d'une exécution à l'autre
+      - run: pip install -e ".[dev]"
+      - name: Style et erreurs évidentes (ruff)
+        run: ruff check src tests
+
+  # ----------------------------------------------------------------------------
+  # 2. Unitaires : logique pure, sans Databricks (quelques secondes)
+  # ----------------------------------------------------------------------------
+  unitaires:
+    needs: statique                         # ne démarre que si « statique » est vert
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.VERSION_PYTHON }}
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/unitaires -v
