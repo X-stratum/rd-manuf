@@ -2,7 +2,7 @@
 name = "rd-manuf"
 version = "0.1.0"
 description = "Pipeline médaillon R&D Manufacturing sur Databricks"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = []
 
 [project.optional-dependencies]
@@ -14,7 +14,7 @@ testpaths = ["tests/unitaires"]
 
 [tool.ruff]
 line-length = 140
-target-version = "py310"
+target-version = "py312"
 src = ["src"]
 
 [tool.ruff.lint]
