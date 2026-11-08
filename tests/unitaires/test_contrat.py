@@ -146,6 +146,7 @@ def test_le_vrai_contrat_est_valide():
         ("taux de rejet en texte", lambda brut: brut["seuils_qualite"].update(taux_rejet_max="deux pour cent")),
         ("colonnes n'est pas une liste", lambda brut: brut.update(colonnes={"id_lot": 1})),
         ("seuils_qualite n'est pas un dictionnaire", lambda brut: brut.update(seuils_qualite=0.02)),
+        ("clé primaire vide (plus aucun contrôle de doublon)", lambda brut: brut.update(cle_primaire=[])),
         # --- contrat incohérent mais syntaxiquement correct ---
         ("colonne déclarée deux fois", lambda brut: brut["colonnes"].append(dict(brut["colonnes"][0]))),
         ("minimum supérieur au maximum", lambda brut: brut["colonnes"][3].update(minimum=10, maximum=5)),

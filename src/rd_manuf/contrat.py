@@ -9,6 +9,7 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import date
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -69,6 +70,31 @@ class Contrat:
     regles_inter_colonnes: tuple[RegleInter, ...]
     taux_rejet_max: float
     brut: dict[str, Any] = field(repr=False, default_factory=dict)  # YAML d'origine
+
+
+class StatutLivraison(str, Enum):
+    """Décision finale sur une livraison."""
+
+    ACCEPTEE = "ACCEPTEE"                            # aucune ligne rejetée
+    ACCEPTEE_AVEC_REJETS = "ACCEPTEE_AVEC_REJETS"    # rejets dans le seuil : valides intégrées, rejets en quarantaine
+    BLOQUEE = "BLOQUEE"                              # au-dessus du seuil : RIEN n'est intégré (tout ou rien)
+
+
+@dataclass(frozen=True)
+class LigneRejetee:
+    ligne: dict[str, Any]
+    erreurs: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ResultatValidation:
+    statut: StatutLivraison
+    lignes_valides: list[dict[str, Any]]      # vide si la livraison est BLOQUEE
+    lignes_rejetees: list[LigneRejetee]       # toujours renseignées, même si BLOQUEE (diagnostic)
+    nb_recues: int
+    nb_doublons_exacts: int                   # rejeux strictement identiques : ignorés, ni rejetés ni comptés comme rejets
+    taux_rejet: float                         # lignes_rejetees / nb_recues
+    version_contrat: str                      # version du contrat avec laquelle la livraison a été jugée
 
 
 # ==============================================================================
@@ -156,8 +182,8 @@ def charger_contrat(chemin: str | Path) -> Contrat:
     if doublons:
         raise ContratInvalide(f"Colonnes déclarées plusieurs fois : {doublons}.")
 
-    if not isinstance(brut["cle_primaire"], list):
-        raise ContratInvalide("cle_primaire doit être une liste de noms de colonnes.")
+    if not isinstance(brut["cle_primaire"], list) or not brut["cle_primaire"]:
+        raise ContratInvalide("cle_primaire doit être une liste non vide de noms de colonnes (sans clé, aucun doublon n'est détecté).")
     for cle in brut["cle_primaire"]:
         if cle not in noms:
             raise ContratInvalide(f"Clé primaire « {cle} » absente des colonnes.")
@@ -242,3 +268,63 @@ def controler_ligne(contrat: Contrat, ligne: dict[str, Any]) -> list[str]:
             erreurs.append(f"règle {regle.nom} : {regle.gauche}={valeurs[regle.gauche]} > {regle.droite}={valeurs[regle.droite]}")
 
     return erreurs
+
+
+# ==============================================================================
+# 5. 📦 VALIDATION D'UNE LIVRAISON
+# ==============================================================================
+def _cle_primaire(contrat: Contrat, ligne: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(str(ligne[nom]).strip() for nom in contrat.cle_primaire)
+
+
+def valider_livraison(contrat: Contrat, lignes: list[dict[str, Any]]) -> ResultatValidation:
+    """Applique le contrat à une livraison : lignes valides / rejetées, doublons, puis décision selon le seuil.
+
+    Pour une même clé primaire, la PREMIÈRE ligne valide arrivée fait foi :
+        - une ligne strictement identique est un rejeu technique : ignorée, sans rejet ;
+        - une ligne au contenu différent est un conflit : rejetée (on ne sait pas laquelle est juste).
+    Une ligne invalide ne réserve pas sa clé.
+    """
+    valides: list[dict[str, Any]] = []
+    rejetees: list[LigneRejetee] = []
+    premiere_par_cle: dict[tuple[str, ...], dict[str, Any]] = {}
+    nb_doublons_exacts = 0
+
+    for ligne in lignes:
+        erreurs = controler_ligne(contrat, ligne)
+        if erreurs:
+            rejetees.append(LigneRejetee(ligne=ligne, erreurs=tuple(erreurs)))
+            continue
+
+        cle = _cle_primaire(contrat, ligne)
+        deja_vue = premiere_par_cle.get(cle)
+        if deja_vue is None:
+            premiere_par_cle[cle] = ligne
+            valides.append(ligne)
+        elif deja_vue == ligne:
+            nb_doublons_exacts += 1
+        else:
+            message = f"clé primaire {list(contrat.cle_primaire)} en conflit : {', '.join(cle)} (même clé, contenu différent)"
+            rejetees.append(LigneRejetee(ligne=ligne, erreurs=(message,)))
+
+    nb_recues = len(lignes)
+    taux_rejet = len(rejetees) / nb_recues if nb_recues else 0.0
+
+    # Comparaison par DIVISION, jamais `rejets > seuil * total` : 0.29 * 100 vaut 28.999999999999996 en flottant.
+    if taux_rejet > contrat.taux_rejet_max:
+        statut = StatutLivraison.BLOQUEE
+        valides = []
+    elif rejetees:
+        statut = StatutLivraison.ACCEPTEE_AVEC_REJETS
+    else:
+        statut = StatutLivraison.ACCEPTEE
+
+    return ResultatValidation(
+        statut=statut,
+        lignes_valides=valides,
+        lignes_rejetees=rejetees,
+        nb_recues=nb_recues,
+        nb_doublons_exacts=nb_doublons_exacts,
+        taux_rejet=taux_rejet,
+        version_contrat=contrat.version,
+    )
