@@ -1,0 +1,76 @@
+# ==============================================================================
+# 📜 CONTRAT DE DONNÉES — livraison_production
+# ==============================================================================
+# 🎯 Rôle
+#   Décrit ce qu'une livraison de production DOIT respecter pour entrer en silver.
+#   C'est le « traité » entre la source (usine / simulateur) et le pipeline.
+#
+# 🔁 Cycle de vie
+#   Toute modification passe par une Pull Request relue (CODEOWNERS).
+#   Changement de règle = nouvelle version (semver) :
+#     - patch : correction de description
+#     - mineure : règle ajoutée qui n'invalide pas d'anciennes données valides
+#     - majeure : colonne retirée / règle durcie → prévenir les consommateurs gold
+# ==============================================================================
+
+nom: livraison_production
+version: 1.0.0
+description: Une ligne = un lot produit sur une ligne de fabrication pour un jour donné.
+proprietaire: equipe_data_rd_manuf
+
+# Clé d'unicité : deux lignes avec le même id_lot dans une livraison → la 2e est rejetée.
+cle_primaire:
+  - id_lot
+
+# ------------------------------------------------------------------------------
+# Colonnes attendues
+#   type : chaine | entier | decimal | date (format ISO AAAA-MM-JJ)
+#   obligatoire : false → une valeur absente est acceptée (mais, si présente, elle est contrôlée)
+# ------------------------------------------------------------------------------
+colonnes:
+  - nom: id_lot
+    type: chaine
+    obligatoire: true
+    motif: "^LOT-[0-9]{6}$"          # ex. LOT-000042
+
+  - nom: id_ligne
+    type: chaine
+    obligatoire: true
+    valeurs_autorisees: [L1, L2, L3]  # les 3 lignes de fabrication de l'usine
+
+  - nom: date_production
+    type: date
+    obligatoire: true
+
+  - nom: quantite_produite
+    type: entier
+    obligatoire: true
+    minimum: 0
+    maximum: 100000                   # capacité maximale d'un lot (unités)
+
+  - nom: quantite_rebut
+    type: entier
+    obligatoire: true
+    minimum: 0
+
+  - nom: temperature_c
+    type: decimal
+    obligatoire: false                # capteur parfois indisponible
+    minimum: -50
+    maximum: 400                      # plage physique du four industriel
+
+# ------------------------------------------------------------------------------
+# Règles entre colonnes (types supportés : inferieur_ou_egal)
+# ------------------------------------------------------------------------------
+regles_inter_colonnes:
+  - nom: rebut_inferieur_ou_egal_production
+    type: inferieur_ou_egal
+    gauche: quantite_rebut
+    droite: quantite_produite
+
+# ------------------------------------------------------------------------------
+# Seuil de qualité de LA LIVRAISON (utilisé au cycle B)
+#   taux de lignes rejetées = rejetées / reçues. Au-dessus du seuil, la livraison est BLOQUÉE.
+# ------------------------------------------------------------------------------
+seuils_qualite:
+  taux_rejet_max: 0.02                # 2 % de lignes rejetées tolérées
