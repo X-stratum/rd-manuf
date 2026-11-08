@@ -1,0 +1,21 @@
+[project]
+name = "rd-manuf"
+version = "0.1.0"
+description = "Pipeline médaillon R&D Manufacturing sur Databricks"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]                  # `import rd_manuf` fonctionne sans installer le paquet
+testpaths = ["tests/unitaires"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
