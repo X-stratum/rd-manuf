@@ -80,10 +80,36 @@ class StatutLivraison(str, Enum):
     BLOQUEE = "BLOQUEE"                              # au-dessus du seuil : RIEN n'est intégré (tout ou rien)
 
 
+class CodeErreur(str, Enum):
+    """Code STABLE d'une violation : les alertes et les tableaux de bord s'appuient dessus, jamais sur le texte du message.
+
+    Renommer un code est un changement de contrat avec les consommateurs (voir contracts/alertes/catalogue.yaml).
+    """
+
+    OBLIGATOIRE_MANQUANT = "OBLIGATOIRE_MANQUANT"
+    TYPE_INVALIDE = "TYPE_INVALIDE"
+    HORS_PLAGE = "HORS_PLAGE"
+    MOTIF_NON_RESPECTE = "MOTIF_NON_RESPECTE"
+    VALEUR_HORS_DOMAINE = "VALEUR_HORS_DOMAINE"
+    REGLE_ENTRE_COLONNES = "REGLE_ENTRE_COLONNES"
+    CLE_EN_CONFLIT = "CLE_EN_CONFLIT"
+
+
+@dataclass(frozen=True)
+class Violation:
+    code: CodeErreur
+    colonnes: tuple[str, ...]   # colonnes à corriger
+    message: str                # texte pour un humain
+
+
 @dataclass(frozen=True)
 class LigneRejetee:
     ligne: dict[str, Any]
-    erreurs: tuple[str, ...]
+    violations: tuple[Violation, ...]
+
+    @property
+    def erreurs(self) -> tuple[str, ...]:
+        return tuple(violation.message for violation in self.violations)
 
 
 @dataclass(frozen=True)
@@ -239,38 +265,47 @@ def convertir_valeur(type_colonne: str, valeur: Any) -> Any:
     raise ValueError(f"type inconnu {type_colonne}")
 
 
-def controler_ligne(contrat: Contrat, ligne: dict[str, Any]) -> list[str]:
-    """Retourne la liste des violations de la ligne (liste vide = ligne conforme)."""
-    erreurs: list[str] = []
+def diagnostiquer_ligne(contrat: Contrat, ligne: dict[str, Any]) -> list[Violation]:
+    """Retourne les violations de la ligne, chacune avec son code stable et ses colonnes (liste vide = ligne conforme)."""
+    violations: list[Violation] = []
     valeurs: dict[str, Any] = {}
 
     for colonne in contrat.colonnes:
-        brute = ligne.get(colonne.nom)
+        nom = colonne.nom
+        brute = ligne.get(nom)
         if est_absente(brute):
             if colonne.obligatoire:
-                erreurs.append(f"{colonne.nom} : valeur obligatoire manquante")
+                violations.append(Violation(CodeErreur.OBLIGATOIRE_MANQUANT, (nom,), f"{nom} : valeur obligatoire manquante"))
             continue
         try:
             valeur = convertir_valeur(colonne.type, brute)
         except (ValueError, TypeError):
-            erreurs.append(f"{colonne.nom} : type {colonne.type} invalide (« {brute} »)")
+            violations.append(Violation(CodeErreur.TYPE_INVALIDE, (nom,), f"{nom} : type {colonne.type} invalide (« {brute} »)"))
             continue
-        valeurs[colonne.nom] = valeur
+        valeurs[nom] = valeur
 
         if colonne.minimum is not None and valeur < colonne.minimum:
-            erreurs.append(f"{colonne.nom} : {valeur} < minimum {colonne.minimum}")
+            violations.append(Violation(CodeErreur.HORS_PLAGE, (nom,), f"{nom} : {valeur} < minimum {colonne.minimum}"))
         if colonne.maximum is not None and valeur > colonne.maximum:
-            erreurs.append(f"{colonne.nom} : {valeur} > maximum {colonne.maximum}")
+            violations.append(Violation(CodeErreur.HORS_PLAGE, (nom,), f"{nom} : {valeur} > maximum {colonne.maximum}"))
         if colonne.motif and not re.search(colonne.motif, str(valeur)):
-            erreurs.append(f"{colonne.nom} : « {valeur} » ne respecte pas le motif {colonne.motif}")
+            message = f"{nom} : « {valeur} » ne respecte pas le motif {colonne.motif}"
+            violations.append(Violation(CodeErreur.MOTIF_NON_RESPECTE, (nom,), message))
         if colonne.valeurs_autorisees and str(valeur) not in colonne.valeurs_autorisees:
-            erreurs.append(f"{colonne.nom} : « {valeur} » hors de {list(colonne.valeurs_autorisees)}")
+            message = f"{nom} : « {valeur} » hors de {list(colonne.valeurs_autorisees)}"
+            violations.append(Violation(CodeErreur.VALEUR_HORS_DOMAINE, (nom,), message))
 
     for regle in contrat.regles_inter_colonnes:
         if regle.gauche in valeurs and regle.droite in valeurs and not valeurs[regle.gauche] <= valeurs[regle.droite]:
-            erreurs.append(f"règle {regle.nom} : {regle.gauche}={valeurs[regle.gauche]} > {regle.droite}={valeurs[regle.droite]}")
+            message = f"règle {regle.nom} : {regle.gauche}={valeurs[regle.gauche]} > {regle.droite}={valeurs[regle.droite]}"
+            violations.append(Violation(CodeErreur.REGLE_ENTRE_COLONNES, (regle.gauche, regle.droite), message))
 
-    return erreurs
+    return violations
+
+
+def controler_ligne(contrat: Contrat, ligne: dict[str, Any]) -> list[str]:
+    """Même contrôle que `diagnostiquer_ligne`, réduit aux messages lisibles (liste vide = ligne conforme)."""
+    return [violation.message for violation in diagnostiquer_ligne(contrat, ligne)]
 
 
 # ==============================================================================
@@ -280,7 +315,7 @@ def _valeurs_normalisees(contrat: Contrat, ligne: dict[str, Any]) -> dict[str, A
     """Valeurs de la ligne telles que le CONTRAT les comprend : toute forme d'absence devient None, le reste est converti.
 
     Sert à juger si deux lignes sont « identiques » : 1000 et "1000", " L1 " et "L1", ou deux NaN créés séparément
-    (nan != nan en Python) sont la même information. À n'appeler que sur une ligne déjà validée par `controler_ligne`.
+    (nan != nan en Python) sont la même information. À n'appeler que sur une ligne déjà validée par `diagnostiquer_ligne`.
     Les colonnes absentes du contrat ne comptent pas dans la comparaison.
     """
     valeurs: dict[str, Any] = {}
@@ -304,9 +339,9 @@ def valider_livraison(contrat: Contrat, lignes: list[dict[str, Any]]) -> Resulta
     nb_doublons_exacts = 0
 
     for ligne in lignes:
-        erreurs = controler_ligne(contrat, ligne)
-        if erreurs:
-            rejetees.append(LigneRejetee(ligne=ligne, erreurs=tuple(erreurs)))
+        violations = diagnostiquer_ligne(contrat, ligne)
+        if violations:
+            rejetees.append(LigneRejetee(ligne=ligne, violations=tuple(violations)))
             continue
 
         valeurs = _valeurs_normalisees(contrat, ligne)
@@ -319,7 +354,8 @@ def valider_livraison(contrat: Contrat, lignes: list[dict[str, Any]]) -> Resulta
             nb_doublons_exacts += 1
         else:
             message = f"clé primaire {list(contrat.cle_primaire)} en conflit : {', '.join(cle)} (même clé, contenu différent)"
-            rejetees.append(LigneRejetee(ligne=ligne, erreurs=(message,)))
+            conflit = Violation(CodeErreur.CLE_EN_CONFLIT, contrat.cle_primaire, message)
+            rejetees.append(LigneRejetee(ligne=ligne, violations=(conflit,)))
 
     nb_recues = len(lignes)
     taux_rejet = len(rejetees) / nb_recues if nb_recues else 0.0

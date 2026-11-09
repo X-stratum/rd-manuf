@@ -1,0 +1,43 @@
+# ==============================================================================
+# 📣 CATALOGUE D'ALERTES — qui doit AGIR, qui doit être INFORMÉ, pour chaque code d'erreur
+# ==============================================================================
+# 🎯 Rôle
+#   Associe chaque code d'erreur (CodeErreur, voir src/rd_manuf/contrat.py) à des RÔLES, jamais à des personnes.
+#   Les noms et adresses des personnes ne sont PAS dans ce dépôt (public) : ils vivront dans un annuaire hors Git.
+#
+# 👥 Ajouter un interlocuteur
+#   1. déclarer le rôle dans `roles` ;
+#   2. l'ajouter dans `toujours_informes` (informé de tout) ou dans `informe` d'un code précis.
+#   Aucune ligne de code à modifier.
+#
+# 🔑 Vocabulaire
+#   agit    : le rôle qui doit résoudre le problème (un seul par code)
+#   informe : rôles tenus au courant, en plus de `toujours_informes`
+#   Celui qui agit n'apparaît jamais aussi dans les informés.
+# ==============================================================================
+
+roles: [emetteur, metier, equipe_data]
+
+# Informés de TOUTE alerte, même quand le problème vient de l'émetteur.
+toujours_informes: [metier]
+
+codes:
+  OBLIGATOIRE_MANQUANT:
+    agit: emetteur            # la donnée n'a pas été envoyée : seul l'émetteur peut la fournir
+  TYPE_INVALIDE:
+    agit: emetteur            # format d'export cassé côté émetteur
+  HORS_PLAGE:
+    agit: emetteur            # valeur physiquement impossible : erreur de saisie ou de capteur
+  MOTIF_NON_RESPECTE:
+    agit: emetteur            # identifiant mal formé
+  VALEUR_HORS_DOMAINE:
+    agit: metier              # seul le métier sait si une nouvelle valeur (ex. une 4e ligne de fabrication) est légitime
+  REGLE_ENTRE_COLONNES:
+    agit: emetteur            # incohérence entre deux colonnes de la même ligne
+  CLE_EN_CONFLIT:
+    agit: emetteur            # lui seul sait laquelle des deux lignes est la bonne
+
+# Alerte supplémentaire quand le taux de rejet dépasse le seuil du contrat : rien n'entre en silver.
+livraison_bloquee:
+  agit: metier                # qualifie l'écart : incident ponctuel ou dérive durable ?
+  informe: [emetteur, equipe_data]
