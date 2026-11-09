@@ -51,10 +51,15 @@ class Alerte:
 # ==============================================================================
 # 📥 CHARGEMENT ET AUTO-CONTRÔLE DU CATALOGUE
 # ==============================================================================
+def _est_role_declare(valeur: Any, roles: set[str]) -> bool:
+    """Vérifie le type AVANT la recherche : chercher une liste ou un dictionnaire dans un ensemble lève un TypeError."""
+    return isinstance(valeur, str) and valeur in roles
+
+
 def _liste_de_roles(valeur: Any, roles: set[str], description: str) -> tuple[str, ...]:
     if not isinstance(valeur, list):
         raise CatalogueInvalide(f"{description} doit être une liste de rôles (reçu {valeur!r}).")
-    inconnus = [role for role in valeur if role not in roles]
+    inconnus = [role for role in valeur if not _est_role_declare(role, roles)]
     if inconnus:
         raise CatalogueInvalide(f"{description} : rôles inconnus {inconnus} (rôles déclarés : {sorted(roles)}).")
     return tuple(valeur)
@@ -63,7 +68,7 @@ def _liste_de_roles(valeur: Any, roles: set[str], description: str) -> tuple[str
 def _construire_regle(definition: Any, roles: set[str], description: str) -> RegleRoutage:
     if not isinstance(definition, dict) or "agit" not in definition:
         raise CatalogueInvalide(f"{description} : il faut un dictionnaire avec la clé « agit ».")
-    if definition["agit"] not in roles:
+    if not _est_role_declare(definition["agit"], roles):
         raise CatalogueInvalide(f"{description} : « agit » = {definition['agit']!r} n'est pas un rôle déclaré.")
     informe = _liste_de_roles(definition.get("informe", []), roles, f"{description} : informe")
     return RegleRoutage(agit=definition["agit"], informe=informe)

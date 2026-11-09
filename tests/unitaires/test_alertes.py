@@ -70,6 +70,9 @@ def test_le_metier_est_toujours_informe(catalogue):
         ("livraison_bloquee absente", lambda brut: brut.pop("livraison_bloquee")),
         ("roles n'est pas une liste", lambda brut: brut.update(roles="metier")),
         ("codes n'est pas un dictionnaire", lambda brut: brut.update(codes=[])),
+        ("agit est une liste", lambda brut: brut["codes"]["HORS_PLAGE"].update(agit=["emetteur"])),
+        ("informe contient une liste", lambda brut: brut["codes"]["HORS_PLAGE"].update(informe=[["metier"]])),
+        ("toujours_informes contient un dictionnaire", lambda brut: brut.update(toujours_informes=[{"a": 1}])),
     ],
 )
 def test_un_catalogue_mal_forme_est_refuse(tmp_path, description, modification):
