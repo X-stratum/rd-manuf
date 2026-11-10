@@ -26,7 +26,6 @@ class Reception:
 
 
 def receptionner_livraison(contrat: Contrat, livraison_id: str, colonnes_recues: list[str], lignes: list[dict[str, Any]]) -> Reception:
-    resultat = valider_livraison(contrat, lignes)
     problemes = controler_structure(contrat, colonnes_recues, len(lignes))
     if problemes:
         return Reception(
