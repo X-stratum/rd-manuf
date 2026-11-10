@@ -28,7 +28,12 @@ def contrat():
 
 @pytest.fixture(scope="session")
 def contrat_sans_seuil(contrat):
-    """Même contrat, seuil de rejet neutralisé : sert à tester autre chose que le blocage (agrégation, codes, routage)."""
+    """Même contrat, seuil de rejet neutralisé : sert à tester autre chose que le blocage (agrégation, codes, routage).
+
+    Piège : « neutralisé » veut dire seuil à 100 %, et un taux de 100 % ne passe sous ce seuil que si la comparaison est stricte (`>`).
+    Une livraison dont TOUTES les lignes sont rejetées dépend donc de ce détail du contrat. Règle : garder au moins une ligne valide
+    dans toute livraison construite avec cette fixture (voir `test_alertes.py`).
+    """
     return replace(contrat, taux_rejet_max=SEUIL_NEUTRALISE)
 
 
