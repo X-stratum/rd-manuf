@@ -145,7 +145,7 @@ def test_plusieurs_lignes_de_meme_code_font_une_seule_alerte_avec_un_compteur(co
 
 
 def test_une_ligne_a_deux_violations_du_meme_code_compte_pour_une_ligne(contrat_sans_seuil, catalogue, fabrique):
-    resultat = valider_livraison(contrat_sans_seuil, [fabrique.valide(1), fabrique.deux_colonnes_hors_plage(2)])   # taux < 100 %
+    resultat = valider_livraison(contrat_sans_seuil, [fabrique.valide(1), fabrique.deux_colonnes_hors_plage(2)])
     alertes = router_alertes(catalogue, resultat, livraison_id="LIV-001")
     assert len(alertes) == 1
     assert alertes[0].nb_lignes == 1                                         # une LIGNE, pas deux violations
