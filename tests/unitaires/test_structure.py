@@ -10,6 +10,7 @@ from rd_manuf.structure import CodeStructure, controler_structure
 
 NB_LIGNES = 5
 COLONNE_EN_TROP = "colonne_en_trop"
+NB_MAX_COLONNES_EN_TROP = 4
 CODES_ATTENDUS = {"FICHIER_VIDE", "COLONNE_MANQUANTE", "COLONNE_INCONNUE", "COLONNE_DUPLIQUEE"}
 
 
@@ -84,6 +85,31 @@ def test_une_colonne_dupliquee_est_signalee_une_seule_fois(contrat, entete):
 
 
 # ==============================================================================
+# 5 bis. 🧺 PLUSIEURS COLONNES FAUTIVES DU MÊME CODE : UN SEUL problème qui les regroupe (une alerte par code, pas par colonne)
+# ==============================================================================
+def test_plusieurs_colonnes_manquantes_font_un_seul_probleme_dans_l_ordre_du_contrat(contrat, entete):
+    """De 2 à N-1 colonnes retirées (retirer TOUTES les colonnes revient à un fichier sans en-tête, cas traité plus haut)."""
+    for nb_manquantes in range(2, len(entete)):
+        recues = list(reversed(entete[nb_manquantes:]))           # reçues à l'envers : l'ordre rendu est celui du contrat, pas de l'arrivée
+        attendu = [(CodeStructure.COLONNE_MANQUANTE, tuple(entete[:nb_manquantes]))]
+        assert [(p.code, p.colonnes) for p in controler_structure(contrat, recues, NB_LIGNES)] == attendu, nb_manquantes
+
+
+def test_plusieurs_colonnes_en_trop_font_un_seul_probleme_dans_l_ordre_d_arrivee(contrat, entete):
+    for nb_en_trop in range(2, NB_MAX_COLONNES_EN_TROP + 1):
+        en_trop = [f"{COLONNE_EN_TROP}_{numero}" for numero in range(nb_en_trop)]
+        problemes = controler_structure(contrat, entete + en_trop, NB_LIGNES)
+        assert [(p.code, p.colonnes) for p in problemes] == [(CodeStructure.COLONNE_INCONNUE, tuple(en_trop))], nb_en_trop
+
+
+def test_plusieurs_colonnes_dupliquees_font_un_seul_probleme(contrat, entete):
+    for nb_doublons in range(2, len(entete) + 1):
+        doublons = entete[:nb_doublons]
+        problemes = controler_structure(contrat, entete + doublons, NB_LIGNES)
+        assert [(p.code, p.colonnes) for p in problemes] == [(CodeStructure.COLONNE_DUPLIQUEE, tuple(doublons))], nb_doublons
+
+
+# ==============================================================================
 # 6. 🔠 LES NOMS SONT COMPARÉS À L'IDENTIQUE (casse, espaces) : pas de lecture « au mieux »
 # ==============================================================================
 @pytest.mark.parametrize(
@@ -115,6 +141,26 @@ def test_tous_les_problemes_sont_signales_ensemble_tries_par_code(contrat, entet
 def test_un_fichier_vide_garde_aussi_ses_autres_problemes_quand_il_a_un_en_tete(contrat, entete):
     problemes = controler_structure(contrat, entete[1:], 0)
     assert set(_codes(problemes)) == {CodeStructure.FICHIER_VIDE, CodeStructure.COLONNE_MANQUANTE}
+
+
+def test_un_changement_de_version_melange_colonnes_retirees_et_ajoutees(contrat, entete):
+    """Cas réaliste : l'émetteur retire deux colonnes et en ajoute deux autres, l'une en tête, l'autre au milieu de l'en-tête.
+
+    Les noms sont choisis pour que l'ordre du contrat (ou d'arrivée) soit DIFFÉRENT de l'ordre alphabétique : un tri parasite se verrait.
+    """
+    retirees = (entete[0], entete[2])
+    nouvelles = (f"{COLONNE_EN_TROP}_b", f"{COLONNE_EN_TROP}_a")
+    assert list(retirees) != sorted(retirees), "le contrat a changé : choisir deux colonnes retirées dont l'ordre n'est pas alphabétique"
+
+    restantes = [nom for nom in entete if nom not in retirees]
+    milieu = len(restantes) // 2
+    recues = [nouvelles[0], *restantes[:milieu], nouvelles[1], *restantes[milieu:]]
+
+    problemes = controler_structure(contrat, recues, NB_LIGNES)
+    assert [(p.code, p.colonnes) for p in problemes] == [
+        (CodeStructure.COLONNE_INCONNUE, nouvelles),
+        (CodeStructure.COLONNE_MANQUANTE, retirees),
+    ]
 
 
 # ==============================================================================
