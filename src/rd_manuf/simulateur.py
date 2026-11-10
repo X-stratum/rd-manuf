@@ -113,6 +113,11 @@ def generer_livraison(
     Un conflit de clé copie la clé d'une ligne saine, qui garde sa place : la seconde arrivée est celle qui sera rejetée.
     """
     anomalies = anomalies or {}
+    for code, nombre in anomalies.items():
+        if not isinstance(code, CodeErreur):
+            raise ValueError(f"Code d'erreur inconnu : {code!r}.")
+        if nombre < 0:
+            raise ValueError(f"Nombre d'anomalies négatif pour {code.value} : {nombre}.")
     nb_anomalies = sum(anomalies.values())
     nb_saines = nb_lignes - nb_anomalies
     if nb_saines < 0:

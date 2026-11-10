@@ -83,6 +83,8 @@ def test_sans_anomalie_demandee_la_livraison_est_saine(contrat):
     [
         pytest.param(3, {CodeErreur.HORS_PLAGE: 5}, id="plus-d-anomalies-que-de-lignes"),
         pytest.param(4, {CodeErreur.CLE_EN_CONFLIT: 3}, id="conflits-sans-assez-de-lignes-saines-a-contredire"),
+        pytest.param(5, {CodeErreur.HORS_PLAGE: -2}, id="nombre-d-anomalies-negatif"),
+        pytest.param(5, {"HORS_PLAGE": 1}, id="code-qui-n-est-pas-un-CodeErreur"),
     ],
 )
 def test_une_demande_impossible_est_refusee(contrat, nb_lignes, anomalies):
