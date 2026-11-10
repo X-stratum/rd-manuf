@@ -78,6 +78,7 @@ class StatutLivraison(str, Enum):
     ACCEPTEE = "ACCEPTEE"                            # aucune ligne rejetée
     ACCEPTEE_AVEC_REJETS = "ACCEPTEE_AVEC_REJETS"    # rejets dans le seuil : valides intégrées, rejets en quarantaine
     BLOQUEE = "BLOQUEE"                              # au-dessus du seuil : RIEN n'est intégré (tout ou rien)
+    REFUSEE = "REFUSEE"                              # structure invalide : aucune ligne lue (jamais produit par `valider_livraison`)
 
 
 class CodeErreur(str, Enum):
