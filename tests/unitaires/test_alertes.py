@@ -145,7 +145,7 @@ def test_plusieurs_lignes_de_meme_code_font_une_seule_alerte_avec_un_compteur(co
 
 
 def test_une_ligne_a_deux_violations_du_meme_code_compte_pour_une_ligne(contrat_sans_seuil, catalogue, fabrique):
-    resultat = valider_livraison(contrat_sans_seuil, [fabrique.deux_colonnes_hors_plage(1)])
+    resultat = valider_livraison(contrat_sans_seuil, [fabrique.valide(1), fabrique.deux_colonnes_hors_plage(2)])   # taux < 100 %
     alertes = router_alertes(catalogue, resultat, livraison_id="LIV-001")
     assert len(alertes) == 1
     assert alertes[0].nb_lignes == 1                                         # une LIGNE, pas deux violations
@@ -153,14 +153,14 @@ def test_une_ligne_a_deux_violations_du_meme_code_compte_pour_une_ligne(contrat_
 
 
 def test_deux_codes_differents_font_deux_alertes_triees_par_code(contrat_sans_seuil, catalogue, fabrique):
-    resultat = valider_livraison(contrat_sans_seuil, [fabrique.hors_domaine(2), fabrique.hors_plage(1)])
+    resultat = valider_livraison(contrat_sans_seuil, [fabrique.valide(1), fabrique.hors_domaine(3), fabrique.hors_plage(2)])
     alertes = router_alertes(catalogue, resultat, livraison_id="LIV-001")
     assert [alerte.code for alerte in alertes] == ["HORS_PLAGE", "VALEUR_HORS_DOMAINE"]
 
 
 def test_celui_qui_agit_n_est_pas_aussi_liste_comme_informe(contrat_sans_seuil, catalogue, fabrique):
     """VALEUR_HORS_DOMAINE : le métier agit ET est « toujours informé » : il ne doit apparaître qu'une fois (dans `agit`)."""
-    resultat = valider_livraison(contrat_sans_seuil, [fabrique.hors_domaine(1)])
+    resultat = valider_livraison(contrat_sans_seuil, [fabrique.valide(1), fabrique.hors_domaine(2)])
     alerte = router_alertes(catalogue, resultat, livraison_id="LIV-001")[0]
     assert alerte.agit == "metier"
     assert alerte.informes == ()
@@ -168,7 +168,7 @@ def test_celui_qui_agit_n_est_pas_aussi_liste_comme_informe(contrat_sans_seuil, 
 
 def test_une_ligne_a_deux_codes_differents_alimente_chaque_alerte(contrat_sans_seuil, catalogue, fabrique):
     """Garde-fou : une ligne qui cumule deux codes ne doit en perdre aucun, et chaque alerte ne liste que SA colonne."""
-    resultat = valider_livraison(contrat_sans_seuil, [fabrique.deux_codes_differents(1)])
+    resultat = valider_livraison(contrat_sans_seuil, [fabrique.valide(1), fabrique.deux_codes_differents(2)])
     alertes = router_alertes(catalogue, resultat, livraison_id="LIV-001")
     assert [(alerte.code, alerte.nb_lignes, alerte.colonnes) for alerte in alertes] == [
         ("HORS_PLAGE", 1, ("temperature_c",)),
