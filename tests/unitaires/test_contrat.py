@@ -21,6 +21,7 @@ def test_la_temperature_est_optionnelle(contrat, ligne_conforme):
     assert controler_ligne(contrat, ligne_conforme) == []
 
 
+# Table des rejets : VÉRIFIE le contrat, ses valeurs restent en clair.
 @pytest.mark.parametrize(
     ("colonne", "valeur", "fragment_erreur"),
     [
@@ -45,6 +46,7 @@ def test_chaque_regle_de_colonne_rejette_sa_violation(contrat, ligne_conforme, c
     assert any(fragment_erreur in erreur and colonne in erreur for erreur in erreurs), erreurs
 
 
+# Table des bornes : VÉRIFIE le contrat, ses valeurs restent en clair.
 @pytest.mark.parametrize(
     "modifications",
     [
@@ -127,6 +129,46 @@ def _contrat_modifie(tmp_path, modification):
 
 def test_le_vrai_contrat_est_valide():
     assert charger_contrat(CHEMIN_CONTRAT_REEL).nom == "livraison_production"
+
+
+# Valeurs du contrat réel que les tests supposent. Si le contrat change volontairement, mettre à jour CETTE table puis relire
+# les tables `parametrize` qui vérifient le contrat (bornes, domaine, seuil) : les autres tests en dérivent et suivent seuls.
+CONTRAT_REEL_ATTENDU = {
+    "version": "1.0.0",
+    "cle_primaire": ("id_lot",),
+    "taux_rejet_max": 0.02,
+    "regles": [("rebut_inferieur_ou_egal_production", "inferieur_ou_egal", "quantite_rebut", "quantite_produite")],
+    "colonnes": {
+        "id_lot": {"type": "chaine", "obligatoire": True, "minimum": None, "maximum": None, "motif": "^LOT-[0-9]{6}$", "valeurs": None},
+        "id_ligne": {"type": "chaine", "obligatoire": True, "minimum": None, "maximum": None, "motif": None, "valeurs": ("L1", "L2", "L3")},
+        "date_production": {"type": "date", "obligatoire": True, "minimum": None, "maximum": None, "motif": None, "valeurs": None},
+        "quantite_produite": {"type": "entier", "obligatoire": True, "minimum": 0, "maximum": 100000, "motif": None, "valeurs": None},
+        "quantite_rebut": {"type": "entier", "obligatoire": True, "minimum": 0, "maximum": None, "motif": None, "valeurs": None},
+        "temperature_c": {"type": "decimal", "obligatoire": False, "minimum": -50, "maximum": 400, "motif": None, "valeurs": None},
+    },
+}
+
+
+def test_le_contrat_reel_a_les_valeurs_que_les_tests_supposent(contrat):
+    """Alarme unique : si le contrat change, ce test le dit en une fois, avant que d'autres tests ne cassent pour des raisons obscures."""
+    obtenu = {
+        "version": contrat.version,
+        "cle_primaire": contrat.cle_primaire,
+        "taux_rejet_max": contrat.taux_rejet_max,
+        "regles": [(r.nom, r.type, r.gauche, r.droite) for r in contrat.regles_inter_colonnes],
+        "colonnes": {
+            c.nom: {
+                "type": c.type,
+                "obligatoire": c.obligatoire,
+                "minimum": c.minimum,
+                "maximum": c.maximum,
+                "motif": c.motif,
+                "valeurs": c.valeurs_autorisees,
+            }
+            for c in contrat.colonnes
+        },
+    }
+    assert obtenu == CONTRAT_REEL_ATTENDU
 
 
 @pytest.mark.parametrize(
