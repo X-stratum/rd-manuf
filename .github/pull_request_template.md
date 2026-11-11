@@ -32,8 +32,12 @@
 
 ## Message de squash
 <!--
-À copier dans le formulaire « Squash and merge » : le titre dans le champ à une ligne, le corps dans la grande zone.
-Ce texte devient l'historique de `main` : il doit se comprendre sans ouvrir la PR, sans case à cocher ni chiffre de preuve.
+À copier TEL QUEL dans le formulaire « Squash and merge » : le titre dans le champ à une ligne, le corps dans la grande zone.
+Il REMPLACE tout ce que GitHub y a préparé (par défaut, GitHub y met toute cette description : la supprimer).
+GitHub n'interprète pas le Markdown dans un message de commit : pas de `##`, pas de gras, pas de case à cocher.
+Ce texte devient l'historique de `main` : il doit se comprendre sans ouvrir la PR, sans chiffre de preuve.
+Forme : titre de 72 caractères au plus ; sections en MAJUSCULES, seules sur leur ligne ; lignes de 72 caractères au plus ;
+listes à tirets, la suite d'une puce décalée de 2 espaces ; LIMITES CONNUES seulement s'il y en a.
 À rédiger quand la PR est prête, et à relire avant de confirmer le merge.
 -->
 
@@ -44,13 +48,19 @@ type(portée): ce que ça change, au présent
 
 **Corps**
 ```
-En clair : <ce que ça permet, vu du métier, en 2 ou 3 phrases>
+EN CLAIR
+<ce que ça permet, vu du métier, en 2 ou 3 phrases, sans jargon>
 
-Pourquoi : <le problème ou le besoin>
+POURQUOI
+<le problème ou le besoin>
 
-Ce qui change :
+CE QUI CHANGE
 - <point 1>
 - <point 2>
 
-Décisions : <les choix à retenir, ou « aucune »>
+DÉCISIONS
+- <choix à retenir, ou « aucune »>
+
+LIMITES CONNUES
+- <ce qui n'est pas encore couvert ; retirer la section si rien>
 ```

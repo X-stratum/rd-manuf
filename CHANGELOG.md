@@ -20,6 +20,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #17 — Mettre en forme le message de squash
+*2026-11-11 · [PR #17](https://github.com/X-stratum/rd-manuf/pull/17)*
+
+**En clair.** Le texte qui reste dans l'historique du projet à chaque modification a maintenant une forme fixe et soignée (titres en majuscules, lignes courtes, listes à tirets), lisible partout, car GitHub n'affiche pas la mise en forme habituelle dans l'historique. Le modèle de description rappelle aussi qu'il faut remplacer ce que GitHub propose de lui-même, qui est toute la description.
+**Décisions.** Texte brut, sans mise en forme Markdown (elle n'est pas affichée). Les messages déjà dans `main`, dont celui de la PR #16 qui contient toute sa description, ne sont pas réécrits.
+
 ## #16 — Lire un fichier CSV et signaler les lignes coupées
 *2026-11-11 · [PR #16](https://github.com/X-stratum/rd-manuf/pull/16)*
 
