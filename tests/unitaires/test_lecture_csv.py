@@ -4,9 +4,12 @@ Le lecteur ne juge rien : il ne dit pas si le fichier est bon, il le LIT fidèle
 Les fichiers de test sont fabriqués par le simulateur (conforme au contrat) puis abîmés à la main, un défaut à la fois.
 """
 import codecs
+import csv
+
+import pytest
 
 from rd_manuf.contrat import CodeErreur, StatutLivraison
-from rd_manuf.lecture import lire_csv
+from rd_manuf.lecture import FichierIllisible, lire_csv
 from rd_manuf.reception import receptionner_livraison
 from rd_manuf.simulateur import ecrire_livraison_csv, generer_livraison
 
@@ -178,3 +181,35 @@ def test_une_ligne_vide_au_milieu_du_fichier_est_ignoree(tmp_path, contrat):
 
     assert len(fichier.lignes) == NB_LIGNES
     assert fichier.lignes_malformees == ()
+
+
+def test_une_ligne_vide_avant_l_en_tete_ne_devient_pas_l_en_tete(tmp_path, contrat, entete):
+    """Sinon le fichier serait lu sans aucune colonne, et la réception annoncerait « fichier vide » alors qu'il contient des données."""
+    chemin = tmp_path / "livraison.csv"
+    _ecrire_fichier_sain(chemin, contrat)
+    chemin.write_text("\n" + chemin.read_text(encoding="utf-8"), encoding="utf-8")
+
+    fichier = lire_csv(chemin)
+
+    assert fichier.colonnes == entete
+    assert len(fichier.lignes) == NB_LIGNES
+    assert fichier.lignes_malformees == ()
+
+
+# ==============================================================================
+# 8. 🚫 FICHIER ILLISIBLE : une erreur CLAIRE, pas une erreur technique qui arrête tout le programme
+# ==============================================================================
+@pytest.mark.parametrize(
+    "contenu",
+    [
+        pytest.param("id_lot,id_ligne\né\n".encode("latin-1"), id="latin-1-au-lieu-d-utf-8"),
+        pytest.param("id_lot,id_ligne\n".encode("utf-16"), id="utf-16-comme-l-exporte-parfois-excel"),
+        pytest.param(b"id_lot\n" + b"x" * (csv.field_size_limit() + 1), id="champ-plus-long-que-la-limite-du-lecteur"),
+    ],
+)
+def test_un_fichier_illisible_leve_une_erreur_claire(tmp_path, contenu):
+    chemin = tmp_path / "livraison.csv"
+    chemin.write_bytes(contenu)
+
+    with pytest.raises(FichierIllisible):
+        lire_csv(chemin)

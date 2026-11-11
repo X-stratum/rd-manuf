@@ -16,7 +16,8 @@ from rd_manuf.alertes import (
     router_alertes_reception,
 )
 from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison, valider_livraison
-from rd_manuf.reception import receptionner_livraison
+from rd_manuf.lecture import FichierIllisible
+from rd_manuf.reception import receptionner_livraison, refuser_fichier_illisible
 from rd_manuf.simulateur import generer_livraison
 from rd_manuf.structure import CodeStructure
 
@@ -321,3 +322,10 @@ def test_une_livraison_acceptee_avec_rejets_est_routee_comme_avant(contrat_sans_
     alertes = router_alertes_reception(catalogue, reception)
     assert alertes == router_alertes(catalogue, reception.resultat, "LIV-001")
     assert [alerte.code for alerte in alertes] == ["HORS_PLAGE"]
+
+
+def test_un_fichier_illisible_alerte_l_emetteur_sans_ligne_ni_colonne(contrat, catalogue):
+    reception = refuser_fichier_illisible(contrat, "LIV-001", FichierIllisible("encodage inconnu"))
+    assert router_alertes_reception(catalogue, reception) == [
+        Alerte("LIV-001", "FICHIER_ILLISIBLE", 0, "emetteur", ("equipe_data", "metier"), ())
+    ]

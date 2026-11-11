@@ -4,7 +4,8 @@ Ordre de la décision A : si la structure est invalide, la livraison est REFUSEE
 du contrat (ACCEPTEE, ACCEPTEE_AVEC_REJETS, BLOQUEE). Le simulateur fabrique les livraisons, aucune valeur du contrat n'est recopiée ici.
 """
 from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison
-from rd_manuf.reception import receptionner_livraison
+from rd_manuf.lecture import FichierIllisible
+from rd_manuf.reception import receptionner_livraison, refuser_fichier_illisible
 from rd_manuf.simulateur import generer_livraison
 from rd_manuf.structure import CodeStructure
 
@@ -117,3 +118,16 @@ def test_un_fichier_dont_toutes_les_lignes_sont_malformees_n_est_pas_un_fichier_
     reception = receptionner_livraison(contrat_sans_seuil, LIVRAISON_ID, entete, [], [_ligne_coupee(entete)])
     assert reception.problemes_structure == ()
     assert reception.nb_recues == 1
+
+
+# ==============================================================================
+# 6. 🚫 FICHIER ILLISIBLE : refusé avec son code, sans colonne ni ligne
+# ==============================================================================
+def test_un_fichier_illisible_est_refuse_avec_son_code_et_le_motif(contrat):
+    reception = refuser_fichier_illisible(contrat, LIVRAISON_ID, FichierIllisible("encodage inconnu"))
+    assert reception.statut == StatutLivraison.REFUSEE
+    (probleme,) = reception.problemes_structure
+    assert probleme.code == CodeStructure.FICHIER_ILLISIBLE
+    assert "encodage inconnu" in probleme.message                # le motif technique est conservé pour l'équipe data
+    assert (reception.nb_recues, reception.nb_valides, reception.nb_rejetees) == (0, 0, 0)
+    assert (reception.version_contrat, reception.resultat) == (contrat.version, None)
