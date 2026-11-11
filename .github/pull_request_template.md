@@ -62,5 +62,5 @@ DÉCISIONS
 - <choix à retenir, ou « aucune »>
 
 LIMITES CONNUES
-- <ce qui n'est pas encore couvert ; supprimer cette section s'il n'y en a pas>
+- <ce qui n'est pas encore couvert ; retirer la section si rien>
 ```
