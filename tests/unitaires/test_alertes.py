@@ -58,6 +58,7 @@ def test_chaque_code_d_erreur_a_une_regle_de_routage(catalogue):
         (CodeErreur.VALEUR_HORS_DOMAINE, "metier"),     # seul le métier sait si une nouvelle valeur est légitime
         (CodeErreur.REGLE_ENTRE_COLONNES, "emetteur"),
         (CodeErreur.CLE_EN_CONFLIT, "emetteur"),        # lui seul sait quelle ligne est la bonne
+        (CodeErreur.LIGNE_MALFORMEE, "emetteur"),       # lui seul peut renvoyer une ligne entière
     ],
 )
 def test_le_routage_suit_la_decision_prise(catalogue, code, agit):

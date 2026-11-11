@@ -94,6 +94,7 @@ class CodeErreur(str, Enum):
     VALEUR_HORS_DOMAINE = "VALEUR_HORS_DOMAINE"
     REGLE_ENTRE_COLONNES = "REGLE_ENTRE_COLONNES"
     CLE_EN_CONFLIT = "CLE_EN_CONFLIT"
+    LIGNE_MALFORMEE = "LIGNE_MALFORMEE"    # nombre de champs différent de l'en-tête (ligne coupée, virgule non protégée)
 
 
 @dataclass(frozen=True)

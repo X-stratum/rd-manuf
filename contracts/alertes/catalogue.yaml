@@ -36,6 +36,9 @@ codes:
     agit: emetteur            # incohérence entre deux colonnes de la même ligne
   CLE_EN_CONFLIT:
     agit: emetteur            # lui seul sait laquelle des deux lignes est la bonne
+  LIGNE_MALFORMEE:
+    agit: emetteur            # ligne coupée ou mal protégée : seul l'émetteur peut la renvoyer entière
+    informe: [equipe_data]    # une ligne coupée peut aussi venir d'un transfert interrompu de notre côté
 
 # Refus d'une livraison pour sa STRUCTURE (en-tête, voir CodeStructure dans src/rd_manuf/structure.py) : aucune ligne n'est lue.
 # Sans ces règles, un mauvais en-tête serait refusé EN SILENCE.
