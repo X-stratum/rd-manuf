@@ -17,6 +17,7 @@ class CodeStructure(str, Enum):
     """Code STABLE d'un problème de structure : le registre et les alertes s'appuient dessus, jamais sur le texte du message."""
 
     FICHIER_VIDE = "FICHIER_VIDE"
+    FICHIER_ILLISIBLE = "FICHIER_ILLISIBLE"    # impossible à lire (mauvais encodage, format inconnu, fichier abîmé)
     COLONNE_MANQUANTE = "COLONNE_MANQUANTE"
     COLONNE_INCONNUE = "COLONNE_INCONNUE"
     COLONNE_DUPLIQUEE = "COLONNE_DUPLIQUEE"

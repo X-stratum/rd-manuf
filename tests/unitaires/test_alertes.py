@@ -74,6 +74,11 @@ def test_chaque_code_de_structure_a_une_regle_de_routage(catalogue):
         assert catalogue.regle_structure(code).agit in catalogue.roles, code
 
 
+def test_un_fichier_illisible_est_route_vers_l_emetteur_et_informe_l_equipe_data(catalogue):
+    regle = catalogue.regle_structure(CodeStructure.FICHIER_ILLISIBLE)
+    assert (regle.agit, tuple(regle.informe)) == ("emetteur", ("equipe_data",))
+
+
 @pytest.mark.parametrize("code", list(CodeStructure), ids=lambda code: code.value)
 def test_un_refus_de_structure_est_a_corriger_par_l_emetteur_avec_l_equipe_data_en_copie(catalogue, code):
     """Lui seul peut renvoyer un fichier à la bonne structure ; l'équipe data suit : le refus peut venir d'une nouvelle version."""
