@@ -7,10 +7,23 @@ from pathlib import Path
 import pytest
 import yaml
 
-from rd_manuf.alertes import CODE_LIVRAISON_BLOQUEE, Alerte, CatalogueInvalide, charger_catalogue, router_alertes
+from rd_manuf.alertes import (
+    CODE_LIVRAISON_BLOQUEE,
+    Alerte,
+    CatalogueInvalide,
+    charger_catalogue,
+    router_alertes,
+    router_alertes_reception,
+)
 from rd_manuf.contrat import CodeErreur, StatutLivraison, valider_livraison
+from rd_manuf.reception import receptionner_livraison
+from rd_manuf.simulateur import generer_livraison
+from rd_manuf.structure import CodeStructure
 
 CHEMIN_CATALOGUE = Path(__file__).resolve().parents[2] / "contracts" / "alertes" / "catalogue.yaml"
+GRAINE = 42
+NB_LIGNES = 20
+NB_ANOMALIES = 2
 
 
 @pytest.fixture(scope="session")
@@ -55,6 +68,19 @@ def test_le_metier_est_toujours_informe(catalogue):
     assert "metier" in catalogue.toujours_informes
 
 
+def test_chaque_code_de_structure_a_une_regle_de_routage(catalogue):
+    for code in CodeStructure:
+        assert catalogue.regle_structure(code).agit in catalogue.roles, code
+
+
+@pytest.mark.parametrize("code", list(CodeStructure), ids=lambda code: code.value)
+def test_un_refus_de_structure_est_a_corriger_par_l_emetteur_avec_l_equipe_data_en_copie(catalogue, code):
+    """Lui seul peut renvoyer un fichier à la bonne structure ; l'équipe data suit : le refus peut venir d'une nouvelle version."""
+    regle = catalogue.regle_structure(code)
+    assert regle.agit == "emetteur"
+    assert "equipe_data" in regle.informe
+
+
 # ==============================================================================
 # 2. 🧯 CATALOGUE MAL FORMÉ : refusé au chargement, avec un message qui dit quoi corriger
 # ==============================================================================
@@ -73,6 +99,11 @@ def test_le_metier_est_toujours_informe(catalogue):
         ("agit est une liste", lambda brut: brut["codes"]["HORS_PLAGE"].update(agit=["emetteur"])),
         ("informe contient une liste", lambda brut: brut["codes"]["HORS_PLAGE"].update(informe=[["metier"]])),
         ("toujours_informes contient un dictionnaire", lambda brut: brut.update(toujours_informes=[{"a": 1}])),
+        ("code de structure sans règle", lambda brut: brut["structure"].pop("FICHIER_VIDE")),
+        ("règle pour un code de structure qui n'existe pas", lambda brut: brut["structure"].update(CODE_FANTOME={"agit": "emetteur"})),
+        ("rôle inconnu dans agit d'un code de structure", lambda brut: brut["structure"]["FICHIER_VIDE"].update(agit="fantome")),
+        ("section structure absente", lambda brut: brut.pop("structure")),
+        ("structure n'est pas un dictionnaire", lambda brut: brut.update(structure=[])),
     ],
 )
 def test_un_catalogue_mal_forme_est_refuse(tmp_path, description, modification):
@@ -214,3 +245,64 @@ def test_un_nouveau_role_informe_en_permanence_se_declare_sans_toucher_au_code(t
     resultat = valider_livraison(contrat_sans_seuil, fabrique.livraison(nb_valides=3, nb_hors_plage=1))
     alerte = router_alertes(catalogue_etendu, resultat, livraison_id="LIV-001")[0]
     assert alerte.informes == ("metier", "qualite")
+
+
+# ==============================================================================
+# 6. 🚫 LIVRAISON REFUSÉE : une alerte par code de structure (sinon un mauvais en-tête serait refusé EN SILENCE)
+#    `nb_lignes` = lignes reçues et NON intégrées à cause du refus (aucune n'a été jugée) ; un fichier vide donne 0.
+# ==============================================================================
+def _reception(contrat, colonnes_recues, nb_lignes=NB_LIGNES, **options):
+    return receptionner_livraison(contrat, "LIV-001", colonnes_recues, generer_livraison(contrat, nb_lignes, GRAINE, **options))
+
+
+def test_une_colonne_manquante_alerte_l_emetteur_et_informe_l_equipe_data_et_le_metier(contrat, catalogue, entete):
+    reception = _reception(contrat, entete[1:])
+    assert router_alertes_reception(catalogue, reception) == [
+        Alerte(
+            livraison_id="LIV-001",
+            code="COLONNE_MANQUANTE",
+            nb_lignes=NB_LIGNES,
+            agit="emetteur",
+            informes=("equipe_data", "metier"),
+            colonnes=(entete[0],),
+        )
+    ]
+
+
+def test_un_fichier_sans_ligne_alerte_avec_zero_ligne_et_sans_colonne(contrat, catalogue, entete):
+    reception = _reception(contrat, entete, nb_lignes=0)
+    assert router_alertes_reception(catalogue, reception) == [
+        Alerte("LIV-001", "FICHIER_VIDE", 0, "emetteur", ("equipe_data", "metier"), ())
+    ]
+
+
+def test_plusieurs_problemes_de_structure_font_une_alerte_par_code_sans_livraison_bloquee(contrat, catalogue, entete):
+    reception = _reception(contrat, entete[1:] + ["colonne_en_trop"])
+    codes = [alerte.code for alerte in router_alertes_reception(catalogue, reception)]
+    assert codes == ["COLONNE_INCONNUE", "COLONNE_MANQUANTE"]      # triées ; LIVRAISON_BLOQUEE est réservée au dépassement du seuil
+
+
+# ==============================================================================
+# 7. ➡️ LIVRAISON NON REFUSÉE : le point d'entrée unique ne change rien au routage existant
+# ==============================================================================
+def test_une_livraison_acceptee_ne_produit_aucune_alerte_a_la_reception(contrat, catalogue, entete):
+    reception = _reception(contrat, entete)
+    assert reception.statut == StatutLivraison.ACCEPTEE
+    assert router_alertes_reception(catalogue, reception) == []
+
+
+def test_une_livraison_bloquee_est_routee_comme_avant(contrat_strict, catalogue, entete):
+    reception = _reception(contrat_strict, entete, anomalies={CodeErreur.HORS_PLAGE: NB_ANOMALIES})
+    assert reception.statut == StatutLivraison.BLOQUEE
+    alertes = router_alertes_reception(catalogue, reception)
+    assert alertes == router_alertes(catalogue, reception.resultat, "LIV-001")
+    assert alertes[0].code == CODE_LIVRAISON_BLOQUEE                        # la comparaison ne doit pas se faire sur une liste vide
+
+
+def test_une_livraison_acceptee_avec_rejets_est_routee_comme_avant(contrat_sans_seuil, catalogue, entete):
+    """Le troisième statut « non refusé » : des rejets sous le seuil produisent leurs alertes, pas la branche des refus de structure."""
+    reception = _reception(contrat_sans_seuil, entete, anomalies={CodeErreur.HORS_PLAGE: NB_ANOMALIES})
+    assert reception.statut == StatutLivraison.ACCEPTEE_AVEC_REJETS
+    alertes = router_alertes_reception(catalogue, reception)
+    assert alertes == router_alertes(catalogue, reception.resultat, "LIV-001")
+    assert [alerte.code for alerte in alertes] == ["HORS_PLAGE"]

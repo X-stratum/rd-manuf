@@ -3,8 +3,6 @@
 Ordre de la décision A : si la structure est invalide, la livraison est REFUSEE sans qu'aucune ligne soit lue ; sinon le statut est celui
 du contrat (ACCEPTEE, ACCEPTEE_AVEC_REJETS, BLOQUEE). Le simulateur fabrique les livraisons, aucune valeur du contrat n'est recopiée ici.
 """
-import pytest
-
 from rd_manuf.contrat import CodeErreur, StatutLivraison
 from rd_manuf.reception import receptionner_livraison
 from rd_manuf.simulateur import generer_livraison
@@ -15,12 +13,6 @@ GRAINE = 42
 NB_LIGNES = 20
 NB_ANOMALIES = 2
 STATUTS_ATTENDUS = {"ACCEPTEE", "ACCEPTEE_AVEC_REJETS", "BLOQUEE", "REFUSEE"}
-
-
-@pytest.fixture()
-def entete(contrat):
-    """L'en-tête d'un fichier conforme : exactement les colonnes du contrat."""
-    return [colonne.nom for colonne in contrat.colonnes]
 
 
 # ==============================================================================
@@ -65,6 +57,7 @@ def test_une_colonne_manquante_refuse_la_livraison_meme_si_les_lignes_sont_valid
     lignes = generer_livraison(contrat, NB_LIGNES, GRAINE)
     reception = receptionner_livraison(contrat, LIVRAISON_ID, entete[1:], lignes)
     assert reception.statut == StatutLivraison.REFUSEE
+    assert reception.version_contrat == contrat.version     # savoir avec quelle version un refus a été prononcé
     assert [probleme.code for probleme in reception.problemes_structure] == [CodeStructure.COLONNE_MANQUANTE]
     assert (reception.nb_recues, reception.nb_valides, reception.nb_rejetees) == (NB_LIGNES, 0, 0)
     assert reception.resultat is None

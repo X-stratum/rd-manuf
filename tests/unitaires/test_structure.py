@@ -14,12 +14,6 @@ NB_MAX_COLONNES_EN_TROP = 4
 CODES_ATTENDUS = {"FICHIER_VIDE", "COLONNE_MANQUANTE", "COLONNE_INCONNUE", "COLONNE_DUPLIQUEE"}
 
 
-@pytest.fixture()
-def entete(contrat):
-    """L'en-tête d'un fichier conforme : exactement les colonnes du contrat."""
-    return [colonne.nom for colonne in contrat.colonnes]
-
-
 def _codes(problemes):
     return [probleme.code for probleme in problemes]
 

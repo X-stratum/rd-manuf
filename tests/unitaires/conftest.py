@@ -44,6 +44,12 @@ def contrat_strict(contrat):
 
 
 @pytest.fixture()
+def entete(contrat):
+    """L'en-tête d'un fichier conforme : exactement les colonnes du contrat."""
+    return [colonne.nom for colonne in contrat.colonnes]
+
+
+@pytest.fixture()
 def ligne_conforme():
     """Une ligne qui respecte le contrat : chaque test en modifie UN champ pour viser UNE règle."""
     return {
