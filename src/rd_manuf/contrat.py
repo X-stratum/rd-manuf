@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
@@ -14,6 +15,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+from rd_manuf.lecture import LigneMalformee
 
 # ==============================================================================
 # 1. 📚 VOCABULAIRE DU CONTRAT
@@ -33,6 +36,10 @@ MARQUEURS_ABSENCE = frozenset({"", "nan", "nans", "null", "na"})
 
 CLES_OBLIGATOIRES_CONTRAT = ("nom", "version", "cle_primaire", "colonnes", "seuils_qualite")
 CLES_OBLIGATOIRES_REGLE = ("nom", "type", "gauche", "droite")
+
+# Une ligne malformée n'a pas de colonnes exploitables : elle est conservée telle que lue sous ces deux clés (diagnostic, quarantaine).
+CLE_NUMERO_LIGNE = "numero_ligne"
+CLE_CHAMPS_BRUTS = "champs_bruts"
 
 
 class ContratInvalide(ValueError):
@@ -327,13 +334,25 @@ def _valeurs_normalisees(contrat: Contrat, ligne: dict[str, Any]) -> dict[str, A
     return valeurs
 
 
-def valider_livraison(contrat: Contrat, lignes: list[dict[str, Any]]) -> ResultatValidation:
+def _rejeter_ligne_malformee(contrat: Contrat, malformee: LigneMalformee) -> LigneRejetee:
+    message = f"ligne {malformee.numero} : {len(malformee.champs)} champs reçus au lieu de {len(contrat.colonnes)}"
+    violation = Violation(CodeErreur.LIGNE_MALFORMEE, (), message)     # aucune colonne précise à corriger : c'est la ligne entière
+    ligne = {CLE_NUMERO_LIGNE: malformee.numero, CLE_CHAMPS_BRUTS: list(malformee.champs)}
+    return LigneRejetee(ligne=ligne, violations=(violation,))
+
+
+def valider_livraison(
+    contrat: Contrat,
+    lignes: list[dict[str, Any]],
+    lignes_malformees: Sequence[LigneMalformee] = (),
+) -> ResultatValidation:
     """Applique le contrat à une livraison : lignes valides / rejetées, doublons, puis décision selon le seuil.
 
     Pour une même clé primaire, la PREMIÈRE ligne valide arrivée fait foi :
         - une ligne identique APRÈS normalisation par le contrat est un rejeu technique : ignorée, sans rejet ;
         - une ligne au contenu différent est un conflit : rejetée (on ne sait pas laquelle est juste).
     Une ligne invalide ne réserve pas sa clé.
+    Les lignes malformées (mises à part par le lecteur) sont rejetées avec LIGNE_MALFORMEE : elles comptent comme reçues et comme rejetées.
     """
     valides: list[dict[str, Any]] = []
     rejetees: list[LigneRejetee] = []
@@ -359,7 +378,8 @@ def valider_livraison(contrat: Contrat, lignes: list[dict[str, Any]]) -> Resulta
             conflit = Violation(CodeErreur.CLE_EN_CONFLIT, contrat.cle_primaire, message)
             rejetees.append(LigneRejetee(ligne=ligne, violations=(conflit,)))
 
-    nb_recues = len(lignes)
+    rejetees.extend(_rejeter_ligne_malformee(contrat, malformee) for malformee in sorted(lignes_malformees, key=lambda ligne: ligne.numero))
+    nb_recues = len(lignes) + len(lignes_malformees)
     taux_rejet = len(rejetees) / nb_recues if nb_recues else 0.0
 
     # Comparaison par DIVISION, jamais `rejets > seuil * total` : 0.29 * 100 vaut 28.999999999999996 en flottant.

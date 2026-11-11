@@ -5,7 +5,7 @@ Les fichiers de test sont fabriqués par le simulateur (conforme au contrat) pui
 """
 import codecs
 
-from rd_manuf.contrat import StatutLivraison
+from rd_manuf.contrat import CodeErreur, StatutLivraison
 from rd_manuf.lecture import lire_csv
 from rd_manuf.reception import receptionner_livraison
 from rd_manuf.simulateur import ecrire_livraison_csv, generer_livraison
@@ -41,7 +41,7 @@ def test_un_fichier_sain_n_a_aucune_ligne_malformee(tmp_path, contrat):
     assert lire_csv(chemin).lignes_malformees == ()
 
 
-def test_une_derniere_ligne_coupee_est_signalee_par_son_numero(tmp_path, contrat):
+def test_une_derniere_ligne_coupee_est_signalee_et_mise_a_part(tmp_path, contrat, entete):
     """Sans ce signalement, la valeur manquante serait lue comme une absence : une ligne coupée passerait pour valide."""
     chemin = tmp_path / "livraison.csv"
     _ecrire_fichier_sain(chemin, contrat)
@@ -49,20 +49,30 @@ def test_une_derniere_ligne_coupee_est_signalee_par_son_numero(tmp_path, contrat
     lignes_du_fichier[-1] = lignes_du_fichier[-1].rsplit(",", 1)[0]      # la dernière valeur de la dernière ligne n'est jamais arrivée
     chemin.write_text("\n".join(lignes_du_fichier) + "\n", encoding="utf-8")
 
-    assert lire_csv(chemin).lignes_malformees == (NUMERO_DERNIERE_LIGNE,)
+    fichier = lire_csv(chemin)
+
+    (malformee,) = fichier.lignes_malformees
+    assert malformee.numero == NUMERO_DERNIERE_LIGNE
+    assert len(malformee.champs) == len(entete) - 1     # les valeurs brutes sont conservées, pour le diagnostic
+    assert len(fichier.lignes) == NB_LIGNES - 1             # la ligne malformée n'est plus mêlée aux lignes saines
 
 
 # ==============================================================================
 # 3. 📏 LIGNE TROP LONGUE : une virgule non protégée décale tout, rien ne doit disparaître en silence
 # ==============================================================================
-def test_une_derniere_ligne_trop_longue_est_signalee_par_son_numero(tmp_path, contrat):
+def test_une_derniere_ligne_trop_longue_est_signalee_et_mise_a_part(tmp_path, contrat, entete):
     chemin = tmp_path / "livraison.csv"
     _ecrire_fichier_sain(chemin, contrat)
     lignes_du_fichier = chemin.read_text(encoding="utf-8").splitlines()
     lignes_du_fichier[-1] += ",valeur_en_trop"
     chemin.write_text("\n".join(lignes_du_fichier) + "\n", encoding="utf-8")
 
-    assert lire_csv(chemin).lignes_malformees == (NUMERO_DERNIERE_LIGNE,)
+    fichier = lire_csv(chemin)
+
+    (malformee,) = fichier.lignes_malformees
+    assert malformee.numero == NUMERO_DERNIERE_LIGNE
+    assert len(malformee.champs) == len(entete) + 1     # les valeurs brutes sont conservées, pour le diagnostic
+    assert len(fichier.lignes) == NB_LIGNES - 1             # la ligne malformée n'est plus mêlée aux lignes saines
 
 
 # ==============================================================================
@@ -123,6 +133,23 @@ def test_un_fichier_sain_avec_bom_est_accepte_par_la_reception(tmp_path, contrat
     reception = receptionner_livraison(contrat, "livraison-test", fichier.colonnes, fichier.lignes)
 
     assert reception.statut == StatutLivraison.ACCEPTEE
+
+
+def test_un_fichier_tronque_n_est_plus_accepte_et_sa_ligne_coupee_est_rejetee(tmp_path, contrat):
+    """Le cas qui motive le lecteur : sans lignes malformées, une ligne coupée avant sa dernière colonne facultative passait pour valide."""
+    chemin = tmp_path / "livraison.csv"
+    _ecrire_fichier_sain(chemin, contrat)
+    lignes_du_fichier = chemin.read_text(encoding="utf-8").splitlines()
+    lignes_du_fichier[-1] = lignes_du_fichier[-1].rsplit(",", 1)[0]
+    chemin.write_text("\n".join(lignes_du_fichier) + "\n", encoding="utf-8")
+
+    fichier = lire_csv(chemin)
+    reception = receptionner_livraison(contrat, "livraison-test", fichier.colonnes, fichier.lignes, fichier.lignes_malformees)
+
+    assert reception.statut != StatutLivraison.ACCEPTEE
+    assert (reception.nb_recues, reception.nb_rejetees) == (NB_LIGNES, 1)
+    (rejet,) = reception.resultat.lignes_rejetees
+    assert [violation.code for violation in rejet.violations] == [CodeErreur.LIGNE_MALFORMEE]
 
 
 # ==============================================================================
