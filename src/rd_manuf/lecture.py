@@ -31,6 +31,8 @@ def lire_csv(chemin: str | Path, separateur: str = SEPARATEUR_PAR_DEFAUT, encoda
         lecteur = csv.reader(fichier, delimiter=separateur)   # pas DictReader : il fusionnerait les colonnes en double
         colonnes = next(lecteur, [])
         for valeurs in lecteur:
+            if not valeurs:
+                continue                                      # ligne totalement vide : aucune donnée, ni ligne reçue ni ligne malformée
             if len(valeurs) != len(colonnes):
                 malformees.append(lecteur.line_num)           # numéro de ligne du fichier, tel que l'émetteur le verrait dans Excel
             # strict=False voulu : une ligne plus courte ou plus longue est signalée ci-dessus, puis transmise ; la réception décidera

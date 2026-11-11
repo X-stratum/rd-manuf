@@ -123,3 +123,31 @@ def test_un_fichier_sain_avec_bom_est_accepte_par_la_reception(tmp_path, contrat
     reception = receptionner_livraison(contrat, "livraison-test", fichier.colonnes, fichier.lignes)
 
     assert reception.statut == StatutLivraison.ACCEPTEE
+
+
+# ==============================================================================
+# 7. 🈳 LIGNE VIDE : elle ne porte aucune donnée, ce n'est ni une ligne reçue ni une ligne malformée
+# ==============================================================================
+def test_une_ligne_vide_en_fin_de_fichier_n_est_pas_une_ligne_de_donnees(tmp_path, contrat):
+    """Les exports Windows se terminent souvent par une ligne vide : elle ne doit pas gonfler le nombre de lignes reçues."""
+    chemin = tmp_path / "livraison.csv"
+    _ecrire_fichier_sain(chemin, contrat)
+    chemin.write_text(chemin.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+
+    fichier = lire_csv(chemin)
+
+    assert len(fichier.lignes) == NB_LIGNES
+    assert fichier.lignes_malformees == ()
+
+
+def test_une_ligne_vide_au_milieu_du_fichier_est_ignoree(tmp_path, contrat):
+    chemin = tmp_path / "livraison.csv"
+    _ecrire_fichier_sain(chemin, contrat)
+    lignes_du_fichier = chemin.read_text(encoding="utf-8").splitlines()
+    lignes_du_fichier.insert(2, "")                                       # entre la 1re et la 2e ligne de données
+    chemin.write_text("\n".join(lignes_du_fichier) + "\n", encoding="utf-8")
+
+    fichier = lire_csv(chemin)
+
+    assert len(fichier.lignes) == NB_LIGNES
+    assert fichier.lignes_malformees == ()
