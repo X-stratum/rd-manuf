@@ -8,6 +8,7 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ## Petit lexique
 
+- **CSV** : un fichier texte où chaque ligne est une ligne de données, les valeurs étant séparées par un symbole (virgule ou point-virgule). C'est ce qu'exporte Excel.
 - **Livraison** : un fichier de données envoyé par l'usine. Celui qui l'envoie est l'**émetteur** ; ceux qui utilisent les données sont le **métier** ; ceux qui construisent le pipeline sont l'**équipe data**.
 - **Contrat de données** : la fiche qui décrit ce qu'une livraison doit contenir (colonnes, types de valeurs, limites, règles).
 - **Rejet** : une ligne qui ne respecte pas le contrat est mise de côté pour être corrigée, au lieu d'être utilisée.
@@ -18,6 +19,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Sabotage** : une modification volontaire du code pour vérifier que les tests détectent bien l'erreur.
 
 ---
+
+## #16 — Lire un fichier CSV et signaler les lignes coupées
+*2026-11-11 · [PR #16](https://github.com/X-stratum/rd-manuf/pull/16)*
+
+**En clair.** Le projet sait maintenant ouvrir un fichier CSV envoyé par l'usine et le transmettre à la réception. Le caractère invisible qu'Excel ajoute en tête de fichier ne fait plus refuser une livraison à tort, le séparateur (virgule ou point-virgule) est réglable, et une ligne coupée en route ou trop longue est signalée au lieu de passer inaperçue.
+**Décisions.** Le lecteur lit et signale, il ne juge pas : les lignes mal formées sont signalées par leur numéro mais pas encore traitées par la réception (ticket suivant). Le format Parquet aura son propre lecteur, indépendant de celui-ci.
 
 ## #15 — Journal des changements
 *2026-11-11 · [PR #15](https://github.com/X-stratum/rd-manuf/pull/15)*
