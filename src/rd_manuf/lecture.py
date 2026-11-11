@@ -19,10 +19,12 @@ SEPARATEUR_PAR_DEFAUT = ","
 ENCODAGE_PAR_DEFAUT = "utf-8-sig"   # lit l'UTF-8 avec OU sans BOM : le BOM d'Excel est retiré, pas laissé dans le premier nom
 
 
-class FichierIllisible(ValueError):
+class FichierIllisible(Exception):
     """Le fichier ne peut pas être lu du tout (mauvais encodage, champ démesuré, format inconnu) : la livraison doit être refusée.
 
     Ce n'est pas un bug du programme mais un problème du fichier reçu : il doit donc être traité (refus, alerte), pas laisser s'arrêter.
+    Elle n'hérite PAS de ValueError : `ContratInvalide` (un contrat mal écrit, erreur de chez nous) en est une, et les deux ne doivent pas
+    pouvoir être attrapées ensemble.
     """
 
 

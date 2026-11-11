@@ -298,6 +298,13 @@ def test_plusieurs_problemes_de_structure_font_une_alerte_par_code_sans_livraiso
     assert codes == ["COLONNE_INCONNUE", "COLONNE_MANQUANTE"]      # triées ; LIVRAISON_BLOQUEE est réservée au dépassement du seuil
 
 
+def test_un_fichier_illisible_alerte_l_emetteur_sans_ligne_ni_colonne(contrat, catalogue):
+    reception = refuser_fichier_illisible(contrat, "LIV-001", FichierIllisible("encodage inconnu"))
+    assert router_alertes_reception(catalogue, reception) == [
+        Alerte("LIV-001", "FICHIER_ILLISIBLE", 0, "emetteur", ("equipe_data", "metier"), ())
+    ]
+
+
 # ==============================================================================
 # 7. ➡️ LIVRAISON NON REFUSÉE : le point d'entrée unique ne change rien au routage existant
 # ==============================================================================
@@ -322,10 +329,3 @@ def test_une_livraison_acceptee_avec_rejets_est_routee_comme_avant(contrat_sans_
     alertes = router_alertes_reception(catalogue, reception)
     assert alertes == router_alertes(catalogue, reception.resultat, "LIV-001")
     assert [alerte.code for alerte in alertes] == ["HORS_PLAGE"]
-
-
-def test_un_fichier_illisible_alerte_l_emetteur_sans_ligne_ni_colonne(contrat, catalogue):
-    reception = refuser_fichier_illisible(contrat, "LIV-001", FichierIllisible("encodage inconnu"))
-    assert router_alertes_reception(catalogue, reception) == [
-        Alerte("LIV-001", "FICHIER_ILLISIBLE", 0, "emetteur", ("equipe_data", "metier"), ())
-    ]

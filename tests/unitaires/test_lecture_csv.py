@@ -213,3 +213,9 @@ def test_un_fichier_illisible_leve_une_erreur_claire(tmp_path, contenu):
 
     with pytest.raises(FichierIllisible):
         lire_csv(chemin)
+
+
+def test_un_fichier_illisible_n_est_pas_une_value_error():
+    """`ContratInvalide` (contrat mal écrit, erreur de chez nous) est une ValueError : un `except ValueError` ne doit jamais attraper
+    un fichier illisible, sinon un contrat cassé finirait par être imputé à l'émetteur du fichier."""
+    assert not issubclass(FichierIllisible, ValueError)
