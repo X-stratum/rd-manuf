@@ -37,6 +37,22 @@ codes:
   CLE_EN_CONFLIT:
     agit: emetteur            # lui seul sait laquelle des deux lignes est la bonne
 
+# Refus d'une livraison pour sa STRUCTURE (en-tête, voir CodeStructure dans src/rd_manuf/structure.py) : aucune ligne n'est lue.
+# Sans ces règles, un mauvais en-tête serait refusé EN SILENCE.
+structure:
+  FICHIER_VIDE:
+    agit: emetteur            # fichier sans ligne de données (ou sans en-tête) : seul l'émetteur peut le renvoyer
+    informe: [equipe_data]
+  COLONNE_MANQUANTE:
+    agit: emetteur            # colonne du contrat absente de l'en-tête
+    informe: [equipe_data]    # un refus peut venir d'une nouvelle version du fichier : le contrat devra peut-être évoluer
+  COLONNE_INCONNUE:
+    agit: emetteur            # colonne qui n'existe pas dans le contrat
+    informe: [equipe_data]
+  COLONNE_DUPLIQUEE:
+    agit: emetteur            # même nom de colonne présent plusieurs fois : lecture ambiguë
+    informe: [equipe_data]
+
 # Alerte supplémentaire quand le taux de rejet dépasse le seuil du contrat : rien n'entre en silver.
 livraison_bloquee:
   agit: metier                # qualifie l'écart : incident ponctuel ou dérive durable ?

@@ -12,9 +12,11 @@ from typing import Any
 import yaml
 
 from rd_manuf.contrat import CodeErreur, ResultatValidation, StatutLivraison
+from rd_manuf.reception import Reception
+from rd_manuf.structure import CodeStructure
 
 CODE_LIVRAISON_BLOQUEE = "LIVRAISON_BLOQUEE"
-CLES_OBLIGATOIRES_CATALOGUE = ("roles", "toujours_informes", "codes", "livraison_bloquee")
+CLES_OBLIGATOIRES_CATALOGUE = ("roles", "toujours_informes", "codes", "structure", "livraison_bloquee")
 
 
 class CatalogueInvalide(ValueError):
@@ -32,10 +34,14 @@ class Catalogue:
     roles: tuple[str, ...]
     toujours_informes: tuple[str, ...]
     regles: dict[str, RegleRoutage]
+    regles_structure: dict[str, RegleRoutage]
     livraison_bloquee: RegleRoutage
 
     def regle(self, code: str) -> RegleRoutage:
         return self.regles[CodeErreur(code).value]
+
+    def regle_structure(self, code: str) -> RegleRoutage:
+        return self.regles_structure[CodeStructure(code).value]
 
 
 @dataclass(frozen=True)
@@ -74,6 +80,19 @@ def _construire_regle(definition: Any, roles: set[str], description: str) -> Reg
     return RegleRoutage(agit=definition["agit"], informe=informe)
 
 
+def _construire_regles(section: Any, attendus: set[str], roles: set[str], nom_section: str) -> dict[str, RegleRoutage]:
+    """Une règle par code attendu, ni plus ni moins : un code oublié ou inventé est refusé au chargement."""
+    if not isinstance(section, dict):
+        raise CatalogueInvalide(f"{nom_section} doit être un dictionnaire {{code: règle}}.")
+    sans_regle = sorted(attendus - set(section))
+    if sans_regle:
+        raise CatalogueInvalide(f"{nom_section} : codes sans règle de routage : {sans_regle}.")
+    inconnus = sorted(set(section) - attendus)
+    if inconnus:
+        raise CatalogueInvalide(f"{nom_section} : règles pour des codes qui n'existent pas : {inconnus}.")
+    return {code: _construire_regle(section[code], roles, f"{nom_section} {code}") for code in sorted(attendus)}
+
+
 def charger_catalogue(chemin: str | Path) -> Catalogue:
     """Lit le YAML et vérifie qu'il est cohérent AVANT de s'en servir (toute erreur = CatalogueInvalide)."""
     try:
@@ -91,21 +110,14 @@ def charger_catalogue(chemin: str | Path) -> Catalogue:
     roles = set(brut["roles"])
     toujours_informes = _liste_de_roles(brut["toujours_informes"], roles, "toujours_informes")
 
-    if not isinstance(brut["codes"], dict):
-        raise CatalogueInvalide("codes doit être un dictionnaire {code: règle}.")
-    attendus = {code.value for code in CodeErreur}
-    sans_regle = sorted(attendus - set(brut["codes"]))
-    if sans_regle:
-        raise CatalogueInvalide(f"Codes d'erreur sans règle de routage : {sans_regle}.")
-    inconnus = sorted(set(brut["codes"]) - attendus)
-    if inconnus:
-        raise CatalogueInvalide(f"Règles pour des codes qui n'existent pas : {inconnus}.")
-    regles = {code: _construire_regle(brut["codes"][code], roles, f"code {code}") for code in sorted(attendus)}
+    regles = _construire_regles(brut["codes"], {code.value for code in CodeErreur}, roles, "codes")
+    regles_structure = _construire_regles(brut["structure"], {code.value for code in CodeStructure}, roles, "structure")
 
     return Catalogue(
         roles=tuple(brut["roles"]),
         toujours_informes=toujours_informes,
         regles=regles,
+        regles_structure=regles_structure,
         livraison_bloquee=_construire_regle(brut["livraison_bloquee"], roles, "livraison_bloquee"),
     )
 
@@ -141,4 +153,21 @@ def router_alertes(catalogue: Catalogue, resultat: ResultatValidation, livraison
         regle = catalogue.regle(code)
         colonnes = tuple(sorted(colonnes_par_code[code]))
         alertes.append(Alerte(livraison_id, code, lignes_par_code[code], regle.agit, _informes(catalogue, regle), colonnes))
+    return alertes
+
+
+def router_alertes_reception(catalogue: Catalogue, reception: Reception) -> list[Alerte]:
+    """Point d'entrée unique après une réception.
+
+    Livraison REFUSEE : une alerte par code de structure, triées par code. `nb_lignes` = lignes reçues et NON intégrées à cause du
+    refus (aucune n'a été jugée) ; un fichier vide donne 0. Sinon : le routage des lignes, inchangé.
+    """
+    if reception.statut != StatutLivraison.REFUSEE:
+        return router_alertes(catalogue, reception.resultat, reception.livraison_id)
+
+    alertes = []
+    for probleme in sorted(reception.problemes_structure, key=lambda probleme: probleme.code.value):
+        regle = catalogue.regle_structure(probleme.code)
+        informes = _informes(catalogue, regle)
+        alertes.append(Alerte(reception.livraison_id, probleme.code.value, reception.nb_recues, regle.agit, informes, probleme.colonnes))
     return alertes
