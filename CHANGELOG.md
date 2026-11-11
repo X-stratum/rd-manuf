@@ -21,6 +21,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #19 — Refuser proprement un fichier illisible
+*2026-11-12 · [PR #19](https://github.com/X-stratum/rd-manuf/pull/19)*
+
+**En clair.** Un fichier qu'on ne peut pas lire du tout (accents mal encodés, export « Unicode » d'Excel, fichier abîmé) est maintenant refusé avec une alerte à l'émetteur, au lieu de faire s'arrêter le programme sur une erreur technique. Un fichier qui commence par une ligne vide n'est plus pris pour un fichier vide.
+**Décisions.** Un fichier illisible est un problème du fichier, pas du programme : il est traité comme un refus de structure (code `FICHIER_ILLISIBLE`). L'émetteur agit, l'équipe data est informée, et le motif technique est conservé dans le message. L'en-tête est la première ligne non vide.
+
 ## #18 — Rejeter les lignes mal formées d'un fichier
 *2026-11-12 · [PR #18](https://github.com/X-stratum/rd-manuf/pull/18)*
 

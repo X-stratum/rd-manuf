@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from rd_manuf.contrat import Contrat, LigneMalformee, ResultatValidation, StatutLivraison, valider_livraison
-from rd_manuf.structure import ProblemeStructure, controler_structure
+from rd_manuf.lecture import FichierIllisible
+from rd_manuf.structure import CodeStructure, ProblemeStructure, controler_structure
 
 
 @dataclass(frozen=True)
@@ -57,4 +58,22 @@ def receptionner_livraison(
         nb_rejetees=len(resultat.lignes_rejetees),
         problemes_structure=(),
         resultat=resultat,
+    )
+
+
+def refuser_fichier_illisible(contrat: Contrat, livraison_id: str, erreur: FichierIllisible) -> Reception:
+    """Refus d'une livraison dont le fichier n'a pas pu être lu : ni colonne ni ligne, un seul problème de structure.
+
+    Le motif technique de l'erreur est gardé dans le message, pour l'équipe data ; l'émetteur, lui, reçoit l'alerte du catalogue.
+    """
+    probleme = ProblemeStructure(CodeStructure.FICHIER_ILLISIBLE, (), str(erreur))
+    return Reception(
+        livraison_id=livraison_id,
+        statut=StatutLivraison.REFUSEE,
+        version_contrat=contrat.version,
+        nb_recues=0,
+        nb_valides=0,
+        nb_rejetees=0,
+        problemes_structure=(probleme,),
+        resultat=None,
     )

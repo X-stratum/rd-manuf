@@ -16,7 +16,8 @@ from rd_manuf.alertes import (
     router_alertes_reception,
 )
 from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison, valider_livraison
-from rd_manuf.reception import receptionner_livraison
+from rd_manuf.lecture import FichierIllisible
+from rd_manuf.reception import receptionner_livraison, refuser_fichier_illisible
 from rd_manuf.simulateur import generer_livraison
 from rd_manuf.structure import CodeStructure
 
@@ -72,6 +73,11 @@ def test_le_metier_est_toujours_informe(catalogue):
 def test_chaque_code_de_structure_a_une_regle_de_routage(catalogue):
     for code in CodeStructure:
         assert catalogue.regle_structure(code).agit in catalogue.roles, code
+
+
+def test_un_fichier_illisible_est_route_vers_l_emetteur_et_informe_l_equipe_data(catalogue):
+    regle = catalogue.regle_structure(CodeStructure.FICHIER_ILLISIBLE)
+    assert (regle.agit, tuple(regle.informe)) == ("emetteur", ("equipe_data",))
 
 
 @pytest.mark.parametrize("code", list(CodeStructure), ids=lambda code: code.value)
@@ -290,6 +296,13 @@ def test_plusieurs_problemes_de_structure_font_une_alerte_par_code_sans_livraiso
     reception = _reception(contrat, entete[1:] + ["colonne_en_trop"])
     codes = [alerte.code for alerte in router_alertes_reception(catalogue, reception)]
     assert codes == ["COLONNE_INCONNUE", "COLONNE_MANQUANTE"]      # triées ; LIVRAISON_BLOQUEE est réservée au dépassement du seuil
+
+
+def test_un_fichier_illisible_alerte_l_emetteur_sans_ligne_ni_colonne(contrat, catalogue):
+    reception = refuser_fichier_illisible(contrat, "LIV-001", FichierIllisible("encodage inconnu"))
+    assert router_alertes_reception(catalogue, reception) == [
+        Alerte("LIV-001", "FICHIER_ILLISIBLE", 0, "emetteur", ("equipe_data", "metier"), ())
+    ]
 
 
 # ==============================================================================
