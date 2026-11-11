@@ -26,6 +26,7 @@
 
 ## Auto-revue (en solo, GitHub interdit d'approuver sa propre PR)
 - [ ] J'ai relu mon diff en entier comme si c'était celui de quelqu'un d'autre
+- [ ] Entrée ajoutée en tête du `CHANGELOG.md` (« En clair » et décisions recopiés de cette description)
 - [ ] Aucun secret, jeton, chemin personnel ni nom de catalogue en dur ajouté
 - [ ] Revue Claude demandée (`/code-review`) et les points retenus sont notés ci-dessous
 
