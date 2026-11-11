@@ -3,8 +3,7 @@
 Ordre de la décision A : si la structure est invalide, la livraison est REFUSEE sans qu'aucune ligne soit lue ; sinon le statut est celui
 du contrat (ACCEPTEE, ACCEPTEE_AVEC_REJETS, BLOQUEE). Le simulateur fabrique les livraisons, aucune valeur du contrat n'est recopiée ici.
 """
-from rd_manuf.contrat import CodeErreur, StatutLivraison
-from rd_manuf.lecture import LigneMalformee
+from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison
 from rd_manuf.reception import receptionner_livraison
 from rd_manuf.simulateur import generer_livraison
 from rd_manuf.structure import CodeStructure

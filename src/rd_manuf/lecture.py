@@ -10,19 +10,13 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 
+from rd_manuf.contrat import LigneMalformee
+
 # ==============================================================================
 # ⚙️ RÉGLAGES PAR DÉFAUT (le contrat les précisera dans un bloc `fichier:` à un ticket ultérieur)
 # ==============================================================================
 SEPARATEUR_PAR_DEFAUT = ","
 ENCODAGE_PAR_DEFAUT = "utf-8-sig"   # lit l'UTF-8 avec OU sans BOM : le BOM d'Excel est retiré, pas laissé dans le premier nom
-
-
-@dataclass(frozen=True)
-class LigneMalformee:
-    """Une ligne dont le nombre de champs n'est pas celui de l'en-tête : ses valeurs ne peuvent pas être associées aux colonnes."""
-
-    numero: int                        # numéro dans le fichier, l'en-tête étant la ligne 1 (comme dans Excel)
-    champs: tuple[str, ...]            # valeurs brutes lues, pour le diagnostic et la quarantaine
 
 
 @dataclass(frozen=True)

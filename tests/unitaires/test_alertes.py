@@ -15,8 +15,7 @@ from rd_manuf.alertes import (
     router_alertes,
     router_alertes_reception,
 )
-from rd_manuf.contrat import CodeErreur, StatutLivraison, valider_livraison
-from rd_manuf.lecture import LigneMalformee
+from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison, valider_livraison
 from rd_manuf.reception import receptionner_livraison
 from rd_manuf.simulateur import generer_livraison
 from rd_manuf.structure import CodeStructure

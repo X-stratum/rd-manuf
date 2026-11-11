@@ -10,8 +10,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from rd_manuf.contrat import Contrat, ResultatValidation, StatutLivraison, valider_livraison
-from rd_manuf.lecture import LigneMalformee
+from rd_manuf.contrat import Contrat, LigneMalformee, ResultatValidation, StatutLivraison, valider_livraison
 from rd_manuf.structure import ProblemeStructure, controler_structure
 
 

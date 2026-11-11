@@ -16,8 +16,6 @@ from typing import Any
 
 import yaml
 
-from rd_manuf.lecture import LigneMalformee
-
 # ==============================================================================
 # 1. 📚 VOCABULAIRE DU CONTRAT
 # ==============================================================================
@@ -109,6 +107,14 @@ class Violation:
     code: CodeErreur
     colonnes: tuple[str, ...]   # colonnes à corriger
     message: str                # texte pour un humain
+
+
+@dataclass(frozen=True)
+class LigneMalformee:
+    """Une ligne dont le nombre de champs n'est pas celui de l'en-tête : ses valeurs ne peuvent pas être associées aux colonnes."""
+
+    numero: int                        # numéro dans le fichier, l'en-tête étant la ligne 1 (comme dans Excel)
+    champs: tuple[str, ...]            # valeurs brutes lues, pour le diagnostic et la quarantaine
 
 
 @dataclass(frozen=True)
