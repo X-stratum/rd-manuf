@@ -15,7 +15,7 @@ from rd_manuf.alertes import (
     router_alertes,
     router_alertes_reception,
 )
-from rd_manuf.contrat import CodeErreur, StatutLivraison, valider_livraison
+from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison, valider_livraison
 from rd_manuf.reception import receptionner_livraison
 from rd_manuf.simulateur import generer_livraison
 from rd_manuf.structure import CodeStructure
@@ -58,6 +58,7 @@ def test_chaque_code_d_erreur_a_une_regle_de_routage(catalogue):
         (CodeErreur.VALEUR_HORS_DOMAINE, "metier"),     # seul le métier sait si une nouvelle valeur est légitime
         (CodeErreur.REGLE_ENTRE_COLONNES, "emetteur"),
         (CodeErreur.CLE_EN_CONFLIT, "emetteur"),        # lui seul sait quelle ligne est la bonne
+        (CodeErreur.LIGNE_MALFORMEE, "emetteur"),       # lui seul peut renvoyer une ligne entière
     ],
 )
 def test_le_routage_suit_la_decision_prise(catalogue, code, agit):
@@ -212,6 +213,15 @@ def test_un_conflit_de_cle_alerte_l_emetteur(contrat_sans_seuil, catalogue, fabr
     resultat = valider_livraison(contrat_sans_seuil, [ligne, fabrique.concurrente(ligne)])
     alerte = router_alertes(catalogue, resultat, livraison_id="LIV-001")[0]
     assert (alerte.code, alerte.agit, alerte.colonnes) == ("CLE_EN_CONFLIT", "emetteur", ("id_lot",))
+
+
+def test_une_ligne_malformee_alerte_l_emetteur_et_informe_l_equipe_data_et_le_metier(contrat_sans_seuil, catalogue, fabrique):
+    """Aucune colonne précise à corriger : c'est la ligne entière qui est à renvoyer."""
+    malformee = LigneMalformee(numero=3, champs=("LOT-000002",))
+    resultat = valider_livraison(contrat_sans_seuil, [fabrique.valide(1)], [malformee])
+    (alerte,) = router_alertes(catalogue, resultat, livraison_id="LIV-001")
+    assert (alerte.code, alerte.agit, alerte.nb_lignes, alerte.colonnes) == ("LIGNE_MALFORMEE", "emetteur", 1, ())
+    assert alerte.informes == ("equipe_data", "metier")
 
 
 # ==============================================================================

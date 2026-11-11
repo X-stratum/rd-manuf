@@ -9,6 +9,7 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 ## Petit lexique
 
 - **CSV** : un fichier texte où chaque ligne est une ligne de données, les valeurs étant séparées par un symbole (virgule ou point-virgule). C'est ce qu'exporte Excel.
+- **Ligne malformée** : une ligne dont le nombre de valeurs ne correspond pas à l'en-tête, le plus souvent une ligne coupée en route. On ne peut pas savoir à quelle colonne appartient chaque valeur.
 - **Livraison** : un fichier de données envoyé par l'usine. Celui qui l'envoie est l'**émetteur** ; ceux qui utilisent les données sont le **métier** ; ceux qui construisent le pipeline sont l'**équipe data**.
 - **Contrat de données** : la fiche qui décrit ce qu'une livraison doit contenir (colonnes, types de valeurs, limites, règles).
 - **Rejet** : une ligne qui ne respecte pas le contrat est mise de côté pour être corrigée, au lieu d'être utilisée.
@@ -19,6 +20,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Sabotage** : une modification volontaire du code pour vérifier que les tests détectent bien l'erreur.
 
 ---
+
+## #18 — Rejeter les lignes mal formées d'un fichier
+*2026-11-12 · [PR #18](https://github.com/X-stratum/rd-manuf/pull/18)*
+
+**En clair.** Une ligne coupée en route, ou dont le nombre de valeurs est faux, n'est plus acceptée par erreur : elle est écartée comme toute ligne incorrecte, comptée dans le taux de rejet, et l'émetteur est prévenu de la renvoyer. Avant, une ligne coupée juste avant sa dernière valeur facultative pouvait passer pour valide.
+**Décisions.** Le lecteur met ces lignes à part sans jamais deviner à quelles colonnes appartiennent leurs valeurs. Un seul rejet par ligne, pas un par valeur manquante. L'émetteur agit, l'équipe data est informée (un transfert interrompu peut venir de chez nous). Les codes d'erreur étant un contrat avec les alertes, ce huitième code est ajouté volontairement, en même temps que sa règle d'alerte.
 
 ## #17 — Mettre en forme le message de squash
 *2026-11-11 · [PR #17](https://github.com/X-stratum/rd-manuf/pull/17)*

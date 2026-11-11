@@ -116,6 +116,8 @@ def generer_livraison(
     for code, nombre in anomalies.items():
         if not isinstance(code, CodeErreur):
             raise ValueError(f"Code d'erreur inconnu : {code!r}.")
+        if code not in FABRIQUES_D_ANOMALIES:
+            raise ValueError(f"{code.value} ne se fabrique pas par une valeur de ligne : elle vient de la forme du fichier.")
         if nombre < 0:
             raise ValueError(f"Nombre d'anomalies négatif pour {code.value} : {nombre}.")
     nb_anomalies = sum(anomalies.values())

@@ -16,7 +16,11 @@ GRAINE = 42
 NB_LIGNES = 20
 NB_GRAINES_VERIFIEES = 10
 NB_ANOMALIES = 3
-TOUS_LES_CODES = pytest.mark.parametrize("code", list(CodeErreur), ids=lambda code: code.value)
+# LIGNE_MALFORMEE est exclu : elle vient de la FORME du fichier (nombre de champs), pas d'une valeur de ligne.
+# Le simulateur fabrique des lignes (dictionnaires) et le validateur de lignes ne la voit jamais :
+# elle est produite par la lecture du fichier (voir test_reception.py).
+CODES_PAR_VALEUR = [code for code in CodeErreur if code != CodeErreur.LIGNE_MALFORMEE]
+TOUS_LES_CODES = pytest.mark.parametrize("code", CODES_PAR_VALEUR, ids=lambda code: code.value)
 
 
 def _violations_par_code(resultat):
@@ -66,6 +70,12 @@ def test_chaque_anomalie_demandee_produit_exactement_ce_code(contrat_sans_seuil,
     assert len(lignes) == NB_LIGNES                        # les anomalies REMPLACENT des lignes saines, elles ne s'ajoutent pas
     assert len(resultat.lignes_rejetees) == NB_ANOMALIES
     assert set(_violations_par_code(resultat)) == {code}
+
+
+def test_demander_une_ligne_malformee_au_simulateur_est_une_erreur_claire(contrat):
+    """Un code qui vient de la forme du fichier ne se fabrique pas par une valeur : mieux vaut un refus explicite qu'un KeyError."""
+    with pytest.raises(ValueError, match="LIGNE_MALFORMEE"):
+        generer_livraison(contrat, NB_LIGNES, GRAINE, anomalies={CodeErreur.LIGNE_MALFORMEE: 1})
 
 
 def test_plusieurs_anomalies_de_codes_differents_se_combinent(contrat_sans_seuil):

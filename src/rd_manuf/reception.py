@@ -6,10 +6,11 @@ des livraisons. Ce module n'écrit nulle part et ne lit aucun fichier : en-tête
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from rd_manuf.contrat import Contrat, ResultatValidation, StatutLivraison, valider_livraison
+from rd_manuf.contrat import Contrat, LigneMalformee, ResultatValidation, StatutLivraison, valider_livraison
 from rd_manuf.structure import ProblemeStructure, controler_structure
 
 
@@ -25,21 +26,28 @@ class Reception:
     resultat: ResultatValidation | None                   # détail pour les alertes ; None si REFUSEE
 
 
-def receptionner_livraison(contrat: Contrat, livraison_id: str, colonnes_recues: list[str], lignes: list[dict[str, Any]]) -> Reception:
-    problemes = controler_structure(contrat, colonnes_recues, len(lignes))
+def receptionner_livraison(
+    contrat: Contrat,
+    livraison_id: str,
+    colonnes_recues: list[str],
+    lignes: list[dict[str, Any]],
+    lignes_malformees: Sequence[LigneMalformee] = (),
+) -> Reception:
+    nb_lignes_recues = len(lignes) + len(lignes_malformees)     # une ligne malformée est une ligne reçue : le fichier n'est pas vide
+    problemes = controler_structure(contrat, colonnes_recues, nb_lignes_recues)
     if problemes:
         return Reception(
             livraison_id=livraison_id,
             statut=StatutLivraison.REFUSEE,
             version_contrat=contrat.version,
-            nb_recues=len(lignes),
+            nb_recues=nb_lignes_recues,
             nb_valides=0,
             nb_rejetees=0,
             problemes_structure=tuple(problemes),
             resultat=None,
         )
 
-    resultat = valider_livraison(contrat, lignes)
+    resultat = valider_livraison(contrat, lignes, lignes_malformees)
     return Reception(
         livraison_id=livraison_id,
         statut=resultat.statut,

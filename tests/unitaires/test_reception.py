@@ -3,7 +3,7 @@
 Ordre de la décision A : si la structure est invalide, la livraison est REFUSEE sans qu'aucune ligne soit lue ; sinon le statut est celui
 du contrat (ACCEPTEE, ACCEPTEE_AVEC_REJETS, BLOQUEE). Le simulateur fabrique les livraisons, aucune valeur du contrat n'est recopiée ici.
 """
-from rd_manuf.contrat import CodeErreur, StatutLivraison
+from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison
 from rd_manuf.reception import receptionner_livraison
 from rd_manuf.simulateur import generer_livraison
 from rd_manuf.structure import CodeStructure
@@ -13,6 +13,8 @@ GRAINE = 42
 NB_LIGNES = 20
 NB_ANOMALIES = 2
 STATUTS_ATTENDUS = {"ACCEPTEE", "ACCEPTEE_AVEC_REJETS", "BLOQUEE", "REFUSEE"}
+NUMERO_LIGNE_COUPEE = 7
+NB_CHAMPS_RECUS_PAR_LA_LIGNE_COUPEE = 2
 
 
 # ==============================================================================
@@ -77,3 +79,41 @@ def test_les_lignes_ne_sont_pas_validees_quand_la_structure_est_refusee(contrat,
     monkeypatch.setattr("rd_manuf.reception.valider_livraison", ne_doit_pas_etre_appele)
     lignes = generer_livraison(contrat, NB_LIGNES, GRAINE)
     assert receptionner_livraison(contrat, LIVRAISON_ID, entete[1:], lignes).statut == StatutLivraison.REFUSEE
+
+
+# ==============================================================================
+# 5. ✂️ LIGNES MALFORMÉES : mises à part par le lecteur, REJETÉES ici avec leur code, et comptées comme toute ligne rejetée
+# ==============================================================================
+def _ligne_coupee(entete):
+    """Une ligne qui n'a reçu que quelques champs : le lecteur ne sait pas à quelles colonnes les associer."""
+    return LigneMalformee(numero=NUMERO_LIGNE_COUPEE, champs=tuple(entete[:NB_CHAMPS_RECUS_PAR_LA_LIGNE_COUPEE]))
+
+
+def test_une_ligne_malformee_est_rejetee_avec_son_code(contrat_sans_seuil, entete):
+    lignes = generer_livraison(contrat_sans_seuil, NB_LIGNES, GRAINE)
+    reception = receptionner_livraison(contrat_sans_seuil, LIVRAISON_ID, entete, lignes, [_ligne_coupee(entete)])
+    assert reception.statut == StatutLivraison.ACCEPTEE_AVEC_REJETS
+    assert (reception.nb_recues, reception.nb_valides, reception.nb_rejetees) == (NB_LIGNES + 1, NB_LIGNES, 1)
+    (rejet,) = reception.resultat.lignes_rejetees
+    assert [violation.code for violation in rejet.violations] == [CodeErreur.LIGNE_MALFORMEE]
+
+
+def test_une_ligne_malformee_compte_dans_le_taux_et_peut_bloquer_la_livraison(contrat_strict, entete):
+    """Avec un seuil à zéro, la moindre ligne rejetée bloque : une ligne coupée ne doit pas passer sous le radar."""
+    lignes = generer_livraison(contrat_strict, NB_LIGNES, GRAINE)
+    reception = receptionner_livraison(contrat_strict, LIVRAISON_ID, entete, lignes, [_ligne_coupee(entete)])
+    assert reception.statut == StatutLivraison.BLOQUEE
+    assert (reception.nb_valides, reception.nb_rejetees) == (0, 1)
+
+
+def test_une_livraison_refusee_compte_aussi_ses_lignes_malformees_parmi_les_recues(contrat, entete):
+    lignes = generer_livraison(contrat, NB_LIGNES, GRAINE)
+    reception = receptionner_livraison(contrat, LIVRAISON_ID, entete[1:], lignes, [_ligne_coupee(entete)])
+    assert reception.statut == StatutLivraison.REFUSEE
+    assert reception.nb_recues == NB_LIGNES + 1
+
+
+def test_un_fichier_dont_toutes_les_lignes_sont_malformees_n_est_pas_un_fichier_vide(contrat_sans_seuil, entete):
+    reception = receptionner_livraison(contrat_sans_seuil, LIVRAISON_ID, entete, [], [_ligne_coupee(entete)])
+    assert reception.problemes_structure == ()
+    assert reception.nb_recues == 1
