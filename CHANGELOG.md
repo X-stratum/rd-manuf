@@ -22,6 +22,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #21 — Plan global illustré dans le README
+*2026-11-12 · [PR #21](https://github.com/X-stratum/rd-manuf/pull/21)*
+
+**En clair.** La page d'accueil du projet montre maintenant, en une image, où en est le projet : les six étapes de la livraison à la mise en production, ce qui est fait, ce qui vient ensuite et ce qui reste à construire. Chaque étape se déplie dans le README, avec des liens vers le code des blocs terminés.
+**Décisions.** L'image est fabriquée par un petit programme, et un test garantit qu'elle ne s'écarte pas du plan : changer un statut se fait en une ligne. GitHub ne permet pas de zones cliquables dans une image : des sections dépliables les remplacent.
+
 ## #20 — Lire un fichier au format Parquet
 *2026-11-12 · [PR #20](https://github.com/X-stratum/rd-manuf/pull/20)*
 
