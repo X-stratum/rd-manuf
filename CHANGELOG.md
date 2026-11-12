@@ -12,6 +12,7 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Ligne malformée** : une ligne dont le nombre de valeurs ne correspond pas à l'en-tête, le plus souvent une ligne coupée en route. On ne peut pas savoir à quelle colonne appartient chaque valeur.
 - **Parquet** : un format de fichier de données qui contient lui-même ses colonnes et leurs types (nombres, dates), donc plus fiable qu'un CSV, qui n'est que du texte.
 - **Environnement conda** : un espace de travail isolé (Python et bibliothèques) que l'on crée en une commande, pour que chacun travaille avec les mêmes versions.
+- **Bundle Databricks** : un fichier qui décrit où le projet se déploie sur Databricks, et quel catalogue de données chaque cible utilise.
 - **Livraison** : un fichier de données envoyé par l'usine. Celui qui l'envoie est l'**émetteur** ; ceux qui utilisent les données sont le **métier** ; ceux qui construisent le pipeline sont l'**équipe data**.
 - **Contrat de données** : la fiche qui décrit ce qu'une livraison doit contenir (colonnes, types de valeurs, limites, règles).
 - **Rejet** : une ligne qui ne respecte pas le contrat est mise de côté pour être corrigée, au lieu d'être utilisée.
@@ -22,6 +23,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Sabotage** : une modification volontaire du code pour vérifier que les tests détectent bien l'erreur.
 
 ---
+
+## #25 — Bundle Databricks : trois cibles, trois catalogues
+*2026-11-12 · [PR #25](https://github.com/X-stratum/rd-manuf/pull/25)*
+
+**En clair.** Le projet décrit maintenant, dans un fichier, où il se déploiera sur Databricks : trois cibles (bac à sable, développement, production), chacune reliée à son catalogue de données. Databricks lui-même a vérifié ce fichier, mais rien n'est encore déployé. Un test garantit qu'il reste d'accord avec le garde-fou qui interdit de confondre les environnements, et qu'aucune adresse ni aucun secret n'y est écrit, le dépôt étant public.
+**Décisions.** La cible par défaut est le bac à sable : un déploiement lancé sans précision ne touche jamais la production. L'adresse du workspace n'est jamais dans le fichier : la commande utilise le profil local de la personne qui la lance. Une seule variable, le catalogue, distingue les trois cibles. Aucune tâche ni table n'est encore décrite : c'est le squelette sur lequel le reste se branchera. Un second test garde la liste des fichiers exclus de Git : l'état local de la CLI Databricks, les profils de connexion et les jetons ne peuvent pas en être retirés sans que le test échoue.
 
 ## #24 — Environnement conda et nouveau titre du README
 *2026-11-12 · [PR #24](https://github.com/X-stratum/rd-manuf/pull/24)*
