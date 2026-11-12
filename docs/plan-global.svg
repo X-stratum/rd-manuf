@@ -107,8 +107,8 @@
 <rect x="582" y="444" width="170" height="84" rx="8" fill="#fdf2e6" stroke="#e3a971" stroke-width="1.2"/>
 <text x="742" y="460" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#b8651b" text-anchor="end" letter-spacing="0.6">PROCHAIN</text>
 <text x="594" y="481" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Registre</text>
-<text x="594" y="497" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Une ligne par livraison</text>
-<text x="594" y="510" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">et sa décision</text>
+<text x="594" y="497" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Ligne par livraison faite ;</text>
+<text x="594" y="510" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">table à écrire</text>
 <rect x="594" y="517" width="146" height="4" rx="2" fill="#e1e7ec"/>
 <path d="M762.5 334 L770.5 339 L762.5 344z" fill="#1f7a6d"/>
 <rect x="773" y="314" width="186" height="314" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
@@ -239,5 +239,5 @@
 <text x="52" y="882" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">FEUILLE 1/1</text>
 <text x="160" y="882" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">PLAN GLOBAL</text>
 <text x="280" y="882" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="700" fill="#1b2733" text-anchor="start" letter-spacing="1.5">23 BLOCS  ·  3 STATUTS  ·  3 TYPES DE FLUX  ·  6 ÉTAPES</text>
-<text x="1348" y="882" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="end" letter-spacing="1.5">RÉV. 2  ·  2026-11-12</text>
+<text x="1348" y="882" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="end" letter-spacing="1.5">RÉV. 3  ·  2026-11-12</text>
 </svg>

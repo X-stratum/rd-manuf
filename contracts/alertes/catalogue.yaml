@@ -52,6 +52,9 @@ structure:
   NOM_FICHIER_INVALIDE:
     agit: emetteur            # le nom ne suit pas la convention (pays, usine, date en UTC) : seul l'émetteur peut renvoyer le fichier
     informe: [equipe_data]    # la convention est peut-être à faire évoluer, ou mal communiquée à cette usine
+  LIVRAISON_EN_CONFLIT:
+    agit: emetteur            # même origine et même instant qu'une livraison déjà intégrée, contenu différent : lui seul sait laquelle est juste
+    informe: [equipe_data]    # peut aussi venir d'un horodatage mal généré côté usine
   COLONNE_MANQUANTE:
     agit: emetteur            # colonne du contrat absente de l'en-tête
     informe: [equipe_data]    # un refus peut venir d'une nouvelle version du fichier : le contrat devra peut-être évoluer

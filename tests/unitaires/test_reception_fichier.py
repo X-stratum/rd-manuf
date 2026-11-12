@@ -3,11 +3,14 @@
 Un nom invalide est refusé AVANT toute lecture (les fichiers de ces tests n'existent même pas) ; un fichier illisible est refusé
 proprement ; sinon c'est la réception habituelle qui décide. L'identifiant de la livraison est le nom du fichier.
 """
+from datetime import UTC, datetime
+
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
 from rd_manuf.contrat import StatutLivraison
+from rd_manuf.nom_fichier import NomFichier
 from rd_manuf.reception import receptionner_fichier
 from rd_manuf.simulateur import ecrire_livraison_csv, generer_livraison
 from rd_manuf.structure import CodeStructure
@@ -84,3 +87,26 @@ def test_un_parquet_tronque_est_refuse_comme_illisible(tmp_path, contrat):
 
     assert reception.statut == StatutLivraison.REFUSEE
     assert _codes(reception) == [CodeStructure.FICHIER_ILLISIBLE]
+
+
+# ==============================================================================
+# 4. 🏷️ LA RÉCEPTION GARDE CE QUE LE NOM A APPRIS : le registre en aura besoin (d'où, de quand)
+# ==============================================================================
+NOM_ATTENDU = NomFichier(pays="FRA", usine="AB123", horodatage=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC), format="csv")
+
+
+def test_une_livraison_receptionnee_garde_les_informations_de_son_nom(tmp_path, contrat):
+    chemin = tmp_path / NOM_CSV
+    ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES, GRAINE), chemin)
+    assert receptionner_fichier(contrat, chemin).nom_fichier == NOM_ATTENDU
+
+
+def test_un_fichier_illisible_garde_quand_meme_les_informations_de_son_nom(tmp_path, contrat):
+    """Le nom est valide : on sait d'où et de quand vient le fichier, même s'il est inutilisable."""
+    chemin = tmp_path / NOM_CSV
+    chemin.write_bytes("id_lot\né\n".encode("latin-1"))
+    assert receptionner_fichier(contrat, chemin).nom_fichier == NOM_ATTENDU
+
+
+def test_un_nom_invalide_ne_donne_aucune_information_de_nom(tmp_path, contrat):
+    assert receptionner_fichier(contrat, tmp_path / "donnees.csv").nom_fichier is None

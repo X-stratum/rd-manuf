@@ -7,13 +7,13 @@ des livraisons. Ce module n'écrit nulle part et ne lit aucun fichier : en-tête
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from rd_manuf.contrat import Contrat, LigneMalformee, ResultatValidation, StatutLivraison, valider_livraison
 from rd_manuf.lecture import FichierIllisible, lire_selon_format
-from rd_manuf.nom_fichier import NomFichierInvalide, lire_nom_fichier
+from rd_manuf.nom_fichier import NomFichier, NomFichierInvalide, lire_nom_fichier
 from rd_manuf.structure import CodeStructure, ProblemeStructure, controler_structure
 
 
@@ -27,6 +27,7 @@ class Reception:
     nb_rejetees: int                                      # 0 si REFUSEE : aucune ligne n'a été jugée
     problemes_structure: tuple[ProblemeStructure, ...]    # vide sauf si REFUSEE
     resultat: ResultatValidation | None                   # détail pour les alertes ; None si REFUSEE
+    nom_fichier: NomFichier | None = None                 # d'où et de quand ; None si le nom est invalide ou sans fichier
 
 
 def receptionner_livraison(
@@ -76,6 +77,19 @@ def refuser_nom_invalide(contrat: Contrat, livraison_id: str, erreur: NomFichier
     return _refus(contrat, livraison_id, ProblemeStructure(CodeStructure.NOM_FICHIER_INVALIDE, (), str(erreur)))
 
 
+def refuser_conflit(contrat: Contrat, livraison_id: str, nom: NomFichier, livraison_deja_integree: str) -> Reception:
+    """Refus d'un fichier de même origine et de même instant qu'une livraison déjà intégrée, mais de contenu différent.
+
+    Rien n'est lu ni jugé : on ne sait pas laquelle des deux versions est la bonne, et ignorer celle-ci en silence perdrait des données.
+    """
+    message = (
+        f"Une livraison de même origine et de même instant est déjà intégrée ({livraison_deja_integree}) avec un contenu différent. "
+        "Renvoyer le fichier sous un nouvel instant si c'est une correction."
+    )
+    reception = _refus(contrat, livraison_id, ProblemeStructure(CodeStructure.LIVRAISON_EN_CONFLIT, (), message))
+    return replace(reception, nom_fichier=nom)
+
+
 def _refus(contrat: Contrat, livraison_id: str, probleme: ProblemeStructure) -> Reception:
     return Reception(
         livraison_id=livraison_id,
@@ -103,5 +117,6 @@ def receptionner_fichier(contrat: Contrat, chemin: str | Path) -> Reception:
     try:
         fichier = lire_selon_format(chemin, nom.format)
     except FichierIllisible as erreur:
-        return refuser_fichier_illisible(contrat, chemin.name, erreur)
-    return receptionner_livraison(contrat, chemin.name, fichier.colonnes, fichier.lignes, fichier.lignes_malformees)
+        return replace(refuser_fichier_illisible(contrat, chemin.name, erreur), nom_fichier=nom)
+    reception = receptionner_livraison(contrat, chemin.name, fichier.colonnes, fichier.lignes, fichier.lignes_malformees)
+    return replace(reception, nom_fichier=nom)

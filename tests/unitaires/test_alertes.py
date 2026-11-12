@@ -2,6 +2,7 @@
 
 Les adresses des personnes ne sont PAS dans Git (dépôt public) : elles vivront dans un annuaire hors du dépôt.
 """
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,8 @@ from rd_manuf.alertes import (
 from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison, valider_livraison
 from rd_manuf.lecture import FichierIllisible
 from rd_manuf.reception import receptionner_fichier, receptionner_livraison, refuser_fichier_illisible
-from rd_manuf.simulateur import generer_livraison
+from rd_manuf.registre import traiter_fichier
+from rd_manuf.simulateur import ecrire_livraison_csv, generer_livraison
 from rd_manuf.structure import CodeStructure
 
 CHEMIN_CATALOGUE = Path(__file__).resolve().parents[2] / "contracts" / "alertes" / "catalogue.yaml"
@@ -73,6 +75,11 @@ def test_le_metier_est_toujours_informe(catalogue):
 def test_chaque_code_de_structure_a_une_regle_de_routage(catalogue):
     for code in CodeStructure:
         assert catalogue.regle_structure(code).agit in catalogue.roles, code
+
+
+def test_un_conflit_de_livraison_est_route_vers_l_emetteur_et_informe_l_equipe_data(catalogue):
+    regle = catalogue.regle_structure(CodeStructure.LIVRAISON_EN_CONFLIT)
+    assert (regle.agit, tuple(regle.informe)) == ("emetteur", ("equipe_data",))
 
 
 def test_un_nom_de_fichier_invalide_est_route_vers_l_emetteur_et_informe_l_equipe_data(catalogue):
@@ -314,6 +321,20 @@ def test_un_nom_de_fichier_invalide_alerte_l_emetteur_sans_ligne_ni_colonne(cont
     reception = receptionner_fichier(contrat, tmp_path / "donnees.csv")
     assert router_alertes_reception(catalogue, reception) == [
         Alerte("donnees.csv", "NOM_FICHIER_INVALIDE", 0, "emetteur", ("equipe_data", "metier"), ())
+    ]
+
+
+def test_un_conflit_de_livraison_alerte_l_emetteur_sans_ligne_ni_colonne(contrat, catalogue, tmp_path):
+    chemin = tmp_path / "livraison_production_FRA_AB123_2026-11-11-14-30-05Z.csv"
+    arrivee = datetime(2026, 11, 11, 14, 35, tzinfo=UTC)
+    ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES, GRAINE), chemin)
+    _, premiere = traiter_fichier(contrat, chemin, [], arrivee)
+    ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES + 5, GRAINE + 1), chemin)      # même nom, autres données
+
+    reception, _ = traiter_fichier(contrat, chemin, [premiere], arrivee)
+
+    assert router_alertes_reception(catalogue, reception) == [
+        Alerte(chemin.name, "LIVRAISON_EN_CONFLIT", 0, "emetteur", ("equipe_data", "metier"), ())
     ]
 
 
