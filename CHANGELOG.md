@@ -24,6 +24,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #27 — Code usine : le format AA_001
+*2026-11-12 · [PR #27](https://github.com/X-stratum/rd-manuf/pull/27)*
+
+**En clair.** Le code de l'usine, dans le nom d'un fichier, s'écrit maintenant sur le modèle `AA_001` : deux lettres, un tiret bas (_), trois chiffres. Un fichier dont le nom utilise l'ancienne forme, comme `AB123`, est refusé, et le message de refus donne un exemple de nom conforme. Cela remplace la forme `AB123` décidée à la #22 (2 lettres et 3 chiffres).
+**Décisions.** Chaque partie du code a une largeur fixe : le tiret bas qu'il contient ne gêne donc pas la lecture du nom, le pays, le code usine et la date retombent chacun à leur place. L'ancienne forme est refusée plutôt qu'acceptée en parallèle : un seul format, simple, et rien n'est encore en production, donc aucune livraison existante n'est touchée. Le format est écrit dans une seule constante du code ; l'exemple du message de refus la répète, et un test échoue si les deux divergent. Le message de refus donne un exemple de nom, parce que la forme abstraite se lit moins bien avec un tiret bas dans le code.
+
 ## #26 — Bronze : copier fidèlement les lignes reçues
 *2026-11-12 · [PR #26](https://github.com/X-stratum/rd-manuf/pull/26)*
 

@@ -325,7 +325,7 @@ def test_un_nom_de_fichier_invalide_alerte_l_emetteur_sans_ligne_ni_colonne(cont
 
 
 def test_un_conflit_de_livraison_alerte_l_emetteur_sans_ligne_ni_colonne(contrat, catalogue, tmp_path):
-    chemin = tmp_path / "livraison_production_FRA_AB123_2026-11-11-14-30-05Z.csv"
+    chemin = tmp_path / "livraison_production_FRA_AA_001_2026-11-11-14-30-05Z.csv"
     arrivee = datetime(2026, 11, 11, 14, 35, tzinfo=UTC)
     ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES, GRAINE), chemin)
     _, premiere = traiter_fichier(contrat, chemin, [], arrivee)
