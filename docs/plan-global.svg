@@ -118,8 +118,8 @@
 <rect x="781" y="352" width="170" height="84" rx="8" fill="#fdf2e6" stroke="#e3a971" stroke-width="1.2"/>
 <text x="941" y="368" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#b8651b" text-anchor="end" letter-spacing="0.6">PROCHAIN</text>
 <text x="793" y="389" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Bronze</text>
-<text x="793" y="405" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Données telles que</text>
-<text x="793" y="418" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">reçues, conservées</text>
+<text x="793" y="405" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Lignes construites ;</text>
+<text x="793" y="418" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">table à écrire</text>
 <rect x="793" y="425" width="146" height="4" rx="2" fill="#e1e7ec"/>
 <rect x="781" y="444" width="170" height="84" rx="8" fill="#ffffff" stroke="#b4bfc9" stroke-width="1.2" stroke-dasharray="5 4"/>
 <text x="941" y="460" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#6b7a88" text-anchor="end" letter-spacing="0.6">À VENIR</text>
