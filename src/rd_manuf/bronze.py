@@ -44,7 +44,6 @@ class LigneBronzeCoupee:
     champs: tuple[str, ...]                    # les valeurs brutes lues, telles que reçues : on ne sait pas à quelle colonne chacune va
 
 
-
 def _entre_au_bronze(ligne_registre: LigneRegistre) -> bool:
     """La règle d'entrée, écrite une seule fois : c'est le registre qui décide, pour les lignes bien formées comme pour les coupées."""
     return ligne_registre.statut in STATUTS_BRONZE
