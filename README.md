@@ -121,7 +121,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
 
 ## Installer et lancer les tests
 
-Il faut Python 3.12 ou plus récent. Le plus simple est de passer par conda, qui crée un environnement isolé :
+Il faut Python 3.12 ou plus récent. Le plus simple est de passer par conda, qui crée un environnement isolé. Les commandes se lancent **depuis la racine du dépôt**, car l'installation désigne le dossier courant :
 
 ```bash
 conda env create -f environment.yml   # crée l'environnement « rd-manuf » : Python 3.12, le projet et ses outils de test
