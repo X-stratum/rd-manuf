@@ -1,8 +1,8 @@
-"""Lecture d'un fichier livré : du CSV vers (colonnes reçues, lignes), prêts pour `receptionner_livraison`.
+"""Lecture d'un fichier livré (CSV ou Parquet) : des colonnes reçues et des lignes, prêtes pour `receptionner_livraison`.
 
 Ce module LIT fidèlement, il ne JUGE pas : il ne corrige rien et ne devine rien. Les lignes bien formées sont transmises, les lignes
-malformées sont mises à part avec leur numéro ; la réception décide (refus, rejet avec un code précis).
-Tout est du texte à ce stade (le contrat convertit ensuite).
+malformées (CSV) sont mises à part avec leur numéro ; la réception décide (refus, rejet avec un code précis).
+Un CSV ne donne que du texte, un Parquet des valeurs déjà typées : dans les deux cas, c'est le contrat qui juge ensuite.
 """
 from __future__ import annotations
 
