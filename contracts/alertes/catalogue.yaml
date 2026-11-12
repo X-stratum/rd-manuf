@@ -49,6 +49,9 @@ structure:
   FICHIER_ILLISIBLE:
     agit: emetteur            # fichier abîmé, mal encodé ou d'un format inconnu : seul l'émetteur peut le renvoyer lisible
     informe: [equipe_data]    # un fichier abîmé peut venir d'un transfert interrompu de notre côté
+  NOM_FICHIER_INVALIDE:
+    agit: emetteur            # le nom ne suit pas la convention (pays, usine, date en UTC) : seul l'émetteur peut renvoyer le fichier
+    informe: [equipe_data]    # la convention est peut-être à faire évoluer, ou mal communiquée à cette usine
   COLONNE_MANQUANTE:
     agit: emetteur            # colonne du contrat absente de l'en-tête
     informe: [equipe_data]    # un refus peut venir d'une nouvelle version du fichier : le contrat devra peut-être évoluer

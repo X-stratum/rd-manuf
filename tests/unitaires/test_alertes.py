@@ -75,6 +75,11 @@ def test_chaque_code_de_structure_a_une_regle_de_routage(catalogue):
         assert catalogue.regle_structure(code).agit in catalogue.roles, code
 
 
+def test_un_nom_de_fichier_invalide_est_route_vers_l_emetteur_et_informe_l_equipe_data(catalogue):
+    regle = catalogue.regle_structure(CodeStructure.NOM_FICHIER_INVALIDE)
+    assert (regle.agit, tuple(regle.informe)) == ("emetteur", ("equipe_data",))
+
+
 def test_un_fichier_illisible_est_route_vers_l_emetteur_et_informe_l_equipe_data(catalogue):
     regle = catalogue.regle_structure(CodeStructure.FICHIER_ILLISIBLE)
     assert (regle.agit, tuple(regle.informe)) == ("emetteur", ("equipe_data",))
