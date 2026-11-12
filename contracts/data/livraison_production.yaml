@@ -14,7 +14,7 @@
 # ==============================================================================
 
 nom: livraison_production
-version: 1.0.0
+version: 2.0.0
 description: Une ligne = un lot produit sur une ligne de fabrication pour un jour donné.
 proprietaire: equipe_data_rd_manuf
 
@@ -24,7 +24,7 @@ cle_primaire:
 
 # ------------------------------------------------------------------------------
 # Colonnes attendues
-#   type : chaine | entier | decimal | date (format ISO AAAA-MM-JJ)
+#   type : chaine | entier | decimal | date (date seule, format ISO AAAA-MM-JJ : une date-heure est refusée depuis la 2.0.0)
 #   obligatoire : false → une valeur absente est acceptée (mais, si présente, elle est contrôlée)
 # ------------------------------------------------------------------------------
 colonnes:
@@ -39,7 +39,7 @@ colonnes:
     valeurs_autorisees: [L1, L2, L3]  # les 3 lignes de fabrication de l'usine
 
   - nom: date_production
-    type: date
+    type: date                        # une date seule, sans heure
     obligatoire: true
 
   - nom: quantite_produite

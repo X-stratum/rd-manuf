@@ -1,10 +1,15 @@
 """Tests du contrat (cycle A) : une règle = un test qui prouve qu'elle rejette ce qu'elle doit."""
+from datetime import date, datetime
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 import yaml
 
-from rd_manuf.contrat import ContratInvalide, charger_contrat, controler_ligne, est_absente
+from rd_manuf.contrat import CodeErreur, ContratInvalide, StatutLivraison, charger_contrat, controler_ligne, est_absente, valider_livraison
+from rd_manuf.lecture import lire_parquet
+from rd_manuf.simulateur import generer_livraison
 
 CHEMIN_CONTRAT_REEL = Path(__file__).resolve().parents[2] / "contracts" / "data" / "livraison_production.yaml"
 
@@ -29,6 +34,10 @@ def test_la_temperature_est_optionnelle(contrat, ligne_conforme):
         ("id_lot", "lot-000001", "motif"),
         ("id_ligne", "L9", "hors de"),
         ("date_production", "01/11/2026", "type date invalide"),
+        ("date_production", "2026-11-01 10:30:00", "type date invalide"),         # une date AVEC une heure, en texte (CSV)
+        ("date_production", datetime(2026, 11, 1, 10, 30), "type date invalide"),   # la même, typée (Parquet) : même règle
+        ("date_production", "2026-11-01 00:00:00", "type date invalide"),         # à minuit : c'est encore une date-heure, pas une date
+        ("date_production", datetime(2026, 11, 1), "type date invalide"),          # idem typée : un Parquet horodaté à minuit est refusé
         ("date_production", None, "obligatoire"),
         ("quantite_produite", -1, "minimum"),
         ("quantite_produite", 100001, "maximum"),
@@ -44,6 +53,27 @@ def test_chaque_regle_de_colonne_rejette_sa_violation(contrat, ligne_conforme, c
     erreurs = controler_ligne(contrat, ligne_conforme)
     assert erreurs, f"{colonne}={valeur!r} aurait dû être rejeté"
     assert any(fragment_erreur in erreur and colonne in erreur for erreur in erreurs), erreurs
+
+
+@pytest.mark.parametrize("valeur", [date(2026, 11, 1), "2026-11-01", " 2026-11-01 "], ids=["objet-date", "texte-iso", "texte-avec-espaces"])
+def test_une_vraie_date_est_conforme_sous_toutes_ses_formes(contrat, ligne_conforme, valeur):
+    ligne_conforme["date_production"] = valeur
+    assert controler_ligne(contrat, ligne_conforme) == []
+
+
+def test_une_livraison_parquet_dont_les_dates_ont_une_heure_est_bloquee_comme_en_csv(tmp_path, contrat):
+    """Une colonne date ne contient qu'une date : la même règle pour les deux formats, sinon un silver qui relit le texte du bronze
+    déciderait autrement que la réception (acceptée en Parquet, bloquée en CSV)."""
+    lignes = generer_livraison(contrat, 10, 42)
+    for ligne in lignes:
+        ligne["date_production"] = datetime.fromisoformat(ligne["date_production"] + "T10:30:00")
+    chemin = tmp_path / "livraison.parquet"
+    pq.write_table(pa.Table.from_pylist(lignes), chemin)
+
+    resultat = valider_livraison(contrat, lire_parquet(chemin).lignes)
+
+    assert resultat.statut == StatutLivraison.BLOQUEE
+    assert {violation.code for rejetee in resultat.lignes_rejetees for violation in rejetee.violations} == {CodeErreur.TYPE_INVALIDE}
 
 
 # Table des bornes : VÉRIFIE le contrat, ses valeurs restent en clair.
@@ -134,7 +164,7 @@ def test_le_vrai_contrat_est_valide():
 # Valeurs du contrat réel que les tests supposent. Si le contrat change volontairement, mettre à jour CETTE table puis relire
 # les tables `parametrize` qui vérifient le contrat (bornes, domaine, seuil) : les autres tests en dérivent et suivent seuls.
 CONTRAT_REEL_ATTENDU = {
-    "version": "1.0.0",
+    "version": "2.0.0",
     "cle_primaire": ("id_lot",),
     "taux_rejet_max": 0.02,
     "regles": [("rebut_inferieur_ou_egal_production", "inferieur_ou_egal", "quantite_rebut", "quantite_produite")],

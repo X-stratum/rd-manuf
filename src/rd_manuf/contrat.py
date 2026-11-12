@@ -9,7 +9,7 @@ import math
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -276,6 +276,8 @@ def convertir_valeur(type_colonne: str, valeur: Any) -> Any:
             raise ValueError("décimal fini attendu")
         return nombre
     if type_colonne == TYPE_DATE:
+        if isinstance(valeur, datetime):        # un datetime EST un date en Python : sans ce test, l'heure passerait en Parquet, pas en CSV
+            raise ValueError("date sans heure attendue")
         return valeur if isinstance(valeur, date) else date.fromisoformat(str(valeur).strip())
     raise ValueError(f"type inconnu {type_colonne}")
 

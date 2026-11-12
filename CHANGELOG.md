@@ -24,6 +24,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #29 — Date sans heure : une colonne date ne contient qu'une date
+*2026-11-13 · [PR #29](https://github.com/X-stratum/rd-manuf/pull/29)*
+
+**En clair.** Une colonne de type date n'accepte plus qu'une date : une date avec une heure est maintenant refusée, quel que soit le format du fichier. Avant, un fichier Parquet aux dates horodatées était accepté alors que le même contenu en CSV était refusé. Le contrat de données passe en version 2.0.0.
+**Décisions.** Une règle unique pour les deux formats : sans elle, un silver qui relit le texte du bronze aurait décidé autrement que la réception (essai vérifié : 10 lignes acceptées à la réception, toutes rejetées vues du texte du bronze). On refuse plutôt que de garder la date et de couper l'heure : l'heure ne se perd pas en silence, et le CSV n'accepte pas une forme qu'il refusait. Une date-heure à minuit est refusée aussi : c'est encore une date-heure. La version est majeure, comme l'écrit le contrat pour une règle durcie : des fichiers jadis acceptés peuvent être bloqués, et la version doit continuer à dire avec quelle règle une livraison a été jugée. Rien n'est en production et aucun consommateur gold n'existe : personne à prévenir.
+
 ## #28 — Bronze : conserver aussi les lignes coupées
 *2026-11-12 · [PR #28](https://github.com/X-stratum/rd-manuf/pull/28)*
 
