@@ -1,0 +1,29 @@
+# Bundle Databricks du projet rd-manuf : décrit ce que l'on déploie et OÙ (quelle cible, quel catalogue).
+#
+# Principe du projet : le même code tourne partout, l'environnement se choisit par le CATALOGUE.
+# Les noms de catalogues sont connus d'un seul endroit, src/rd_manuf/config.py ; un test (tests/unitaires/test_bundle.py)
+# garde ce fichier d'accord avec lui.
+#
+# Aucune adresse de workspace ni secret ici (dépôt public) : la CLI utilise le profil local de la personne qui lance la commande.
+#
+# Valider sans rien déployer (depuis la racine du dépôt) :
+#     databricks bundle validate -p <nom-du-profil>
+bundle:
+  name: rd_manuf
+
+variables:
+  catalogue:
+    description: Catalogue Unity Catalog ciblé. L'environnement se choisit par lui, jamais par une copie du code.
+    default: rd_manuf_playground       # valeur SÛRE : un oubli ne touche jamais la prod
+
+targets:
+  playground:
+    default: true                      # cible choisie quand on n'en précise aucune
+    variables:
+      catalogue: rd_manuf_playground
+  dev:
+    variables:
+      catalogue: rd_manuf_dev
+  prod:
+    variables:
+      catalogue: rd_manuf_prod

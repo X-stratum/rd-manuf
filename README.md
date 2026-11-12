@@ -71,7 +71,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <details>
 <summary><b>06 · Livrer</b> : du bac à sable à la production</summary>
 
-- ⚪ **Déploiement dev** : mise en place sur Databricks.
+- ⚪ **Déploiement dev** ([`databricks.yml`](databricks.yml)) : le bundle décrit trois cibles reliées à leurs catalogues et a été validé par Databricks, mais rien n'est encore déployé.
 - ⚪ **Mise en production** : version 0.1.0, puis reprise sur incident.
 
 </details>
@@ -117,6 +117,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
 - [`tests/unitaires/`](tests/unitaires/) : les tests.
 - [`docs/`](docs/) : l'image du plan global et le programme qui la fabrique.
 - [`environment.yml`](environment.yml) : l'environnement conda de travail.
+- [`databricks.yml`](databricks.yml) : le bundle Databricks, qui relie chaque cible de déploiement à son catalogue.
 - [`.github/`](.github/) : la CI et le modèle de description des Pull Requests.
 
 ## Installer et lancer les tests
@@ -136,6 +137,21 @@ Sans conda, `pip install -e ".[dev]"` installe la même chose dans l'environneme
 La liste des dépendances reste dans `pyproject.toml` : `environment.yml` ne fournit que Python et lance la même installation que la CI.
 Un test vérifie que la version de Python y est la même que dans le projet et dans la CI.
 La CI lance ces vérifications (style, puis tests) à chaque Pull Request, sur un environnement neuf.
+
+## Databricks : le bundle
+
+Le fichier [`databricks.yml`](databricks.yml) décrit **où** le projet se déploie : trois cibles, `playground` (par défaut), `dev` et `prod`, chacune reliée à son catalogue de données. C'est la mise en œuvre du principe du dépôt : le même code partout, l'environnement choisi par le catalogue. Les noms de catalogues ne sont connus que de `src/rd_manuf/config.py`, et un test garde les deux d'accord.
+
+Le fichier ne contient **ni adresse de workspace ni secret** : le dépôt est public, la CLI utilise le profil local de la personne qui lance la commande.
+Rien n'est encore déployé : on valide seulement le bundle. Les commandes se lancent **depuis la racine du dépôt**, là où se trouve `databricks.yml`.
+
+```bash
+databricks auth login --host ADRESSE_DU_WORKSPACE   # une fois : ouvre un navigateur et enregistre un profil local
+databricks bundle validate                          # vérifie le bundle, cible par défaut (playground), sans rien déployer
+databricks bundle validate -t dev                   # idem pour une autre cible (dev, prod)
+```
+
+Remplacer `ADRESSE_DU_WORKSPACE` par l'adresse du workspace (de la forme `https://…`, sans rien après le nom de domaine). Il faut la CLI Databricks en version 0.218 ou plus récente.
 
 ## Travailler sur le projet
 

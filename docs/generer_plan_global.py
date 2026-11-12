@@ -13,7 +13,7 @@ from html import escape
 from pathlib import Path
 
 SORTIE = Path(__file__).with_name("plan-global.svg")
-NUMERO_REVISION = 3
+NUMERO_REVISION = 4
 DATE_REVISION = "2026-11-12"
 
 # ==============================================================================
@@ -41,7 +41,7 @@ COLONNES = [
         ("Annuaire", ["Contacts gardés hors", "du dépôt public"], PROCHAIN),
         ("Envoi", ["Prévient réellement", "les bonnes personnes"], A_VENIR)]),
     ("06", "LIVRER", [
-        ("Déploiement dev", ["Mise en place sur", "Databricks"], A_VENIR),
+        ("Déploiement dev", ["Bundle écrit et validé ;", "rien de déployé"], A_VENIR),
         ("Mise en production", ["Version 0.1.0, puis", "reprise sur incident"], A_VENIR)]),
 ]
 ACTEURS = [  # (numéro de la colonne au-dessus de laquelle la carte se place, titre, lignes)
