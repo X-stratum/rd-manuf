@@ -33,7 +33,7 @@ COLONNES = [
         ("Décision", ["Acceptée, avec rejets,", "bloquée ou refusée"], FAIT),
         ("Registre", ["Ligne par livraison faite ;", "table à écrire"], PROCHAIN)]),
     ("04", "STOCKER", [
-        ("Bronze", ["Données telles que", "reçues, conservées"], PROCHAIN),
+        ("Bronze", ["Lignes construites ;", "table à écrire"], PROCHAIN),
         ("Silver", ["Données contrôlées ;", "rejets en quarantaine"], A_VENIR),
         ("Gold", ["Indicateurs prêts", "pour le métier"], A_VENIR)]),
     ("05", "PRÉVENIR", [
