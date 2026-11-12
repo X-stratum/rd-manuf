@@ -44,7 +44,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <summary><b>03 · Décider</b> : une décision unique par livraison</summary>
 
 - 🟢 **Décision** ([`reception.py`](src/rd_manuf/reception.py)) : acceptée, acceptée avec rejets, bloquée ou refusée.
-- 🟠 **Registre** : une ligne par livraison, avec sa décision et son heure d'arrivée.
+- 🟠 **Registre** ([`registre.py`](src/rd_manuf/registre.py)) : la ligne de chaque livraison (sa décision, d'où et de quand elle vient, quand elle est arrivée) est construite, et un fichier déjà intégré qui revient est ignoré avec une trace. Reste à écrire ces lignes dans une table.
 
 </details>
 
@@ -107,6 +107,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `structure.py` : contrôle de l'en-tête d'une livraison ;
   - `reception.py` : la décision unique sur une livraison, et l'enchaînement complet sur un fichier ;
   - `nom_fichier.py` : la convention de nom des fichiers livrés ;
+  - `registre.py` : la ligne de registre de chaque livraison, et la détection des rejeux ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test ;

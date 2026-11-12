@@ -13,7 +13,7 @@ from html import escape
 from pathlib import Path
 
 SORTIE = Path(__file__).with_name("plan-global.svg")
-NUMERO_REVISION = 2
+NUMERO_REVISION = 3
 DATE_REVISION = "2026-11-12"
 
 # ==============================================================================
@@ -31,7 +31,7 @@ COLONNES = [
         ("Jugement des lignes", ["Chaque ligne contre le", "contrat ; seuil de rejet"], FAIT)]),
     ("03", "DÉCIDER", [
         ("Décision", ["Acceptée, avec rejets,", "bloquée ou refusée"], FAIT),
-        ("Registre", ["Une ligne par livraison", "et sa décision"], PROCHAIN)]),
+        ("Registre", ["Ligne par livraison faite ;", "table à écrire"], PROCHAIN)]),
     ("04", "STOCKER", [
         ("Bronze", ["Données telles que", "reçues, conservées"], PROCHAIN),
         ("Silver", ["Données contrôlées ;", "rejets en quarantaine"], A_VENIR),

@@ -7,13 +7,13 @@ des livraisons. Ce module n'écrit nulle part et ne lit aucun fichier : en-tête
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from rd_manuf.contrat import Contrat, LigneMalformee, ResultatValidation, StatutLivraison, valider_livraison
 from rd_manuf.lecture import FichierIllisible, lire_selon_format
-from rd_manuf.nom_fichier import NomFichierInvalide, lire_nom_fichier
+from rd_manuf.nom_fichier import NomFichier, NomFichierInvalide, lire_nom_fichier
 from rd_manuf.structure import CodeStructure, ProblemeStructure, controler_structure
 
 
@@ -27,6 +27,7 @@ class Reception:
     nb_rejetees: int                                      # 0 si REFUSEE : aucune ligne n'a été jugée
     problemes_structure: tuple[ProblemeStructure, ...]    # vide sauf si REFUSEE
     resultat: ResultatValidation | None                   # détail pour les alertes ; None si REFUSEE
+    nom_fichier: NomFichier | None = None                 # d'où et de quand ; None si le nom est invalide ou sans fichier
 
 
 def receptionner_livraison(
@@ -103,5 +104,6 @@ def receptionner_fichier(contrat: Contrat, chemin: str | Path) -> Reception:
     try:
         fichier = lire_selon_format(chemin, nom.format)
     except FichierIllisible as erreur:
-        return refuser_fichier_illisible(contrat, chemin.name, erreur)
-    return receptionner_livraison(contrat, chemin.name, fichier.colonnes, fichier.lignes, fichier.lignes_malformees)
+        return replace(refuser_fichier_illisible(contrat, chemin.name, erreur), nom_fichier=nom)
+    reception = receptionner_livraison(contrat, chemin.name, fichier.colonnes, fichier.lignes, fichier.lignes_malformees)
+    return replace(reception, nom_fichier=nom)
