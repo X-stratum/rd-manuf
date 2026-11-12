@@ -71,3 +71,17 @@ def lire_parquet(chemin: str | Path) -> FichierLu:
     except pa.ArrowException as erreur:
         raise FichierIllisible(f"Le fichier ne peut pas être lu comme un Parquet : {erreur}") from erreur
     return FichierLu(colonnes=list(table.column_names), lignes=table.to_pylist(), lignes_malformees=())
+
+
+# ==============================================================================
+# 🔀 AIGUILLAGE : le format annoncé par le nom du fichier choisit le lecteur
+# ==============================================================================
+LECTEURS = {"csv": lire_csv, "parquet": lire_parquet}     # mêmes clés que `nom_fichier.FORMATS` (un test le garantit)
+
+
+def lire_selon_format(chemin: str | Path, format: str) -> FichierLu:
+    """Lit le fichier avec le lecteur de son format. Un format qu'aucun lecteur ne connaît rend le fichier illisible."""
+    lecteur = LECTEURS.get(format)
+    if lecteur is None:
+        raise FichierIllisible(f"Aucun lecteur pour le format « {format} » (formats lisibles : {', '.join(LECTEURS)}).")
+    return lecteur(chemin)

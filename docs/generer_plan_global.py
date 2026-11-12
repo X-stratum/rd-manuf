@@ -13,7 +13,7 @@ from html import escape
 from pathlib import Path
 
 SORTIE = Path(__file__).with_name("plan-global.svg")
-NUMERO_REVISION = 1
+NUMERO_REVISION = 2
 DATE_REVISION = "2026-11-12"
 
 # ==============================================================================
@@ -23,9 +23,9 @@ FAIT, PROCHAIN, A_VENIR = "fait", "prochain", "avenir"
 
 COLONNES = [
     ("01", "RECEVOIR", [
-        ("Aiguillage", ["Choisit le lecteur selon", "l'extension du fichier"], PROCHAIN),
+        ("Aiguillage", ["Choisit le lecteur selon", "le format du fichier"], FAIT),
         ("Lecture", ["CSV et Parquet ; les", "fichiers abîmés refusés"], FAIT),
-        ("Nom du fichier", ["Pays, usine et date en", "UTC, forme contrôlée"], A_VENIR)]),
+        ("Nom du fichier", ["Pays, usine et date en", "UTC, forme contrôlée"], FAIT)]),
     ("02", "CONTRÔLER", [
         ("Structure", ["Colonnes manquantes,", "inconnues ou en double"], FAIT),
         ("Jugement des lignes", ["Chaque ligne contre le", "contrat ; seuil de rejet"], FAIT)]),

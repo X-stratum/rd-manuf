@@ -17,7 +17,7 @@ from rd_manuf.alertes import (
 )
 from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison, valider_livraison
 from rd_manuf.lecture import FichierIllisible
-from rd_manuf.reception import receptionner_livraison, refuser_fichier_illisible
+from rd_manuf.reception import receptionner_fichier, receptionner_livraison, refuser_fichier_illisible
 from rd_manuf.simulateur import generer_livraison
 from rd_manuf.structure import CodeStructure
 
@@ -307,6 +307,13 @@ def test_un_fichier_illisible_alerte_l_emetteur_sans_ligne_ni_colonne(contrat, c
     reception = refuser_fichier_illisible(contrat, "LIV-001", FichierIllisible("encodage inconnu"))
     assert router_alertes_reception(catalogue, reception) == [
         Alerte("LIV-001", "FICHIER_ILLISIBLE", 0, "emetteur", ("equipe_data", "metier"), ())
+    ]
+
+
+def test_un_nom_de_fichier_invalide_alerte_l_emetteur_sans_ligne_ni_colonne(contrat, catalogue, tmp_path):
+    reception = receptionner_fichier(contrat, tmp_path / "donnees.csv")
+    assert router_alertes_reception(catalogue, reception) == [
+        Alerte("donnees.csv", "NOM_FICHIER_INVALIDE", 0, "emetteur", ("equipe_data", "metier"), ())
     ]
 
 

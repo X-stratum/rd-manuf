@@ -26,9 +26,9 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <details>
 <summary><b>01 · Recevoir</b> : lire le fichier de l'usine</summary>
 
-- 🟠 **Aiguillage** : choisira le lecteur (CSV ou Parquet) selon l'extension du fichier.
+- 🟢 **Aiguillage** ([`lecture.py`](src/rd_manuf/lecture.py), [`reception.py`](src/rd_manuf/reception.py)) : le format annoncé par le nom du fichier (CSV ou Parquet) choisit le lecteur, et une seule fonction enchaîne nom, lecture et réception.
 - 🟢 **Lecture** ([`lecture.py`](src/rd_manuf/lecture.py)) : lit les fichiers CSV et Parquet ; un fichier abîmé, coupé ou mal encodé est refusé proprement.
-- ⚪ **Nom du fichier** : pays, usine et date en UTC, avec une forme contrôlée.
+- 🟢 **Nom du fichier** ([`nom_fichier.py`](src/rd_manuf/nom_fichier.py)) : pays, usine et instant en UTC, avec une forme contrôlée avant toute lecture. Un nom invalide est refusé et l'émetteur est prévenu.
 
 </details>
 
@@ -105,9 +105,10 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
 - [`src/rd_manuf/`](src/rd_manuf/) : le code.
   - `contrat.py` : chargement du contrat, contrôle des lignes et des livraisons, codes d'erreur ;
   - `structure.py` : contrôle de l'en-tête d'une livraison ;
-  - `reception.py` : la décision unique sur une livraison ;
+  - `reception.py` : la décision unique sur une livraison, et l'enchaînement complet sur un fichier ;
+  - `nom_fichier.py` : la convention de nom des fichiers livrés ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
-  - `lecture.py` : lecture des fichiers CSV et Parquet ;
+  - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test ;
   - `config.py` : garde-fou sur le choix de l'environnement.
 - [`tests/unitaires/`](tests/unitaires/) : les tests.
