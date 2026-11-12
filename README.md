@@ -12,8 +12,12 @@ et le projet détermine qui doit agir (l'usine émettrice, le métier ou l'équi
 Les règles sont écrites dans un « contrat de données », un fichier lisible par le métier.
 
 <p align="center">
-  <img src="docs/plan-global.svg" alt="Plan global du projet : six étapes, de la réception de la livraison à la mise en production, avec les acteurs, les règles écrites et les outils. 13 blocs sur 23 sont terminés." width="100%">
+  <a href="docs/plan-global.svg">
+    <img src="docs/plan-global.svg" alt="Plan global du projet : six étapes, de la réception de la livraison à la mise en production, avec les acteurs, les règles écrites et les outils, et l'avancement de chaque bloc." width="100%">
+  </a>
 </p>
+
+<p align="center"><sub>Cliquer sur l'image pour l'ouvrir en grand.</sub></p>
 
 ## Plan global
 
