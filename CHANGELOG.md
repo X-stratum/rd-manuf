@@ -24,6 +24,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #26 — Bronze : copier fidèlement les lignes reçues
+*2026-11-12 · [PR #26](https://github.com/X-stratum/rd-manuf/pull/26)*
+
+**En clair.** Le projet sait maintenant fabriquer les lignes du bronze, la copie fidèle de ce que l'usine a envoyé : toutes les valeurs en texte, sans rien corriger ni juger, avec le nom de la livraison, son heure d'arrivée et le rang de chaque ligne parmi les lignes bien formées du fichier. Ces lignes ne sont pas encore écrites dans une table : cela viendra avec le déploiement.
+**Décisions.** Le bronze garde les lignes des livraisons acceptées, acceptées avec rejets et bloquées : une livraison bloquée pourra être retraitée après correction, il faut donc la conserver. Une livraison refusée n'y entre pas (le registre en garde la trace, le fichier reste à la source), ni un rejeu (l'ingérer deux fois doublerait les données). Une ligne coupée d'un CSV n'y entre pas non plus : on ne sait pas à quelle colonne appartient chaque valeur, le contrat la rejette. C'est le registre qui décide si une livraison entre, le bronze ne refait pas ce calcul. Une valeur absente d'un Parquet reste absente ; un « nan » est copié en texte, et le contrat le lit comme une absence. Une livraison bloquée puis renvoyée corrigée sous le même nom n'est pas un conflit : les deux versions sont au bronze, sous deux heures d'arrivée, et c'est le statut du registre qui dira laquelle lire. Le rang d'une ligne n'est pas son numéro dans le fichier : une ligne coupée décale le rang des suivantes. Une complétion (lignes corrigées) arrive comme une nouvelle livraison, sous un nouveau nom, pas comme un rejeu : le retraitement des lignes en quarantaine et les doublons de clé entre livraisons seront traités avec le silver.
+
 ## #25 — Bundle Databricks : trois cibles, trois catalogues
 *2026-11-12 · [PR #25](https://github.com/X-stratum/rd-manuf/pull/25)*
 
