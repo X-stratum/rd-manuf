@@ -25,8 +25,8 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 ## #23 — Registre des livraisons et rejeux
 *2026-11-12 · [PR #23](https://github.com/X-stratum/rd-manuf/pull/23)*
 
-**En clair.** Chaque livraison reçue laisse maintenant une trace : une ligne de registre dit ce qui a été décidé, d'où et de quand vient le fichier, et quand il est arrivé. Un fichier déjà intégré qui arrive une seconde fois est ignoré, avec une trace, au lieu d'être traité deux fois. Un fichier refusé ou bloqué, lui, peut être renvoyé sous le même nom une fois corrigé.
-**Décisions.** Un rejeu est ignoré, comme les lignes en double, plutôt que refusé. Seul un fichier déjà intégré est un rejeu. L'heure d'arrivée est toujours en UTC et donnée par l'appelant, jamais lue sur l'horloge, pour que les tests soient reproductibles. Les lignes ne sont pas encore écrites dans une table.
+**En clair.** Chaque livraison reçue laisse maintenant une trace : une ligne de registre dit ce qui a été décidé, d'où et de quand vient le fichier, et quand il est arrivé. Un fichier déjà intégré qui arrive une seconde fois avec le même contenu est ignoré, avec une trace, au lieu d'être traité deux fois. S'il arrive avec un contenu différent sous le même nom, il est refusé et l'émetteur est prévenu : des données corrigées ne sont jamais ignorées en silence. Un fichier refusé ou bloqué, lui, peut être renvoyé sous le même nom une fois corrigé.
+**Décisions.** Un rejeu à contenu identique est ignoré, comme les lignes en double ; à contenu différent, c'est un conflit, refusé comme pour une clé de ligne en conflit. Seul un fichier déjà intégré peut provoquer l'un ou l'autre. L'heure d'arrivée est toujours en UTC et donnée par l'appelant, jamais lue sur l'horloge, pour que les tests soient reproductibles. Les lignes ne sont pas encore écrites dans une table.
 
 ## #22 — Nom des fichiers, aiguillage par format et enchaînement complet
 *2026-11-12 · [PR #22](https://github.com/X-stratum/rd-manuf/pull/22)*

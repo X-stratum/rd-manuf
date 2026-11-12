@@ -44,7 +44,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <summary><b>03 · Décider</b> : une décision unique par livraison</summary>
 
 - 🟢 **Décision** ([`reception.py`](src/rd_manuf/reception.py)) : acceptée, acceptée avec rejets, bloquée ou refusée.
-- 🟠 **Registre** ([`registre.py`](src/rd_manuf/registre.py)) : la ligne de chaque livraison (sa décision, d'où et de quand elle vient, quand elle est arrivée) est construite, et un fichier déjà intégré qui revient est ignoré avec une trace. Reste à écrire ces lignes dans une table.
+- 🟠 **Registre** ([`registre.py`](src/rd_manuf/registre.py)) : la ligne de chaque livraison (sa décision, d'où et de quand elle vient, quand elle est arrivée) est construite, et un fichier déjà intégré qui revient avec le même contenu est ignoré, avec une trace ; avec un contenu différent, il est refusé et l'émetteur est prévenu. Reste à écrire ces lignes dans une table.
 
 </details>
 

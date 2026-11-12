@@ -77,6 +77,19 @@ def refuser_nom_invalide(contrat: Contrat, livraison_id: str, erreur: NomFichier
     return _refus(contrat, livraison_id, ProblemeStructure(CodeStructure.NOM_FICHIER_INVALIDE, (), str(erreur)))
 
 
+def refuser_conflit(contrat: Contrat, livraison_id: str, nom: NomFichier, livraison_deja_integree: str) -> Reception:
+    """Refus d'un fichier de même origine et de même instant qu'une livraison déjà intégrée, mais de contenu différent.
+
+    Rien n'est lu ni jugé : on ne sait pas laquelle des deux versions est la bonne, et ignorer celle-ci en silence perdrait des données.
+    """
+    message = (
+        f"Une livraison de même origine et de même instant est déjà intégrée ({livraison_deja_integree}) avec un contenu différent. "
+        "Renvoyer le fichier sous un nouvel instant si c'est une correction."
+    )
+    reception = _refus(contrat, livraison_id, ProblemeStructure(CodeStructure.LIVRAISON_EN_CONFLIT, (), message))
+    return replace(reception, nom_fichier=nom)
+
+
 def _refus(contrat: Contrat, livraison_id: str, probleme: ProblemeStructure) -> Reception:
     return Reception(
         livraison_id=livraison_id,

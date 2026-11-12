@@ -3,6 +3,7 @@
 L'heure d'arrivée est PASSÉE EN PARAMÈTRE (jamais lue sur l'horloge) : les tests sont reproductibles et la règle de plausibilité des dates
 pourra s'appuyer dessus. Un fichier déjà intégré qui arrive de nouveau est un REJEU : il est ignoré, avec une trace dans le registre.
 """
+import hashlib
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
@@ -11,6 +12,7 @@ from rd_manuf.contrat import CodeErreur, StatutLivraison
 from rd_manuf.reception import receptionner_fichier, receptionner_livraison
 from rd_manuf.registre import STATUT_REJEU, LigneRegistre, construire_ligne_registre, traiter_fichier
 from rd_manuf.simulateur import ecrire_livraison_csv, generer_livraison
+from rd_manuf.structure import CodeStructure
 
 GRAINE = 42
 NB_LIGNES = 20
@@ -43,6 +45,7 @@ def test_une_livraison_acceptee_donne_une_ligne_complete(tmp_path, contrat):
         usine="AB123",
         horodatage_fichier=INSTANT_DU_NOM,
         heure_arrivee=ARRIVEE,
+        empreinte=None,
         rejeu_de=None,
     )
 
@@ -167,3 +170,65 @@ def test_une_autre_origine_ou_un_autre_instant_n_est_pas_un_rejeu(tmp_path, cont
     reception, seconde = traiter_fichier(contrat, _ecrire(tmp_path, contrat, nom=autre_nom), registre, ARRIVEE)
 
     assert (reception.statut, seconde.rejeu_de) == (StatutLivraison.ACCEPTEE, None)
+
+
+# ==============================================================================
+# 4. 🔍 LE CONTENU COMPTE : même nom ET même contenu = rejeu ; même nom mais contenu différent = CONFLIT, jamais ignoré en silence
+# ==============================================================================
+def _empreinte(chemin):
+    return hashlib.sha256(chemin.read_bytes()).hexdigest()
+
+
+def test_la_ligne_d_une_livraison_garde_l_empreinte_de_son_contenu(tmp_path, contrat):
+    chemin = _ecrire(tmp_path, contrat)
+
+    _, ligne = traiter_fichier(contrat, chemin, [], ARRIVEE)
+
+    assert ligne.empreinte == _empreinte(chemin)
+
+
+def test_le_meme_contenu_reecrit_reste_un_rejeu(tmp_path, contrat):
+    """Ce qui compte est le contenu, pas le fichier physique : le même contenu renvoyé de nouveau est bien un rejeu."""
+    chemin = _ecrire(tmp_path, contrat)
+    registre = []
+    _, premiere = traiter_fichier(contrat, chemin, registre, ARRIVEE)
+    registre.append(premiere)
+    _ecrire(tmp_path, contrat)                                      # même graine : mêmes octets
+
+    reception, seconde = traiter_fichier(contrat, chemin, registre, ARRIVEE + timedelta(hours=1))
+
+    assert (reception, seconde.statut) == (None, STATUT_REJEU)
+
+
+def test_un_contenu_different_sous_le_meme_nom_est_un_conflit_refuse(tmp_path, contrat):
+    """Le cas relevé à la revue : sans cette règle, des données corrigées seraient ignorées en silence."""
+    chemin = _ecrire(tmp_path, contrat)
+    registre = []
+    _, premiere = traiter_fichier(contrat, chemin, registre, ARRIVEE)
+    registre.append(premiere)
+    ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES + 30, GRAINE + 1), chemin)      # autres données, même nom
+
+    reception, seconde = traiter_fichier(contrat, chemin, registre, ARRIVEE + timedelta(hours=1))
+
+    assert premiere.statut == "ACCEPTEE"
+    assert reception.statut == StatutLivraison.REFUSEE
+    assert [probleme.code for probleme in reception.problemes_structure] == [CodeStructure.LIVRAISON_EN_CONFLIT]
+    assert NOM in reception.problemes_structure[0].message                         # le message désigne la livraison déjà intégrée
+    assert (seconde.statut, seconde.codes_refus, seconde.rejeu_de) == ("REFUSEE", ("LIVRAISON_EN_CONFLIT",), None)
+    assert seconde.empreinte == _empreinte(chemin) != premiere.empreinte
+    assert (seconde.nb_recues, seconde.nb_valides) == (0, 0)                        # le second fichier n'est pas jugé
+
+
+def test_apres_un_conflit_la_livraison_d_origine_reste_la_reference(tmp_path, contrat):
+    chemin = _ecrire(tmp_path, contrat)
+    registre = []
+    _, premiere = traiter_fichier(contrat, chemin, registre, ARRIVEE)
+    registre.append(premiere)
+    ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES + 30, GRAINE + 1), chemin)
+    _, conflit = traiter_fichier(contrat, chemin, registre, ARRIVEE + timedelta(hours=1))
+    registre.append(conflit)
+    ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES, GRAINE), chemin)                # on remet le contenu d'origine
+
+    reception, troisieme = traiter_fichier(contrat, chemin, registre, ARRIVEE + timedelta(hours=2))
+
+    assert (reception, troisieme.statut, troisieme.rejeu_de) == (None, STATUT_REJEU, NOM)

@@ -19,6 +19,7 @@ class CodeStructure(str, Enum):
     FICHIER_VIDE = "FICHIER_VIDE"
     FICHIER_ILLISIBLE = "FICHIER_ILLISIBLE"    # impossible à lire (mauvais encodage, format inconnu, fichier abîmé)
     NOM_FICHIER_INVALIDE = "NOM_FICHIER_INVALIDE"    # le nom ne suit pas la convention : on ne sait pas d'où ni de quand vient le fichier
+    LIVRAISON_EN_CONFLIT = "LIVRAISON_EN_CONFLIT"    # même origine et même instant qu'une livraison déjà intégrée, mais contenu différent
     COLONNE_MANQUANTE = "COLONNE_MANQUANTE"
     COLONNE_INCONNUE = "COLONNE_INCONNUE"
     COLONNE_DUPLIQUEE = "COLONNE_DUPLIQUEE"
