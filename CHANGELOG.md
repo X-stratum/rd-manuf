@@ -10,6 +10,7 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 - **CSV** : un fichier texte où chaque ligne est une ligne de données, les valeurs étant séparées par un symbole (virgule ou point-virgule). C'est ce qu'exporte Excel.
 - **Ligne malformée** : une ligne dont le nombre de valeurs ne correspond pas à l'en-tête, le plus souvent une ligne coupée en route. On ne peut pas savoir à quelle colonne appartient chaque valeur.
+- **Parquet** : un format de fichier de données qui contient lui-même ses colonnes et leurs types (nombres, dates), donc plus fiable qu'un CSV, qui n'est que du texte.
 - **Livraison** : un fichier de données envoyé par l'usine. Celui qui l'envoie est l'**émetteur** ; ceux qui utilisent les données sont le **métier** ; ceux qui construisent le pipeline sont l'**équipe data**.
 - **Contrat de données** : la fiche qui décrit ce qu'une livraison doit contenir (colonnes, types de valeurs, limites, règles).
 - **Rejet** : une ligne qui ne respecte pas le contrat est mise de côté pour être corrigée, au lieu d'être utilisée.
@@ -20,6 +21,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Sabotage** : une modification volontaire du code pour vérifier que les tests détectent bien l'erreur.
 
 ---
+
+## #20 — Lire un fichier au format Parquet
+*2026-11-12 · [PR #20](https://github.com/X-stratum/rd-manuf/pull/20)*
+
+**En clair.** Le projet sait maintenant lire un second format de fichier, le Parquet, en plus du CSV. Un fichier Parquet contient lui-même la description de ses colonnes et de leurs types : il n'y a ni caractère invisible, ni séparateur, ni ligne coupée à gérer. Un Parquet abîmé, ou un autre format renvoyé sous ce nom, est refusé avec une alerte comme un CSV illisible.
+**Décisions.** Chaque format a son propre lecteur, qui rend la même chose (colonnes et lignes) : la réception ne sait pas de quel format vient le fichier. La bibliothèque de lecture (`pyarrow`) n'est chargée que quand on lit un Parquet.
 
 ## #19 — Refuser proprement un fichier illisible
 *2026-11-12 · [PR #19](https://github.com/X-stratum/rd-manuf/pull/19)*

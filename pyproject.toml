@@ -3,7 +3,10 @@ name = "rd-manuf"
 version = "0.1.0"
 description = "Pipeline médaillon R&D Manufacturing sur Databricks"
 requires-python = ">=3.12"
-dependencies = ["pyyaml>=6"]          # lecture des contrats YAML
+dependencies = [
+    "pyyaml>=6",                      # lecture des contrats YAML
+    "pyarrow>=15",                    # lecture des livraisons au format Parquet
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
