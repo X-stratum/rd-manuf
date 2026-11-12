@@ -20,10 +20,8 @@ MOTIF_USINE = "[A-Z]{2}[0-9]{3}"        # 2 lettres pour l'usine, 3 chiffres pou
 FORMAT_DATE = "%Y-%m-%d-%H-%M-%S"       # les « : » sont interdits dans un nom de fichier Windows, d'où les tirets
 FORMATS = ("csv", "parquet")
 
-_MOTIF_DATE = r"\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}"
-_NOM = re.compile(
-    rf"^{PREFIXE}_(?P<pays>{MOTIF_PAYS})_(?P<usine>{MOTIF_USINE})_(?P<date>{_MOTIF_DATE})Z\.(?P<format>{'|'.join(FORMATS)})$"
-)
+_MOTIF_DATE = "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}"      # [0-9], pas \d : \d accepte aussi les chiffres non latins
+_NOM = re.compile(rf"{PREFIXE}_(?P<pays>{MOTIF_PAYS})_(?P<usine>{MOTIF_USINE})_(?P<date>{_MOTIF_DATE})Z\.(?P<format>{'|'.join(FORMATS)})")
 FORME_ATTENDUE = f"{PREFIXE}_{{PAYS}}_{{USINE}}_{{AAAA-MM-JJ-HH-MM-SS}}Z.{{{'|'.join(FORMATS)}}}"
 
 
@@ -45,7 +43,7 @@ class NomFichier:
 
 def lire_nom_fichier(nom: str) -> NomFichier:
     """Extrait pays, usine, instant UTC et format d'un nom conforme ; lève `NomFichierInvalide` sinon."""
-    trouve = _NOM.match(nom)
+    trouve = _NOM.fullmatch(nom)          # toute la chaîne : `$` tolérerait un retour à la ligne final
     if trouve is None:
         raise NomFichierInvalide(f"Nom de fichier non conforme : « {nom} ». Forme attendue : {FORME_ATTENDUE}.")
     try:

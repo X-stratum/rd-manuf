@@ -58,6 +58,8 @@ def test_l_horodatage_est_un_instant_en_utc():
         pytest.param(_nom(date="2026-02-31-14-30-05"), id="31-fevrier"),
         pytest.param(_nom(date="2026-13-11-14-30-05"), id="mois-13"),
         pytest.param(_nom(date="2026-11-11-25-30-05"), id="heure-25"),
+        pytest.param(_nom() + "\n", id="retour-a-la-ligne-final"),
+        pytest.param(_nom(date="٢٠٢٦-11-11-14-30-05"), id="chiffres-non-latins-dans-la-date"),
         pytest.param("", id="nom-vide"),
         pytest.param("livraison.csv", id="nom-trop-court"),
     ],
