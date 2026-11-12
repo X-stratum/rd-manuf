@@ -2,7 +2,7 @@
 
 La CLI Databricks crée un dossier `.databricks/` dans le dépôt (état local du bundle, qui peut contenir des informations sur le workspace) ;
 les profils de connexion et les jetons vivent hors du dépôt, mais un fichier de secrets pourrait y être créé par erreur. Le `.gitignore` est
-la barrière : ces tests empêchent qu'une ligne en soit retirée sans que personne ne le voie.
+la barrière : ces tests empêchent qu'une ligne en soit retirée, ou annulée par une ligne négative (`!motif`), sans que personne ne le voie.
 """
 from pathlib import Path
 
@@ -28,3 +28,11 @@ def _lignes_actives():
 @pytest.mark.parametrize("motif", MOTIFS_PROTEGES)
 def test_ce_qui_ne_doit_pas_partir_sur_github_est_ignore(motif):
     assert motif in _lignes_actives(), f"« {motif} » doit rester dans .gitignore (dépôt public)"
+
+
+@pytest.mark.parametrize("motif", MOTIFS_PROTEGES)
+def test_aucune_ligne_n_annule_la_protection(motif):
+    """Une ligne négative (`!.databricks/`) rétablirait le suivi du dossier alors que le motif est toujours présent plus haut."""
+    base = motif.rstrip("/")
+    formes_negatives = {f"!{motif}", f"!{base}", f"!{base}/**", f"!{base}/*"}
+    assert not (formes_negatives & _lignes_actives()), f"une ligne négative annule la protection de « {motif} »"

@@ -143,7 +143,7 @@ La CI lance ces vérifications (style, puis tests) à chaque Pull Request, sur u
 Le fichier [`databricks.yml`](databricks.yml) décrit **où** le projet se déploie : trois cibles, `playground` (par défaut), `dev` et `prod`, chacune reliée à son catalogue de données. C'est la mise en œuvre du principe du dépôt : le même code partout, l'environnement choisi par le catalogue. Les noms de catalogues ne sont connus que de `src/rd_manuf/config.py`, et un test garde les deux d'accord.
 
 Le fichier ne contient **ni adresse de workspace ni secret** : le dépôt est public, la CLI utilise le profil local de la personne qui lance la commande.
-Rien n'est encore déployé : on valide seulement le bundle.
+Rien n'est encore déployé : on valide seulement le bundle. Les commandes se lancent **depuis la racine du dépôt**, là où se trouve `databricks.yml`.
 
 ```bash
 databricks auth login --host ADRESSE_DU_WORKSPACE   # une fois : ouvre un navigateur et enregistre un profil local
