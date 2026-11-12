@@ -3,13 +3,15 @@
 Bronze ne juge pas : une ligne invalide y entre comme les autres (c'est le silver qui la mettra en quarantaine). Il garde toutes les lignes
 bien formées des livraisons ACCEPTEE, ACCEPTEE_AVEC_REJETS et BLOQUEE (une livraison bloquée pourra être retraitée après correction).
 Une livraison REFUSEE n'y entre pas, un rejeu non plus : le registre en garde la trace et le fichier reste à la source.
+Les lignes coupées d'un CSV sont conservées à part, avec leur numéro de ligne dans le fichier (section 7).
 Ces tests ne touchent aucune table : le module construit des lignes, l'écriture viendra avec le déploiement.
 """
+from dataclasses import replace
 from datetime import UTC, date, datetime
 
 import pytest
 
-from rd_manuf.bronze import STATUTS_BRONZE, LigneBronze, construire_lignes_bronze
+from rd_manuf.bronze import STATUTS_BRONZE, LigneBronze, LigneBronzeCoupee, construire_lignes_bronze, construire_lignes_coupees
 from rd_manuf.contrat import CodeErreur, StatutLivraison, est_absente
 from rd_manuf.lecture import FichierLu, lire_csv
 from rd_manuf.registre import LigneRegistre, traiter_fichier
@@ -110,8 +112,8 @@ def test_une_livraison_bloquee_est_gardee(tmp_path, contrat_strict):
     assert len(lignes) == NB_LIGNES
 
 
-def test_une_ligne_malformee_n_entre_pas_au_bronze(tmp_path, contrat, entete):
-    """Une ligne coupée ne dit pas à quelle colonne va chaque valeur : on ne peut pas la ranger. Le contrat la rejette."""
+def test_une_ligne_malformee_n_est_pas_rangee_avec_les_lignes_bien_formees(tmp_path, contrat, entete):
+    """Une ligne coupée ne dit pas à quelle colonne va chaque valeur : on ne peut pas la ranger. Elle est conservée à part (section 7)."""
     chemin = tmp_path / NOM
     chemin.write_text(",".join(entete) + "\nLOT-000001,L1,2026-11-01,1000,10,200.0\nLOT-000002,L1,2026-11-01\n", encoding="utf-8")
 
@@ -225,3 +227,153 @@ def test_un_nan_parquet_est_copie_en_texte_et_reste_lu_comme_absent(contrat, ent
 
     assert ligne.valeurs["temperature_c"] == "nan"
     assert est_absente(ligne.valeurs["temperature_c"])        # le contrat lit « nan » comme une absence : rien n'est perdu au silver
+
+
+# ==============================================================================
+# 7. ✂️ LES LIGNES COUPÉES SONT CONSERVÉES À PART
+# ==============================================================================
+# Une ligne coupée (CSV) ne dit pas à quelle colonne va chaque valeur : elle ne peut pas rejoindre les lignes bien formées. Mais le bronze
+# conserve ce qui a été reçu, et le silver doit rejuger la livraison comme la réception : il lui faut donc aussi ces lignes (elles comptent
+# parmi les rejets qui décident du statut). Elles sont gardées telles que lues, avec leur numéro de ligne dans le fichier.
+def _ecrire_csv_avec_lignes_coupees(tmp_path, entete, nom=NOM):
+    """3 lignes bien formées (lignes 2, 4 et 6 du fichier) et 2 lignes coupées (lignes 3 et 5) ; l'en-tête est la ligne 1."""
+    chemin = tmp_path / nom
+    lignes = [
+        ",".join(entete),
+        "LOT-000001,L1,2026-11-01,1000,10,200.0",
+        "LOT-000002,L1,2026-11-01",                        # ligne 3 : coupée
+        "LOT-000003,L2,2026-11-02,500,5,",
+        "LOT-000004,L3",                                   # ligne 5 : coupée
+        "LOT-000005,L1,2026-11-03,800,8,150.5",
+    ]
+    chemin.write_text("\n".join(lignes) + "\n", encoding="utf-8")
+    return chemin
+
+
+def _coupees_du_fichier(contrat, chemin, registre=(), arrivee=ARRIVEE):
+    _, ligne_registre = traiter_fichier(contrat, chemin, registre, arrivee)
+    return ligne_registre, construire_lignes_coupees(ligne_registre, lire_csv(chemin))
+
+
+def test_les_lignes_coupees_sont_conservees_a_part_avec_leur_numero_et_leurs_champs(tmp_path, contrat_sans_seuil, entete):
+    chemin = _ecrire_csv_avec_lignes_coupees(tmp_path, entete)
+
+    ligne_registre, coupees = _coupees_du_fichier(contrat_sans_seuil, chemin)
+
+    assert ligne_registre.statut == "ACCEPTEE_AVEC_REJETS"
+    assert coupees == [
+        LigneBronzeCoupee(livraison_id=NOM, heure_arrivee=ARRIVEE, numero_fichier=3, champs=("LOT-000002", "L1", "2026-11-01")),
+        LigneBronzeCoupee(livraison_id=NOM, heure_arrivee=ARRIVEE, numero_fichier=5, champs=("LOT-000004", "L3")),
+    ]
+
+
+def test_une_livraison_bloquee_garde_aussi_ses_lignes_coupees(tmp_path, contrat, entete):
+    chemin = _ecrire_csv_avec_lignes_coupees(tmp_path, entete)
+
+    ligne_registre, coupees = _coupees_du_fichier(contrat, chemin)
+
+    assert ligne_registre.statut == "BLOQUEE"                 # 2 lignes sur 5 coupées : bien au-dessus du seuil
+    assert [ligne.numero_fichier for ligne in coupees] == [3, 5]
+
+
+def test_les_lignes_bien_formees_et_les_lignes_coupees_font_le_compte_du_registre(tmp_path, contrat_sans_seuil, entete):
+    """C'est ce qui permet au silver de rejuger comme la réception : rien de ce qui est arrivé ne manque au bronze."""
+    chemin = _ecrire_csv_avec_lignes_coupees(tmp_path, entete)
+
+    ligne_registre, bien_formees = _bronze_du_fichier(contrat_sans_seuil, chemin)
+    coupees = construire_lignes_coupees(ligne_registre, lire_csv(chemin))
+
+    assert len(bien_formees) + len(coupees) == ligne_registre.nb_recues == 5
+
+
+def test_une_livraison_sans_ligne_coupee_n_a_rien_a_conserver(tmp_path, contrat):
+    _, coupees = _coupees_du_fichier(contrat, _ecrire(tmp_path, contrat))
+
+    assert coupees == []
+
+
+def test_une_livraison_refusee_ne_garde_pas_ses_lignes_coupees(tmp_path, contrat, entete):
+    chemin = tmp_path / NOM
+    contenu = ",".join(entete[:-1]) + "\nLOT-000001,L1,2026-11-01,1000,10\nLOT-000002,L1\n"      # une colonne manque, une ligne est coupée
+    chemin.write_text(contenu, encoding="utf-8")
+
+    ligne_registre, coupees = _coupees_du_fichier(contrat, chemin)
+
+    assert (ligne_registre.statut, coupees) == ("REFUSEE", [])
+
+
+def test_un_rejeu_ne_remet_pas_les_lignes_coupees(tmp_path, contrat_sans_seuil, entete):
+    chemin = _ecrire_csv_avec_lignes_coupees(tmp_path, entete)
+    premiere, premieres_coupees = _coupees_du_fichier(contrat_sans_seuil, chemin)
+
+    rejeu, coupees_du_rejeu = _coupees_du_fichier(contrat_sans_seuil, chemin, registre=[premiere])
+
+    assert len(premieres_coupees) == 2
+    assert (rejeu.statut, coupees_du_rejeu) == ("REJEU_IGNORE", [])
+
+
+def test_un_conflit_ne_garde_pas_les_lignes_coupees(tmp_path, contrat_sans_seuil, entete):
+    chemin = _ecrire_csv_avec_lignes_coupees(tmp_path, entete)
+    premiere, _ = _coupees_du_fichier(contrat_sans_seuil, chemin)
+    autre_contenu = chemin.read_text(encoding="utf-8") + "LOT-000006,L1,2026-11-04,100,1,100.0\n"      # une ligne de plus, même nom
+    chemin.write_text(autre_contenu, encoding="utf-8")
+
+    conflit, coupees = _coupees_du_fichier(contrat_sans_seuil, chemin, registre=[premiere])
+
+    assert (conflit.statut, coupees) == ("REFUSEE", [])
+
+
+def test_une_ligne_coupee_conservee_ne_se_modifie_pas():
+    ligne = LigneBronzeCoupee(livraison_id=NOM, heure_arrivee=ARRIVEE, numero_fichier=3, champs=("a",))
+
+    with pytest.raises(AttributeError):
+        ligne.numero_fichier = 99
+
+
+# ==============================================================================
+# 8. 🔎 LE NUMÉRO DE LIGNE ET LA COHÉRENCE AVEC LE REGISTRE
+# ==============================================================================
+def test_une_ligne_vide_est_comptee_dans_le_numero_de_ligne(tmp_path, contrat_sans_seuil, entete):
+    chemin = tmp_path / NOM
+    contenu = ",".join(entete) + "\nLOT-000001,L1,2026-11-01,1000,10,200.0\n\nLOT-000002,L1\n"      # ligne 3 vide, la coupée est ligne 4
+    chemin.write_text(contenu, encoding="utf-8")
+
+    _, coupees = _coupees_du_fichier(contrat_sans_seuil, chemin)
+
+    assert [ligne.numero_fichier for ligne in coupees] == [4]
+
+
+def test_une_ligne_trop_longue_est_conservee_avec_tous_ses_champs(tmp_path, contrat_sans_seuil, entete):
+    chemin = tmp_path / NOM
+    chemin.write_text(",".join(entete) + "\nLOT-000001,L1,2026-11-01,1000,10,200.0,en,trop,ici\n", encoding="utf-8")
+
+    _, coupees = _coupees_du_fichier(contrat_sans_seuil, chemin)
+
+    assert [(ligne.numero_fichier, len(ligne.champs)) for ligne in coupees] == [(2, 9)]
+
+
+def test_un_retour_a_la_ligne_entre_guillemets_donne_la_derniere_ligne_de_l_enregistrement(tmp_path, contrat_sans_seuil, entete):
+    """Limite assumée : le lecteur compte les lignes physiques. Une ligne coupée sur deux lignes (retour à la ligne dans un champ entre
+    guillemets) prend le numéro de sa DERNIÈRE ligne : ici elle commence ligne 3 et se termine ligne 4."""
+    chemin = tmp_path / NOM
+    chemin.write_text(",".join(entete) + '\nLOT-000001,L1,2026-11-01,1000,10,200.0\nLOT-000002,"a\nb"\n', encoding="utf-8")
+
+    _, coupees = _coupees_du_fichier(contrat_sans_seuil, chemin)
+
+    assert [(ligne.numero_fichier, ligne.champs) for ligne in coupees] == [(4, ("LOT-000002", "a\nb"))]
+
+
+def test_un_fichier_qui_ne_correspond_pas_au_registre_donne_une_erreur_claire(contrat, entete, ligne_conforme):
+    """Le registre a reçu 5 lignes, la lecture n'en donne qu'une : ce n'est pas le fichier de cette livraison, ou des lignes sont perdues.
+    Sans cette garde, un silver rejugerait une livraison incomplète et déciderait autrement que la réception, sans signal."""
+    fichier = FichierLu(colonnes=entete, lignes=[ligne_conforme], lignes_malformees=())
+    ligne_registre = replace(_registre_accepte(), nb_recues=5)
+
+    with pytest.raises(ValueError, match="reçu 5"):
+        construire_lignes_bronze(contrat, ligne_registre, fichier)
+    with pytest.raises(ValueError, match="reçu 5"):
+        construire_lignes_coupees(ligne_registre, fichier)
+
+    deux_lignes = FichierLu(colonnes=entete, lignes=[ligne_conforme, ligne_conforme], lignes_malformees=())
+    with pytest.raises(ValueError, match="compte 2"):                      # l'autre sens : le registre n'en a reçu qu'une
+        construire_lignes_bronze(contrat, _registre_accepte(), deux_lignes)
