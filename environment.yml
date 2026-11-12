@@ -1,0 +1,18 @@
+# Environnement conda de travail du projet rd-manuf.
+#
+# Créer l'environnement (une seule fois, depuis la racine du dépôt) :
+#     conda env create -f environment.yml
+# L'activer :
+#     conda activate rd-manuf
+# Le mettre à jour après un changement de dépendances dans pyproject.toml :
+#     conda env update -f environment.yml --prune
+#
+# La liste des dépendances reste dans pyproject.toml : ce fichier ne fait que fournir Python et lancer la même installation que la CI.
+name: rd-manuf
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12          # même version que la CI (un test le vérifie)
+  - pip
+  - pip:
+      - -e ".[dev]"      # le projet en mode éditable, avec ses dépendances et les outils de test

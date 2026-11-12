@@ -1,4 +1,6 @@
-# rd-manuf
+# DATA ENGINEER - Workflow Demonstration -
+
+# use case : R&D et Manufacturing
 
 Pipeline de données **R&D Manufacturing** sur Databricks (architecture médaillon bronze → silver → gold),
 construit pas à pas avec un processus d'équipe : branches, Pull Requests, CI GitHub Actions et revue de code.
@@ -113,19 +115,27 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `simulateur.py` : fabrication de livraisons de test ;
   - `config.py` : garde-fou sur le choix de l'environnement.
 - [`tests/unitaires/`](tests/unitaires/) : les tests.
+- [`docs/`](docs/) : l'image du plan global et le programme qui la fabrique.
+- [`environment.yml`](environment.yml) : l'environnement conda de travail.
 - [`.github/`](.github/) : la CI et le modèle de description des Pull Requests.
 
 ## Installer et lancer les tests
 
-Il faut Python 3.12 ou plus récent.
+Il faut Python 3.12 ou plus récent. Le plus simple est de passer par conda, qui crée un environnement isolé :
 
 ```bash
-pip install -e ".[dev]"   # installe le projet avec ses dépendances et les outils de test
-python -m pytest          # lance les tests
-ruff check .              # vérifie le style du code
+conda env create -f environment.yml   # crée l'environnement « rd-manuf » : Python 3.12, le projet et ses outils de test
+conda activate rd-manuf               # l'active (à refaire dans chaque nouveau terminal)
+python -m pytest                      # lance les tests
+ruff check .                          # vérifie le style du code
 ```
 
-La CI lance ces vérifications (style, puis tests) à chaque Pull Request.
+Après un changement de dépendances dans `pyproject.toml`, on met l'environnement à jour avec `conda env update -f environment.yml --prune`.
+Sans conda, `pip install -e ".[dev]"` installe la même chose dans l'environnement Python de son choix.
+
+La liste des dépendances reste dans `pyproject.toml` : `environment.yml` ne fournit que Python et lance la même installation que la CI.
+Un test vérifie que la version de Python y est la même que dans le projet et dans la CI.
+La CI lance ces vérifications (style, puis tests) à chaque Pull Request, sur un environnement neuf.
 
 ## Travailler sur le projet
 

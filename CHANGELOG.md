@@ -11,6 +11,7 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **CSV** : un fichier texte où chaque ligne est une ligne de données, les valeurs étant séparées par un symbole (virgule ou point-virgule). C'est ce qu'exporte Excel.
 - **Ligne malformée** : une ligne dont le nombre de valeurs ne correspond pas à l'en-tête, le plus souvent une ligne coupée en route. On ne peut pas savoir à quelle colonne appartient chaque valeur.
 - **Parquet** : un format de fichier de données qui contient lui-même ses colonnes et leurs types (nombres, dates), donc plus fiable qu'un CSV, qui n'est que du texte.
+- **Environnement conda** : un espace de travail isolé (Python et bibliothèques) que l'on crée en une commande, pour que chacun travaille avec les mêmes versions.
 - **Livraison** : un fichier de données envoyé par l'usine. Celui qui l'envoie est l'**émetteur** ; ceux qui utilisent les données sont le **métier** ; ceux qui construisent le pipeline sont l'**équipe data**.
 - **Contrat de données** : la fiche qui décrit ce qu'une livraison doit contenir (colonnes, types de valeurs, limites, règles).
 - **Rejet** : une ligne qui ne respecte pas le contrat est mise de côté pour être corrigée, au lieu d'être utilisée.
@@ -21,6 +22,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Sabotage** : une modification volontaire du code pour vérifier que les tests détectent bien l'erreur.
 
 ---
+
+## #24 — Environnement conda et nouveau titre du README
+*2026-11-12 · [PR #24](https://github.com/X-stratum/rd-manuf/pull/24)*
+
+**En clair.** Le projet peut maintenant recréer son environnement de travail en une seule commande, au lieu d'installer les outils à la main, et il s'est vérifié : un environnement neuf créé depuis ce fichier fait passer tous les tests. Le README porte aussi son nouveau titre, qui présente le dépôt comme une démonstration de méthode de travail appliquée à un cas concret, la R&D et la fabrication.
+**Décisions.** On utilise conda pour le poste de travail, tandis que la liste des bibliothèques reste écrite à un seul endroit. Un test garde la version de Python identique dans le projet, la CI et l'environnement. Pas de conteneur pour l'instant : la CI, qui installe tout sur une machine vierge à chaque modification, joue déjà ce rôle. Le verrouillage des versions viendra avec le déploiement.
 
 ## #23 — Registre des livraisons et rejeux
 *2026-11-12 · [PR #23](https://github.com/X-stratum/rd-manuf/pull/23)*
