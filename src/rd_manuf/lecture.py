@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from rd_manuf.contrat import LigneMalformee
 
@@ -31,7 +32,7 @@ class FichierIllisible(Exception):
 @dataclass(frozen=True)
 class FichierLu:
     colonnes: list[str]                # l'en-tête tel que reçu, doublons compris (pour détecter COLONNE_DUPLIQUEE)
-    lignes: list[dict[str, str]]       # uniquement les lignes bien formées
+    lignes: list[dict[str, Any]]       # uniquement les lignes bien formées ; du texte pour un CSV, des valeurs typées pour un Parquet
     lignes_malformees: tuple[LigneMalformee, ...]
 
 
@@ -53,3 +54,20 @@ def lire_csv(chemin: str | Path, separateur: str = SEPARATEUR_PAR_DEFAUT, encoda
     except (UnicodeDecodeError, csv.Error) as erreur:
         raise FichierIllisible(f"Le fichier ne peut pas être lu comme un CSV en {encodage} : {erreur}") from erreur
     return FichierLu(colonnes=colonnes, lignes=lignes, lignes_malformees=tuple(malformees))
+
+
+def lire_parquet(chemin: str | Path) -> FichierLu:
+    """Lit un fichier Parquet : le fichier porte son schéma, donc ni BOM, ni séparateur, ni ligne malformée.
+
+    Les valeurs arrivent déjà typées (entiers, dates, absences `None`) : le contrat les juge de la même façon que celles d'un CSV.
+    Un fichier qui n'est pas un Parquet valide (tronqué, autre format) lève `FichierIllisible`.
+    """
+    # Importé ici : le lecteur CSV et les autres modules n'ont pas besoin de ce paquet lourd.
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    try:
+        table = pq.read_table(chemin)
+    except pa.ArrowException as erreur:
+        raise FichierIllisible(f"Le fichier ne peut pas être lu comme un Parquet : {erreur}") from erreur
+    return FichierLu(colonnes=list(table.column_names), lignes=table.to_pylist(), lignes_malformees=())
