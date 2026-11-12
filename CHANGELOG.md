@@ -22,6 +22,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #22 — Nom des fichiers, aiguillage par format et enchaînement complet
+*2026-11-12 · [PR #22](https://github.com/X-stratum/rd-manuf/pull/22)*
+
+**En clair.** Le projet sait maintenant traiter un fichier de bout en bout : il vérifie d'abord que son nom dit d'où et de quand il vient (pays, usine et instant en UTC), choisit le bon lecteur selon son format (CSV ou Parquet), puis décide. Un nom qui ne respecte pas la convention est refusé avant même d'ouvrir le fichier, avec une alerte à l'émetteur.
+**Décisions.** L'heure est toujours en UTC, marquée par un Z, pour qu'un changement d'heure ne donne jamais le même nom à deux fichiers. Le code usine fait 2 lettres et 3 chiffres (usine et ligne de production), écrit à un seul endroit pour pouvoir changer. L'identifiant d'une livraison est le nom de son fichier. Le plan global est mis à jour : l'étape « Recevoir » est terminée.
+
 ## #21 — Plan global illustré dans le README
 *2026-11-12 · [PR #21](https://github.com/X-stratum/rd-manuf/pull/21)*
 
