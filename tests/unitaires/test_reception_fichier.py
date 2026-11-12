@@ -17,8 +17,8 @@ from rd_manuf.structure import CodeStructure
 
 GRAINE = 42
 NB_LIGNES = 20
-NOM_CSV = "livraison_production_FRA_AB123_2026-11-11-14-30-05Z.csv"
-NOM_PARQUET = "livraison_production_FRA_AB123_2026-11-11-14-30-05Z.parquet"
+NOM_CSV = "livraison_production_FRA_AA_001_2026-11-11-14-30-05Z.csv"
+NOM_PARQUET = "livraison_production_FRA_AA_001_2026-11-11-14-30-05Z.parquet"
 
 
 def _codes(reception):
@@ -52,7 +52,7 @@ def test_un_parquet_conforme_est_accepte(tmp_path, contrat):
 # ==============================================================================
 # 2. 🚫 NOM INVALIDE : refusé avant toute lecture
 # ==============================================================================
-@pytest.mark.parametrize("nom", ["donnees.csv", "livraison_production_fra_AB123_2026-11-11-14-30-05Z.csv"])
+@pytest.mark.parametrize("nom", ["donnees.csv", "livraison_production_fra_AA_001_2026-11-11-14-30-05Z.csv"])
 def test_un_nom_invalide_est_refuse_sans_lire_le_fichier(tmp_path, contrat, nom):
     reception = receptionner_fichier(contrat, tmp_path / nom)      # le fichier n'existe pas : le refus vient du nom seul
 
@@ -92,7 +92,7 @@ def test_un_parquet_tronque_est_refuse_comme_illisible(tmp_path, contrat):
 # ==============================================================================
 # 4. 🏷️ LA RÉCEPTION GARDE CE QUE LE NOM A APPRIS : le registre en aura besoin (d'où, de quand)
 # ==============================================================================
-NOM_ATTENDU = NomFichier(pays="FRA", usine="AB123", horodatage=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC), format="csv")
+NOM_ATTENDU = NomFichier(pays="FRA", usine="AA_001", horodatage=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC), format="csv")
 
 
 def test_une_livraison_receptionnee_garde_les_informations_de_son_nom(tmp_path, contrat):

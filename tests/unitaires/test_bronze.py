@@ -18,7 +18,7 @@ from rd_manuf.simulateur import ecrire_livraison_csv, generer_livraison
 GRAINE = 42
 NB_LIGNES = 20
 ARRIVEE = datetime(2026, 11, 11, 14, 35, 0, tzinfo=UTC)
-NOM = "livraison_production_FRA_AB123_2026-11-11-14-30-05Z.csv"
+NOM = "livraison_production_FRA_AA_001_2026-11-11-14-30-05Z.csv"
 
 
 def _ecrire(tmp_path, contrat, nom=NOM, anomalies=None, graine=GRAINE, nb_lignes=NB_LIGNES):
@@ -37,7 +37,7 @@ def _registre_accepte():
     """Une ligne de registre ACCEPTEE minimale, pour les tests qui construisent leur fichier sans passer par le disque."""
     return LigneRegistre(
         livraison_id=NOM, statut="ACCEPTEE", version_contrat="1.0.0", nb_recues=1, nb_valides=1, nb_rejetees=0, codes_refus=(),
-        pays="FRA", usine="AB123", horodatage_fichier=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC), heure_arrivee=ARRIVEE,
+        pays="FRA", usine="AA_001", horodatage_fichier=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC), heure_arrivee=ARRIVEE,
         empreinte=None, rejeu_de=None,
     )
 

@@ -30,7 +30,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 
 - 🟢 **Aiguillage** ([`lecture.py`](src/rd_manuf/lecture.py), [`reception.py`](src/rd_manuf/reception.py)) : le format annoncé par le nom du fichier (CSV ou Parquet) choisit le lecteur, et une seule fonction enchaîne nom, lecture et réception.
 - 🟢 **Lecture** ([`lecture.py`](src/rd_manuf/lecture.py)) : lit les fichiers CSV et Parquet ; un fichier abîmé, coupé ou mal encodé est refusé proprement.
-- 🟢 **Nom du fichier** ([`nom_fichier.py`](src/rd_manuf/nom_fichier.py)) : pays, usine et instant en UTC, avec une forme contrôlée avant toute lecture. Un nom invalide est refusé et l'émetteur est prévenu.
+- 🟢 **Nom du fichier** ([`nom_fichier.py`](src/rd_manuf/nom_fichier.py)) : pays, usine (deux lettres, un tiret bas, trois chiffres : `AA_001`) et instant en UTC, avec une forme contrôlée avant toute lecture. Un nom invalide est refusé et l'émetteur est prévenu.
 
 </details>
 
