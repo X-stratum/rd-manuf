@@ -24,6 +24,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #28 — Bronze : conserver aussi les lignes coupées
+*2026-11-12 · [PR #28](https://github.com/X-stratum/rd-manuf/pull/28)*
+
+**En clair.** Le bronze conserve maintenant aussi les lignes coupées d'un fichier CSV, à part des autres : leurs valeurs telles que reçues et leur numéro de ligne dans le fichier. Rien de ce qui est arrivé n'est donc perdu à cette étape, et le silver pourra juger une livraison exactement comme la réception.
+**Décisions.** Cela remplace une décision de la #26, qui laissait ces lignes hors du bronze : on s'est aperçu qu'un silver relisant le bronze sans elles pouvait décider autrement que la réception. Exemple vérifié sur le vrai contrat : 100 lignes dont 1 invalide et 2 coupées donnent « bloquée » à la réception (3 % de rejets pour un seuil de 2 %), mais « acceptée avec rejets » (1 %) si les lignes coupées manquent, et 97 lignes auraient été intégrées alors que le registre dit « bloquée ». Les lignes coupées restent rangées à part, car on ne sait pas à quelle colonne va chaque valeur. Elles suivent la même règle d'entrée que les autres lignes (livraison acceptée, acceptée avec rejets ou bloquée ; ni refus ni rejeu), et c'est toujours le registre qui décide. Leur numéro est celui que relève le lecteur dans le fichier (l'en-tête est la ligne 1 ; pour une ligne coupée sur plusieurs lignes par un retour à la ligne entre guillemets, c'est la dernière), alors que celui des lignes bien formées est un rang : les deux ne se comparent pas. Le bronze vérifie aussi que le fichier lu compte autant de lignes que le registre en a reçu : sans cette garde, un silver pourrait rejuger une livraison incomplète.
+
 ## #27 — Code usine : le format AA_001
 *2026-11-12 · [PR #27](https://github.com/X-stratum/rd-manuf/pull/27)*
 
