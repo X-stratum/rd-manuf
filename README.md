@@ -23,14 +23,14 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 
 ## Plan global
 
-🚧 Projet en construction. 🟢 fait · 🟠 prochain · ⚪ à venir. Cliquez sur une étape pour la déplier : les blocs terminés renvoient vers le code.
+🚧 Projet en construction. 🟢 fait (logique écrite et testée) · 🟠 prochain · ⚪ à venir. Rien n'est encore écrit dans une table. Cliquez sur une étape pour la déplier : les blocs terminés renvoient vers le code.
 
 <details>
 <summary><b>01 · Recevoir</b> : lire le fichier de l'usine</summary>
 
-- 🟢 **Aiguillage** ([`lecture.py`](src/rd_manuf/lecture.py), [`reception.py`](src/rd_manuf/reception.py)) : le format annoncé par le nom du fichier (CSV ou Parquet) choisit le lecteur, et une seule fonction enchaîne nom, lecture et réception.
-- 🟢 **Lecture** ([`lecture.py`](src/rd_manuf/lecture.py)) : lit les fichiers CSV et Parquet ; un fichier abîmé, coupé ou mal encodé est refusé proprement.
-- 🟢 **Nom du fichier** ([`nom_fichier.py`](src/rd_manuf/nom_fichier.py)) : pays, usine (deux lettres, un tiret bas, trois chiffres : `AA_001`) et instant en UTC, avec une forme contrôlée avant toute lecture. Un nom invalide est refusé et l'émetteur est prévenu.
+- 🟢 **Aiguillage** ([`lecture.py`](src/rd_manuf/lecture.py), [`reception.py`](src/rd_manuf/reception.py)) : le nom du fichier choisit le lecteur (CSV ou Parquet) ; une fonction enchaîne tout.
+- 🟢 **Lecture** ([`lecture.py`](src/rd_manuf/lecture.py)) : lit le CSV et le Parquet ; un fichier abîmé, coupé ou mal encodé est refusé proprement.
+- 🟢 **Nom du fichier** ([`nom_fichier.py`](src/rd_manuf/nom_fichier.py)) : pays, usine (`AA_001`) et instant UTC, contrôlés avant toute lecture ; un nom invalide est refusé.
 
 </details>
 
@@ -38,7 +38,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <summary><b>02 · Contrôler</b> : la structure, puis chaque ligne</summary>
 
 - 🟢 **Structure** ([`structure.py`](src/rd_manuf/structure.py)) : colonnes manquantes, inconnues ou en double, fichier vide.
-- 🟢 **Jugement des lignes** ([`contrat.py`](src/rd_manuf/contrat.py)) : chaque ligne est vérifiée contre le contrat ; une ligne incorrecte est écartée, et une livraison dont trop de lignes sont écartées est bloquée (seuil de rejet).
+- 🟢 **Jugement des lignes** ([`contrat.py`](src/rd_manuf/contrat.py)) : chaque ligne contre le contrat (une date n'a pas d'heure) ; trop de rejets bloquent la livraison.
 
 </details>
 
@@ -46,15 +46,16 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <summary><b>03 · Décider</b> : une décision unique par livraison</summary>
 
 - 🟢 **Décision** ([`reception.py`](src/rd_manuf/reception.py)) : acceptée, acceptée avec rejets, bloquée ou refusée.
-- 🟠 **Registre** ([`registre.py`](src/rd_manuf/registre.py)) : la ligne de chaque livraison (sa décision, d'où et de quand elle vient, quand elle est arrivée) est construite, et un fichier déjà intégré qui revient avec le même contenu est ignoré, avec une trace ; avec un contenu différent, il est refusé et l'émetteur est prévenu. Reste à écrire ces lignes dans une table.
+- 🟢 **Registre** ([`registre.py`](src/rd_manuf/registre.py)) : une ligne par livraison (décision, origine, arrivée) ; un rejeu identique est ignoré, un contenu différent refusé.
 
 </details>
 
 <details>
 <summary><b>04 · Stocker</b> : bronze, silver, gold</summary>
 
-- 🟠 **Bronze** ([`bronze.py`](src/rd_manuf/bronze.py)) : les données telles que reçues, conservées, toutes en texte et avec de quoi remonter à la livraison. Les lignes de chaque livraison acceptée, acceptée avec rejets ou bloquée sont construites ; un refus et un rejeu n'y entrent pas. Les lignes coupées d'un CSV, qu'on ne peut pas ranger dans des colonnes, sont conservées à part, avec leur numéro de ligne dans le fichier. Reste à les écrire dans des tables.
-- ⚪ **Silver** : les données contrôlées ; les lignes rejetées vont en quarantaine pour être corrigées.
+- 🟢 **Bronze** ([`bronze.py`](src/rd_manuf/bronze.py)) : les lignes reçues, en texte, avec leur traçabilité ; les lignes coupées d'un CSV sont gardées à part.
+- 🟠 **Silver : une livraison** : les lignes typées ; les lignes rejetées vont en quarantaine pour être corrigées.
+- ⚪ **Silver : doublons** : une même clé reçue dans deux livraisons.
 - ⚪ **Gold** : des indicateurs prêts à l'emploi pour le métier.
 
 </details>
@@ -62,8 +63,8 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <details>
 <summary><b>05 · Prévenir</b> : qui agit, qui est informé</summary>
 
-- 🟢 **Routage d'alertes** ([`alertes.py`](src/rd_manuf/alertes.py), [`catalogue.yaml`](contracts/alertes/catalogue.yaml)) : pour chaque problème, le rôle qui doit agir et ceux qui sont informés. Des rôles, jamais des noms de personnes.
-- 🟠 **Annuaire** : les contacts, gardés hors du dépôt public.
+- 🟢 **Routage d'alertes** ([`alertes.py`](src/rd_manuf/alertes.py), [`catalogue.yaml`](contracts/alertes/catalogue.yaml)) : pour chaque problème, qui agit et qui est informé (des rôles).
+- ⚪ **Annuaire** : les contacts, gardés hors du dépôt public.
 - ⚪ **Envoi** : prévenir réellement les bonnes personnes (rien n'est encore envoyé).
 
 </details>
@@ -71,7 +72,8 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <details>
 <summary><b>06 · Livrer</b> : du bac à sable à la production</summary>
 
-- ⚪ **Déploiement dev** ([`databricks.yml`](databricks.yml)) : le bundle décrit trois cibles reliées à leurs catalogues et a été validé par Databricks, mais rien n'est encore déployé.
+- ⚪ **Déploiement dev** ([`databricks.yml`](databricks.yml)) : trois cibles reliées à leurs catalogues, validées par Databricks ; rien n'est déployé.
+- ⚪ **Écrire en tables** : registre, bronze et silver écrits dans Databricks, avec le premier déploiement.
 - ⚪ **Mise en production** : version 0.1.0, puis reprise sur incident.
 
 </details>
@@ -79,10 +81,11 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <details>
 <summary><b>Règles écrites et outils</b> : ce qui garantit la qualité</summary>
 
-- 🟢 **Contrat de données** ([`livraison_production.yaml`](contracts/data/livraison_production.yaml)) : colonnes, types, limites et règles, lisibles par le métier.
+- 🟢 **Contrat de données** ([`livraison_production.yaml`](contracts/data/livraison_production.yaml)) : colonnes, types, limites et règles, lisibles par le métier ; version 2.0.0.
 - 🟢 **Codes d'erreur** : stables, jamais renommés, car les alertes s'appuient dessus.
+- 🟢 **Environnements** ([`config.py`](src/rd_manuf/config.py)) : un catalogue par cible (playground, dev, prod) ; un catalogue inconnu est refusé.
 - 🟢 **Simulateur** ([`simulateur.py`](src/rd_manuf/simulateur.py)) : fabrique des livraisons de test avec des anomalies demandées, pour tester et rejouer un incident.
-- 🟢 **Tests, CI et revue** ([`tests/unitaires/`](tests/unitaires/), [`.github/`](.github/)) : les tests s'écrivent avant le code, la CI les relance à chaque Pull Request.
+- 🟢 **Tests, CI et revue** ([`tests/unitaires/`](tests/unitaires/), [`.github/`](.github/)) : tests avant le code, CI à chaque PR, environnement conda en une commande.
 - 🟢 **Journal des changements** ([`CHANGELOG.md`](CHANGELOG.md)) : le projet raconté pas à pas, en langage clair.
 
 </details>
