@@ -3,11 +3,12 @@
 Le nom dit d'où (pays, usine, ligne de production) et de quand (instant en UTC, marqué par le Z) vient le fichier.
 Il est contrôlé AVANT toute lecture : un nom douteux ne permet ni de savoir qui prévenir, ni de savoir quelle livraison remplace laquelle.
 """
+import re
 from datetime import UTC, datetime
 
 import pytest
 
-from rd_manuf.nom_fichier import NomFichier, NomFichierInvalide, lire_nom_fichier
+from rd_manuf.nom_fichier import MOTIF_LIGNE, MOTIF_USINE, NomFichier, NomFichierInvalide, lire_nom_fichier
 
 PAYS = "FRA"
 USINE = "AA"
@@ -122,6 +123,23 @@ def test_la_forme_attendue_nomme_l_usine_et_la_ligne_de_production():
     assert "{PAYS}_{USINE}_{LIGNE}_{AAAA-MM-JJ-HH-MM-SS}Z" in message
     assert "USINE : 2 lettres majuscules" in message
     assert "LIGNE : 3 chiffres" in message
+
+
+def _largeurs_acceptees(motif, caractere):
+    """Les largeurs (jusqu'à 10) pour lesquelles le motif accepte exactement cette répétition d'un caractère."""
+    return [largeur for largeur in range(1, 11) if re.fullmatch(motif, caractere * largeur)]
+
+
+def test_les_largeurs_du_message_sont_celles_des_motifs():
+    """Le message répète les largeurs des motifs, comme l'exemple répète la forme : il ne doit pas pouvoir mentir à l'émetteur."""
+    largeurs_usine = _largeurs_acceptees(MOTIF_USINE, "A")
+    largeurs_ligne = _largeurs_acceptees(MOTIF_LIGNE, "1")
+    assert (len(largeurs_usine), len(largeurs_ligne)) == (1, 1)             # une seule largeur possible : le message peut la dire
+    with pytest.raises(NomFichierInvalide) as erreur:
+        lire_nom_fichier("n_importe_quoi.csv")
+    message = str(erreur.value)
+    assert f"USINE : {largeurs_usine[0]} lettres majuscules" in message
+    assert f"LIGNE : {largeurs_ligne[0]} chiffres" in message
 
 
 def test_nom_fichier_invalide_n_est_pas_une_value_error():
