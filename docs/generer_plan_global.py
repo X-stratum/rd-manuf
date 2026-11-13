@@ -107,12 +107,14 @@ STYLE_STATUT = {
     A_VENIR: ("À VENIR", SLATE, "#ffffff", SLATE_B, "5 4"),
 }
 
+EN_LETTRES = {5: "cinq", 6: "six", 7: "sept", 8: "huit", 9: "neuf", 10: "dix"}    # le nombre d'étapes, dit dans la description de l'image
+
 # géométrie (en pixels du SVG)
 X_COLONNES, LARGEUR_COLONNE, ECART = 176, 204, 13        # 204 px : un titre de 22 caractères tient dans sa carte
 LARGEUR_UTILE = len(COLONNES) * (LARGEUR_COLONNE + ECART) - ECART      # de la première colonne au bord droit de la dernière
 LARGEUR = X_COLONNES + LARGEUR_UTILE + 38 + 14                          # plus la marge des couloirs (38) et un peu d'air (14)
 ESPACE_OUTILS = 15
-LARGEUR_OUTIL = (LARGEUR_UTILE - 4 * ESPACE_OUTILS) / 5               # cinq outils, sur la même largeur que la chaîne
+LARGEUR_OUTIL = (LARGEUR_UTILE - (len(OUTILS) - 1) * ESPACE_OUTILS) / len(OUTILS)    # les outils, sur la même largeur que la chaîne
 H_COULOIR = 90
 H_CARTE_PRINCIPALE, H_CARTE_COMPACTE = 84, 68
 PAS_CARTE = 92                                   # une carte de la chaîne (84) et son espacement
@@ -256,18 +258,20 @@ def _pied(d: _Dessin, total: int) -> None:
     d.brut(f'<line x1="44" y1="{y}" x2="{LARGEUR - 44}" y2="{y}" stroke="{LINE}" stroke-width="1"/>')
     d.texte(52, y + 20, "FEUILLE 1/1", 9.5, MUTED, 600, "start", MONO, 1.5)
     d.texte(160, y + 20, "PLAN GLOBAL", 9.5, MUTED, 600, "start", MONO, 1.5)
-    d.texte(280, y + 20, f"{total} BLOCS  ·  3 STATUTS  ·  3 TYPES DE FLUX  ·  6 ÉTAPES", 9.5, INK, 700, "start", MONO, 1.5)
+    d.texte(280, y + 20, f"{total} BLOCS  ·  3 STATUTS  ·  3 TYPES DE FLUX  ·  {len(COLONNES)} ÉTAPES", 9.5, INK, 700, "start", MONO, 1.5)
     d.texte(LARGEUR - 52, y + 20, f"RÉV. {NUMERO_REVISION}  ·  {DATE_REVISION}", 9.5, MUTED, 600, "end", MONO, 1.5)
 
 
 def construire_svg() -> str:
     faits, total = nb_blocs_faits(), nb_blocs()
+    noms = [nom.lower() for _, nom, _ in COLONNES]
+    etapes = ', '.join(noms[:-1]) + ' et ' + noms[-1]
     d = _Dessin()
     d.brut(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LARGEUR} {HAUTEUR}" width="{LARGEUR}" height="{HAUTEUR}" '
            'role="img" aria-labelledby="t d">')
     d.brut('<title id="t">rd-manuf : plan global</title>')
-    d.brut(f'<desc id="d">Du fichier envoyé par l\'usine aux données prêtes à l\'emploi : {faits} blocs terminés sur {total}, six étapes '
-           '(recevoir, contrôler, décider, stocker, prévenir, livrer), les règles écrites et les outils.</desc>')
+    d.brut(f'<desc id="d">Du fichier envoyé par l\'usine aux données prêtes à l\'emploi : {faits} blocs terminés sur {total}, '
+           f'{EN_LETTRES[len(COLONNES)]} étapes ({etapes}), les règles écrites et les outils.</desc>')
     d.brut('<defs>')
     d.brut('<pattern id="grille" width="24" height="24" patternUnits="userSpaceOnUse">'
            '<path d="M24 0H0V24" fill="none" stroke="#e6ebef" stroke-width="1"/></pattern>')

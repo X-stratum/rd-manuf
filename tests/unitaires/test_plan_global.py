@@ -8,6 +8,8 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import pytest
+
 RACINE = Path(__file__).resolve().parents[2]
 SVG = RACINE / "docs" / "plan-global.svg"
 GENERATEUR = RACINE / "docs" / "generer_plan_global.py"
@@ -141,10 +143,47 @@ def test_les_titres_et_les_descriptions_tiennent_dans_leur_carte():
 
 
 def test_la_rangee_des_outils_a_la_meme_largeur_que_la_chaine():
-    """Cinq outils (autant d'espaces que d'intervalles) occupent exactement la largeur des colonnes : la zone ne déborde ni ne rétrécit."""
+    """Les outils (autant d'espaces que d'intervalles) occupent la largeur des colonnes, quel que soit leur nombre."""
     g = _generateur()
-    assert len(g.OUTILS) == 5
     largeur_de_la_rangee = len(g.OUTILS) * g.LARGEUR_OUTIL + (len(g.OUTILS) - 1) * g.ESPACE_OUTILS
 
-    assert largeur_de_la_rangee == g.LARGEUR_UTILE
-    assert g.X_COLONNES + largeur_de_la_rangee <= g.LARGEUR - MARGE_DU_COULOIR
+    assert largeur_de_la_rangee == pytest.approx(g.LARGEUR_UTILE)
+    assert g.X_COLONNES + largeur_de_la_rangee <= g.LARGEUR - MARGE_DU_COULOIR + 1e-6
+
+
+# ==============================================================================
+# 🔒 Le nombre d'étapes est écrit en trois endroits : il doit suivre le nombre de colonnes du plan
+# ==============================================================================
+NOMBRES_EN_LETTRES = {5: "cinq", 6: "six", 7: "sept", 8: "huit", 9: "neuf", 10: "dix"}
+
+
+def _en_lettres(nombre: int) -> str:
+    assert nombre in NOMBRES_EN_LETTRES, f"{nombre} étapes : ajouter ce nombre en lettres à NOMBRES_EN_LETTRES"
+    return NOMBRES_EN_LETTRES[nombre]
+
+
+def test_le_pied_de_l_image_annonce_autant_d_etapes_que_de_colonnes():
+    annonce = re.search(r"(\d+) ÉTAPES", SVG.read_text(encoding="utf-8"))
+
+    assert annonce, "le pied de l'image ne contient plus « N ÉTAPES » : adapter ce test"
+    assert int(annonce.group(1)) == len(_generateur().COLONNES)
+
+
+def test_la_description_de_l_image_nomme_toutes_les_etapes():
+    description = ET.fromstring(SVG.read_text(encoding="utf-8")).find("{http://www.w3.org/2000/svg}desc").text
+    colonnes = _generateur().COLONNES
+    annonce = re.search(r"(\w+) étapes", description)
+
+    assert annonce, "la description de l'image ne contient plus « N étapes » : adapter ce test"
+    assert annonce.group(1) == _en_lettres(len(colonnes))
+    absentes = [nom.lower() for _, nom, _ in colonnes if nom.lower() not in description]
+    assert absentes == [], f"étapes du plan absentes de la description de l'image : {absentes}"
+
+
+def test_le_texte_alternatif_de_l_image_du_readme_annonce_autant_d_etapes_que_de_colonnes():
+    alt = re.search(r'<img src="docs/plan-global\.svg" alt="([^"]*)"', README.read_text(encoding="utf-8"))
+    assert alt, "l'image du plan n'a plus de texte alternatif dans le README : adapter ce test"
+    annonce = re.search(r"(\w+) étapes", alt.group(1))
+
+    assert annonce, "le texte alternatif ne contient plus « N étapes » : adapter ce test"
+    assert annonce.group(1) == _en_lettres(len(_generateur().COLONNES))

@@ -15,7 +15,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 
 <p align="center">
   <a href="docs/plan-global.svg">
-    <img src="docs/plan-global.svg" alt="Plan global du projet : six étapes, de la réception de la livraison à la mise en production, avec les acteurs, les règles écrites et les outils, et l'avancement de chaque bloc." width="100%">
+    <img src="docs/plan-global.svg" alt="Plan global du projet : sept étapes, de la réception de la livraison à son exploitation, avec les acteurs, les règles écrites et les outils, et l'avancement de chaque bloc." width="100%">
   </a>
 </p>
 
