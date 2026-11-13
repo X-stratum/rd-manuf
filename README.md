@@ -79,6 +79,19 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 </details>
 
 <details>
+<summary><b>07 · Exploiter</b> : faire tourner et surveiller le pipeline</summary>
+
+- ⚪ **Orchestration** : les étapes enchaînées en jobs Databricks, un passage par livraison.
+- ⚪ **Ingestion incrémentale** : ne traiter que les nouveaux fichiers du dossier d'arrivée.
+- ⚪ **Surveillance** : fraîcheur des livraisons, volumes, taux de rejet par usine, échecs.
+- ⚪ **Retraitement** : reprendre une livraison corrigée ou rejugée sous un autre contrat, avec un signal de reclassification.
+- ⚪ **Droits et secrets** : qui accède à quoi (catalogues), et où vivent les jetons.
+- ⚪ **Évolution du contrat** : changer de version sans casser l'historique ni les lignes déjà intégrées.
+- ⚪ **Tests de volume** : mesurer le pipeline sur de vraies tailles de livraison, pour choisir entre Python et Spark.
+
+</details>
+
+<details>
 <summary><b>Règles écrites et outils</b> : ce qui garantit la qualité</summary>
 
 - 🟢 **Contrat de données** ([`livraison_production.yaml`](contracts/data/livraison_production.yaml)) : colonnes, types, limites et règles, lisibles par le métier ; version 2.0.0.

@@ -45,6 +45,14 @@ COLONNES = [
         ("Déploiement dev", ["Bundle écrit et validé ;", "rien de déployé"], A_VENIR),
         ("Écrire en tables", ["Registre, bronze et", "silver dans Databricks"], PROCHAIN),
         ("Mise en production", ["Version 0.1.0, puis", "reprise sur incident"], A_VENIR)]),
+    ("07", "EXPLOITER", [
+        ("Orchestration", ["Jobs enchaînés, un", "passage par livraison"], A_VENIR),
+        ("Ingestion incrémentale", ["Seulement les nouveaux", "fichiers du dossier"], A_VENIR),
+        ("Surveillance", ["Fraîcheur, volumes,", "taux de rejet"], A_VENIR),
+        ("Retraitement", ["Reprendre une livraison", "corrigée ou rejugée"], A_VENIR),
+        ("Droits et secrets", ["Qui accède à quoi ;", "où vivent les jetons"], A_VENIR),
+        ("Évolution du contrat", ["Changer de version", "sans casser l'historique"], A_VENIR),
+        ("Tests de volume", ["Mesurer sur de vraies", "tailles de livraison"], A_VENIR)]),
 ]
 ACTEURS = [  # (numéro de la colonne au-dessus de laquelle la carte se place, titre, lignes)
     (0, "Usine émettrice", ["Envoie les fichiers ;", "agit sur alerte"]),
@@ -100,8 +108,11 @@ STYLE_STATUT = {
 }
 
 # géométrie (en pixels du SVG)
-LARGEUR = 1400
-X_COLONNES, LARGEUR_COLONNE, ECART = 176, 186, 13
+X_COLONNES, LARGEUR_COLONNE, ECART = 176, 204, 13        # 204 px : un titre de 22 caractères tient dans sa carte
+LARGEUR_UTILE = len(COLONNES) * (LARGEUR_COLONNE + ECART) - ECART      # de la première colonne au bord droit de la dernière
+LARGEUR = X_COLONNES + LARGEUR_UTILE + 38 + 14                          # plus la marge des couloirs (38) et un peu d'air (14)
+ESPACE_OUTILS = 15
+LARGEUR_OUTIL = (LARGEUR_UTILE - 4 * ESPACE_OUTILS) / 5               # cinq outils, sur la même largeur que la chaîne
 H_COULOIR = 90
 H_CARTE_PRINCIPALE, H_CARTE_COMPACTE = 84, 68
 PAS_CARTE = 92                                   # une carte de la chaîne (84) et son espacement
@@ -235,9 +246,9 @@ def _acteurs_et_regles(d: _Dessin) -> None:
 
 
 def _outils(d: _Dessin) -> None:
-    largeur = (1181 - 4 * 15) / 5
+    largeur = LARGEUR_OUTIL
     for rang, (titre, lignes) in enumerate(OUTILS):
-        d.carte(X_COLONNES + rang * (largeur + 15), Y_OUTILS + 11, largeur, H_CARTE_COMPACTE, titre, lignes, FAIT, barre=False)
+        d.carte(X_COLONNES + rang * (largeur + ESPACE_OUTILS), Y_OUTILS + 11, largeur, H_CARTE_COMPACTE, titre, lignes, FAIT, barre=False)
 
 
 def _pied(d: _Dessin, total: int) -> None:

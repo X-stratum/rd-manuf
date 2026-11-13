@@ -24,6 +24,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #33 — Plan global : une septième étape « Exploiter »
+*2026-11-13 · [PR #33](https://github.com/X-stratum/rd-manuf/pull/33)*
+
+**En clair.** Le plan global (image et README) montre maintenant tout ce qu'il faudra pour faire tourner et surveiller le pipeline, pas seulement le construire : une septième étape « Exploiter » avec sept blocs, l'orchestration, l'ingestion incrémentale, la surveillance, le retraitement, les droits et secrets, l'évolution du contrat et les tests de volume. Ils sont tous à faire (⚪) : le plan passe de 20 blocs terminés sur 26 à 20 sur 33. Rien d'autre ne change dans le code du projet.
+**Décisions.** Ces blocs étaient absents du plan, alors qu'un pipeline qui n'est ni lancé, ni surveillé, ni rejouable n'est pas terminé : les voir en blanc empêche de croire le projet plus avancé qu'il ne l'est. Le plan n'est plus dessiné à la main : la largeur de l'image se déduit du nombre d'étapes, et la rangée des outils prend la même largeur que la chaîne, sans valeur recopiée. Les colonnes passent de 186 à 204 px pour laisser de la place aux titres. Quatre gardes en test vérifient la géométrie (les colonnes tiennent dans leur couloir, la dernière carte dans sa colonne, les titres et les descriptions dans leur carte, la rangée des outils sur la largeur de la chaîne). La garde des textes est une estimation (nombre de caractères × largeur moyenne), pas une mesure : elle a signalé que « Silver : une livraison » dépassait peut-être déjà de sa carte depuis la #31, ce qu'aucun rendu n'a confirmé.
+
 ## #32 — Silver : une clé déjà intégrée par une livraison plus ancienne
 *2026-11-13 · [PR #32](https://github.com/X-stratum/rd-manuf/pull/32)*
 

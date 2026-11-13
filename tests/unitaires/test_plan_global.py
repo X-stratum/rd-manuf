@@ -90,3 +90,61 @@ def test_les_puces_du_plan_restent_synthetiques():
     trop_longues = {nom: len(ligne) for nom, (_, ligne) in puces.items() if len(ligne) > LONGUEUR_MAX_PUCE}
 
     assert trop_longues == {}, f"puces de plus de {LONGUEUR_MAX_PUCE} caractères : {trop_longues}"
+
+
+# ==============================================================================
+# 📐 GARDES DE GÉOMÉTRIE : l'image ne doit jamais déborder (la CI ne « voit » pas le rendu : ces tests le calculent)
+# ==============================================================================
+# Largeur d'un caractère, estimée : un titre est en gras à 13,5 px (environ 7,4 px par caractère), une ligne de description en
+# monospace à 10 px (0,6 em, soit 6 px). C'est une HEURISTIQUE, pas une mesure : aucun moteur de rendu n'est disponible dans les tests.
+PX_PAR_CARACTERE_TITRE = 7.4
+PX_PAR_CARACTERE_LIGNE = 6.0
+MARGE_INTERIEURE_CARTE = 12 + 10           # le texte commence à 12 px du bord gauche, et on garde 10 px à droite
+MARGE_DU_COULOIR = 38                       # les couloirs s'étendent de 38 px à LARGEUR - 38
+
+
+def test_les_colonnes_de_la_chaine_tiennent_dans_le_couloir():
+    g = _generateur()
+    n = len(g.COLONNES)
+    bord_droit = g.X_COLONNES + (n - 1) * (g.LARGEUR_COLONNE + g.ECART) + g.LARGEUR_COLONNE
+
+    limite = g.LARGEUR - MARGE_DU_COULOIR
+    assert bord_droit <= limite, f"{n} colonnes : bord droit à {bord_droit} px, couloir jusqu'à {limite} px"
+
+
+def test_la_derniere_carte_de_chaque_colonne_tient_dans_sa_colonne():
+    g = _generateur()
+    bas_de_la_colonne = g.Y_CHAINE + 8 + g.H_CHAINE - 16
+    debordements = {
+        nom: g.Y_CHAINE + 46 + (len(cartes) - 1) * g.PAS_CARTE + g.H_CARTE_PRINCIPALE
+        for _, nom, cartes in g.COLONNES
+        if g.Y_CHAINE + 46 + (len(cartes) - 1) * g.PAS_CARTE + g.H_CARTE_PRINCIPALE > bas_de_la_colonne
+    }
+
+    assert debordements == {}, f"cartes qui dépassent le bas de leur colonne ({bas_de_la_colonne} px) : {debordements}"
+
+
+def test_les_titres_et_les_descriptions_tiennent_dans_leur_carte():
+    """Estimation : voir les constantes ci-dessus. Un titre trop long déborde de sa carte sans rien signaler."""
+    g = _generateur()
+    place = (g.LARGEUR_COLONNE - 16) - MARGE_INTERIEURE_CARTE
+    trop_larges = {}
+    for _, _, cartes in g.COLONNES:
+        for titre, lignes, _ in cartes:
+            if len(titre) * PX_PAR_CARACTERE_TITRE > place:
+                trop_larges[titre] = round(len(titre) * PX_PAR_CARACTERE_TITRE)
+            for ligne in lignes:
+                if len(ligne) * PX_PAR_CARACTERE_LIGNE > place:
+                    trop_larges[ligne] = round(len(ligne) * PX_PAR_CARACTERE_LIGNE)
+
+    assert trop_larges == {}, f"texte estimé plus large que la place ({place:.0f} px) : {trop_larges}"
+
+
+def test_la_rangee_des_outils_a_la_meme_largeur_que_la_chaine():
+    """Cinq outils (autant d'espaces que d'intervalles) occupent exactement la largeur des colonnes : la zone ne déborde ni ne rétrécit."""
+    g = _generateur()
+    assert len(g.OUTILS) == 5
+    largeur_de_la_rangee = len(g.OUTILS) * g.LARGEUR_OUTIL + (len(g.OUTILS) - 1) * g.ESPACE_OUTILS
+
+    assert largeur_de_la_rangee == g.LARGEUR_UTILE
+    assert g.X_COLONNES + largeur_de_la_rangee <= g.LARGEUR - MARGE_DU_COULOIR
