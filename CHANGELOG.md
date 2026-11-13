@@ -18,11 +18,18 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Rejet** : une ligne qui ne respecte pas le contrat est mise de côté pour être corrigée, au lieu d'être utilisée.
 - **Seuil de rejet** : la part maximale de lignes rejetées (2 %) au-delà de laquelle toute la livraison est bloquée.
 - **Bronze / Silver** : deux étapes de traitement. Le bronze garde les données telles que reçues ; le silver contient les données contrôlées, prêtes à servir.
+- **Schéma d'une table** : la liste de ses colonnes, avec le type de chaque valeur (texte, entier, date…) et le droit ou non d'être vide.
 - **PR** (*pull request*) : une demande de modification, relue avant d'être intégrée au projet.
 - **CI** : la vérification automatique lancée à chaque PR (style du code, puis tests).
 - **Sabotage** : une modification volontaire du code pour vérifier que les tests détectent bien l'erreur.
 
 ---
+
+## #34 — Tables : les schémas du registre, du bronze et du silver
+*2026-11-13 · [PR #34](https://github.com/X-stratum/rd-manuf/pull/34)*
+
+**En clair.** Le projet sait maintenant décrire les cinq tables où seront écrites les données, et fabriquer le texte SQL qui les crée : le registre des livraisons, le bronze, les lignes coupées, le silver et la quarantaine. Rien n'est encore créé ni écrit dans Databricks : ce sont des descriptions, vérifiées par des tests.
+**Décisions.** Les tables sont rangées par couche : le registre dans `ops`, le bronze et les lignes coupées dans `bronze`, le silver et la quarantaine dans `silver`. Les colonnes de données se déduisent du contrat, pas d'une liste écrite à part : le bronze les garde toutes en texte, sans obligation, parce qu'il ne juge rien ; le silver les type (texte, entier, date) et rend NOT NULL celles que le contrat déclare obligatoires. Un décimal devient un `DOUBLE`, pas un `DECIMAL(p, s)` : le code manipule un nombre à virgule flottante et le contrat ne dit ni précision ni échelle, donc choisir une précision serait inventer une règle. Le contenu d'une ligne en quarantaine a deux formes (les valeurs en texte, ou les champs bruts d'une ligne coupée) : chacune a sa colonne typée et l'autre reste vide, plutôt qu'un JSON à relire. Une colonne du contrat qui porterait un nom de traçabilité (`livraison_id`, `heure_arrivee`, `numero_ligne`, `version_contrat`) est refusée, comme un type que les tables ne savent pas ranger. Le SQL de création passe par le garde-fou de catalogue : un nom inconnu est refusé. Chaque schéma est gardé en test d'accord avec sa dataclass et avec le contrat : ajouter un champ à une ligne, ou une colonne au contrat, sans mettre à jour le schéma fait échouer la CI. Un test fait aussi passer de vraies lignes du registre, du bronze, du silver et de la quarantaine par ces schémas.
 
 ## #33 — Plan global : une septième étape « Exploiter »
 *2026-11-13 · [PR #33](https://github.com/X-stratum/rd-manuf/pull/33)*
