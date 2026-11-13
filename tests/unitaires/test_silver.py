@@ -463,3 +463,46 @@ def test_la_plus_ancienne_des_livraisons_anterieures_fait_foi(tmp_path, contrat)
 
     assert (len(resultat.lignes), len(resultat.quarantaine)) == (0, NB_LIGNES)
     assert all(NOM in v.message and "intermediaire" not in v.message for q in resultat.quarantaine for v in q.violations)
+
+
+def test_deux_livraisons_arrivees_a_la_meme_heure_se_departagent_par_leur_nom(tmp_path, contrat):
+    """Sans départage, chacune ignorerait l'autre et le silver contiendrait deux lignes par clé : la première arrivée ne ferait plus foi."""
+    chemin_a = _ecrire(tmp_path, contrat)                              # NOM, « plus petit » que NOM_B : elle passe en premier
+    chemin_b = _livraison_b(tmp_path, contrat, modifiees=NB_LIGNES)
+    _, a = _silver_du_fichier(contrat, chemin_a)
+    _, b = _silver_du_fichier(contrat, chemin_b)                       # la MÊME heure d'arrivée : ARRIVEE
+
+    _, b_apres_a = _silver_du_fichier(contrat, chemin_b, deja_integrees=a.lignes)
+    _, a_apres_b = _silver_du_fichier(contrat, chemin_a, deja_integrees=b.lignes)
+
+    assert (len(b_apres_a.lignes), len(b_apres_a.quarantaine)) == (0, NB_LIGNES)        # B voit A : conflit
+    assert (len(a_apres_b.lignes), len(a_apres_b.quarantaine)) == (NB_LIGNES, 0)        # A ne voit pas B : elle fait foi
+
+
+def test_une_livraison_retraitee_plus_tard_ne_se_compare_pas_a_ses_propres_lignes(tmp_path, contrat):
+    """La livraison courante est exclue par son NOM, pas par l'égalité d'heure : retraitée plus tard, elle rend les mêmes lignes."""
+    chemin = _livraison_b(tmp_path, contrat)
+    _, premier_passage = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B)
+
+    plus_tard = ARRIVEE_B + timedelta(hours=1)
+    _, retraitement = _silver_du_fichier(contrat, chemin, arrivee=plus_tard, deja_integrees=premier_passage.lignes)
+
+    assert len(premier_passage.lignes) == NB_LIGNES
+    assert [ligne.valeurs for ligne in retraitement.lignes] == [ligne.valeurs for ligne in premier_passage.lignes]
+    assert retraitement.quarantaine == []
+
+
+@pytest.mark.parametrize("a_l_envers", [False, True], ids=["ordre-direct", "ordre-inverse"])
+def test_le_departage_des_plus_anciennes_ne_depend_pas_de_l_ordre_des_lignes_passees(tmp_path, contrat, a_l_envers):
+    """Deux livraisons plus anciennes arrivées à la même heure portent la même clé : le NOM décide laquelle fait foi, pas l'ordre."""
+    base = _livraison_a(tmp_path, contrat)
+    premiere = [replace(ligne, livraison_id="a.csv") for ligne in base]
+    seconde = [replace(ligne, livraison_id="b.csv", valeurs={**ligne.valeurs, "quantite_produite": ligne.valeurs["quantite_produite"] + 1})
+               for ligne in base]
+    deja = [*seconde, *premiere] if a_l_envers else [*premiere, *seconde]
+    chemin = _livraison_b(tmp_path, contrat, modifiees=NB_LIGNES)       # le même contenu que « b.csv », différent de « a.csv »
+
+    _, resultat = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B, deja_integrees=deja)
+
+    assert (len(resultat.lignes), len(resultat.quarantaine)) == (0, NB_LIGNES)
+    assert all("a.csv" in v.message and "b.csv" not in v.message for q in resultat.quarantaine for v in q.violations)

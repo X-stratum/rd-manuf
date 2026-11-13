@@ -9,9 +9,10 @@ Entrent : les livraisons acceptées, acceptées avec rejets et bloquées (même 
 lignes ni quarantaine : elle est bloquée en entier, et le diagnostic est au registre. Un refus et un rejeu non plus. La quarantaine ne
 sert donc qu'aux livraisons acceptées avec rejets, lignes coupées comprises. Un doublon exact est ignoré : il reste au bronze.
 
-Une clé déjà intégrée par une livraison PLUS ANCIENNE (arrivée avant, selon le registre) suit la même règle : la première arrivée fait
-foi. Même contenu : ignorée ; contenu différent : quarantaine `CLE_EN_CONFLIT`, avec la livraison d'origine nommée. Cela ne change NI le
-statut NI le seuil de rejet : la réception ne connaît que la livraison en cours, et le silver ne doit jamais décider autrement qu'elle.
+Une clé déjà intégrée par une livraison PLUS ANCIENNE (arrivée avant, selon le registre ; à heure égale, le nom départage) suit la même
+règle : la première arrivée fait foi. Même contenu : ignorée ; contenu différent : quarantaine `CLE_EN_CONFLIT`, avec la livraison d'origine
+nommée. Cela ne change NI le statut NI le seuil de rejet : la réception ne connaît que la livraison en cours, et le silver ne doit jamais
+décider autrement qu'elle.
 
 Ce module construit des lignes ; il n'écrit nulle part (l'écriture dans une table viendra avec le déploiement).
 """
@@ -68,12 +69,17 @@ def _cle(contrat: Contrat, valeurs: dict[str, Any]) -> tuple[str, ...]:
 
 
 def _lignes_plus_anciennes(
-    contrat: Contrat, deja_integrees: Sequence[LigneSilver], arrivee: datetime
+    contrat: Contrat, deja_integrees: Sequence[LigneSilver], livraison_id: str, arrivee: datetime
 ) -> dict[tuple[str, ...], LigneSilver]:
-    """Par clé, la ligne de la livraison arrivée la PREMIÈRE, parmi celles arrivées strictement avant `arrivee`."""
+    """Par clé, la ligne de la livraison arrivée la PREMIÈRE, parmi celles qui précèdent la livraison courante.
+
+    L'ordre est `(heure d'arrivée, nom de la livraison)` : deux livraisons arrivées à la même heure sont départagées par leur nom, sinon
+    chacune ignorerait l'autre. La livraison courante est exclue par son NOM (retraitée, elle ne se compare pas à ses propres lignes).
+    """
     anterieures: dict[tuple[str, ...], LigneSilver] = {}
-    for ligne in sorted(deja_integrees, key=lambda ligne: ligne.heure_arrivee):
-        if ligne.heure_arrivee < arrivee:
+    courante = (arrivee, livraison_id)
+    for ligne in sorted(deja_integrees, key=lambda ligne: (ligne.heure_arrivee, ligne.livraison_id)):
+        if ligne.livraison_id != livraison_id and (ligne.heure_arrivee, ligne.livraison_id) < courante:
             anterieures.setdefault(_cle(contrat, ligne.valeurs), ligne)
     return anterieures
 
@@ -92,7 +98,8 @@ def construire_silver(
     reçoit pas tout ce qui est arrivé, et il ne doit alors rien intégrer.
 
     `deja_integrees` : les lignes silver des livraisons déjà intégrées (lues dans la table plus tard) ; seules comptent celles arrivées
-    AVANT cette livraison, donc un retraitement ne voit pas les suivantes et une livraison ne se compare pas à elle-même.
+    AVANT cette livraison (heure d'arrivée, puis nom), donc un retraitement ne voit pas les suivantes et une livraison ne se compare pas à
+    elle-même, quelle que soit l'heure avec laquelle elle est retraitée.
     """
     if ligne_registre.statut not in STATUTS_BRONZE:
         return ResultatSilver(lignes=[], quarantaine=[])
@@ -135,7 +142,7 @@ def construire_silver(
             quarantaine.append(LigneQuarantaine(numero_ligne=None, numero_fichier=numero, contenu=coupee_par_numero[numero].champs,
                                                 violations=rejetee.violations, **reference))
 
-    anterieures = _lignes_plus_anciennes(contrat, deja_integrees, ligne_registre.heure_arrivee)
+    anterieures = _lignes_plus_anciennes(contrat, deja_integrees, ligne_registre.livraison_id, ligne_registre.heure_arrivee)
     lignes = []
     for texte in jugement.lignes_valides:
         bronze = au_bronze[id(texte)]
