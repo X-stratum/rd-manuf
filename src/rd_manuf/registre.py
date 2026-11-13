@@ -36,6 +36,7 @@ class LigneRegistre:
     codes_refus: tuple[str, ...]               # motifs de structure d'un refus, dans l'ordre des codes ; vide sinon
     pays: str | None                           # None si le nom du fichier est invalide
     usine: str | None
+    ligne: str | None                          # la ligne de production de l'usine
     horodatage_fichier: datetime | None        # l'instant écrit dans le nom, en UTC
     heure_arrivee: datetime                    # l'instant où la livraison est arrivée, en UTC
     empreinte: str | None                      # SHA-256 du contenu du fichier ; None si le nom est invalide (fichier non lu)
@@ -60,6 +61,7 @@ def construire_ligne_registre(reception: Reception, heure_arrivee: datetime, emp
         codes_refus=tuple(probleme.code.value for probleme in reception.problemes_structure),
         pays=nom.pays if nom else None,
         usine=nom.usine if nom else None,
+        ligne=nom.ligne if nom else None,
         horodatage_fichier=nom.horodatage if nom else None,
         heure_arrivee=_en_utc(heure_arrivee),
         empreinte=empreinte,
@@ -68,9 +70,9 @@ def construire_ligne_registre(reception: Reception, heure_arrivee: datetime, emp
 
 
 def _livraison_deja_integree(registre: Sequence[LigneRegistre], nom: NomFichier) -> LigneRegistre | None:
-    identite = (nom.pays, nom.usine, nom.horodatage)
-    integrees = (ligne for ligne in registre if ligne.statut in STATUTS_INTEGRES)
-    return next((ligne for ligne in integrees if (ligne.pays, ligne.usine, ligne.horodatage_fichier) == identite), None)
+    identite = (nom.pays, nom.usine, nom.ligne, nom.horodatage)
+    integrees = (entree for entree in registre if entree.statut in STATUTS_INTEGRES)
+    return next((entree for entree in integrees if (entree.pays, entree.usine, entree.ligne, entree.horodatage_fichier) == identite), None)
 
 
 def _empreinte(chemin: Path) -> str:
@@ -89,6 +91,7 @@ def _ligne_de_rejeu(chemin: Path, nom: NomFichier, original: LigneRegistre, heur
         codes_refus=(),
         pays=nom.pays,
         usine=nom.usine,
+        ligne=nom.ligne,
         horodatage_fichier=nom.horodatage,
         heure_arrivee=heure,
         empreinte=original.empreinte,

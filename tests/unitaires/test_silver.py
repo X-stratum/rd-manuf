@@ -322,7 +322,7 @@ def test_un_contrat_avec_une_colonne_numero_ligne_ne_perturbe_pas_la_quarantaine
     ]
     ligne_registre = LigneRegistre(
         livraison_id=NOM, statut="ACCEPTEE_AVEC_REJETS", version_contrat=contrat.version, nb_recues=2, nb_valides=1, nb_rejetees=1,
-        codes_refus=(), pays="FRA", usine="AA_001", horodatage_fichier=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC),
+        codes_refus=(), pays="FRA", usine="AA", ligne="001", horodatage_fichier=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC),
         heure_arrivee=ARRIVEE, empreinte=None, rejeu_de=None,
     )
 
