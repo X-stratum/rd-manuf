@@ -24,6 +24,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #31 — Silver : les lignes valides typées et la quarantaine
+*2026-11-13 · [PR #31](https://github.com/X-stratum/rd-manuf/pull/31)*
+
+**En clair.** Le projet sait maintenant construire le silver d'une livraison : les lignes valides, avec leurs valeurs typées (nombres, dates), et la quarantaine des lignes rejetées, avec ce qu'il faut corriger. Il relit le bronze, rejuge la livraison avec le contrat, et refuse de rendre quoi que ce soit s'il ne décide pas comme la réception. Une livraison bloquée, refusée ou rejouée ne rend rien. Rien n'est encore écrit dans une table.
+**Décisions.** Le silver reprend la fonction de jugement de la réception : une seule source de vérité pour les règles. Avec la même version de contrat que le registre, un statut différent est une erreur claire : c'est ce qui aurait intégré 97 lignes d'une livraison bloquée si les lignes coupées manquaient (exemple vérifié : 3 % de rejets à la réception, 1 % sans elles). Avec une autre version, c'est un retraitement autorisé, et chaque ligne porte la version qui l'a jugée. Une livraison bloquée ne rend ni lignes ni quarantaine : elle est bloquée en entier, le diagnostic est au registre, et la quarantaine ne sert qu'aux livraisons acceptées avec rejets, lignes coupées comprises. Un doublon exact est ignoré (il reste au bronze). La conversion de valeurs du contrat devient publique, avec sa précondition écrite : la ligne doit avoir été jugée d'abord. La brique suivante : une même clé reçue dans deux livraisons.
+
 ## #30 — Plan global : remis à jour, avec la suite et des gardes
 *2026-11-13 · [PR #30](https://github.com/X-stratum/rd-manuf/pull/30)*
 
