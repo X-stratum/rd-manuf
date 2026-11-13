@@ -9,7 +9,11 @@ Entrent : les livraisons acceptées, acceptées avec rejets et bloquées (même 
 lignes ni quarantaine : elle est bloquée en entier, et le diagnostic est au registre. Un refus et un rejeu non plus. La quarantaine ne
 sert donc qu'aux livraisons acceptées avec rejets, lignes coupées comprises. Un doublon exact est ignoré : il reste au bronze.
 
-Une clé déjà intégrée par une livraison PLUS ANCIENNE (arrivée avant, selon le registre ; à heure égale, le nom départage) suit la même
+Un lot est identifié par son PAYS, son USINE et son `id_lot` : deux usines numérotent leurs lots chacune de leur côté, et comparer
+l'`id_lot` seul les ferait entrer en conflit ou, pire, ignorerait en silence la seconde quand le contenu est le même. La ligne de
+production n'en fait pas partie : une usine numérote les lots de toutes ses lignes, et un conflit entre deux de ses lignes reste visible.
+
+Un lot déjà intégré par une livraison PLUS ANCIENNE (arrivée avant, selon le registre ; à heure égale, le nom départage) suit la même
 règle : la première arrivée fait foi. Même contenu : ignorée ; contenu différent : quarantaine `CLE_EN_CONFLIT`, avec la livraison d'origine
 nommée. Cela ne change NI le statut NI le seuil de rejet : la réception ne connaît que la livraison en cours, et le silver ne doit jamais
 décider autrement qu'elle.
@@ -41,6 +45,8 @@ from rd_manuf.registre import LigneRegistre
 class LigneSilver:
     livraison_id: str                          # le nom du fichier, comme au registre et au bronze
     heure_arrivee: datetime                    # en UTC
+    pays: str                                  # d'où vient la livraison, d'après son nom : avec l'usine, il identifie le lot
+    usine: str
     numero_ligne: int                          # le RANG de la ligne au bronze (parmi les lignes bien formées)
     version_contrat: str                       # la version du contrat qui a jugé la ligne
     valeurs: dict[str, Any]                    # TYPÉES : entier, décimal, date ; None si la valeur est absente
@@ -68,19 +74,24 @@ def _cle(contrat: Contrat, valeurs: dict[str, Any]) -> tuple[str, ...]:
     return tuple(str(valeurs[nom]) for nom in contrat.cle_primaire)
 
 
+def _lot(pays: str, usine: str, cle: tuple[str, ...]) -> tuple[str, str, tuple[str, ...]]:
+    """L'identité d'un lot : son pays, son usine et sa clé. Deux lots de pays ou d'usines différents ne se comparent jamais."""
+    return (pays, usine, cle)
+
+
 def _lignes_plus_anciennes(
     contrat: Contrat, deja_integrees: Sequence[LigneSilver], livraison_id: str, arrivee: datetime
-) -> dict[tuple[str, ...], LigneSilver]:
-    """Par clé, la ligne de la livraison arrivée la PREMIÈRE, parmi celles qui précèdent la livraison courante.
+) -> dict[tuple[str, str, tuple[str, ...]], LigneSilver]:
+    """Par lot, la ligne de la livraison arrivée la PREMIÈRE, parmi celles qui précèdent la livraison courante.
 
     L'ordre est `(heure d'arrivée, nom de la livraison)` : deux livraisons arrivées à la même heure sont départagées par leur nom, sinon
     chacune ignorerait l'autre. La livraison courante est exclue par son NOM (retraitée, elle ne se compare pas à ses propres lignes).
     """
-    anterieures: dict[tuple[str, ...], LigneSilver] = {}
+    anterieures: dict[tuple[str, str, tuple[str, ...]], LigneSilver] = {}
     courante = (arrivee, livraison_id)
     for ligne in sorted(deja_integrees, key=lambda ligne: (ligne.heure_arrivee, ligne.livraison_id)):
         if ligne.livraison_id != livraison_id and (ligne.heure_arrivee, ligne.livraison_id) < courante:
-            anterieures.setdefault(_cle(contrat, ligne.valeurs), ligne)
+            anterieures.setdefault(_lot(ligne.pays, ligne.usine, _cle(contrat, ligne.valeurs)), ligne)
     return anterieures
 
 
@@ -95,7 +106,8 @@ def construire_silver(
 
     Lève `ValueError` si, avec la même version de contrat que le registre, le statut recalculé n'est pas celui du registre, ou si, quelle
     que soit la version, les lignes reçues (bien formées et coupées) ne font pas le compte du registre : c'est le signe que le silver ne
-    reçoit pas tout ce qui est arrivé, et il ne doit alors rien intégrer.
+    reçoit pas tout ce qui est arrivé, et il ne doit alors rien intégrer. Lève aussi `ValueError` si le registre ne donne pas le pays et
+    l'usine d'une livraison qui entre : ils identifient ses lots.
 
     `deja_integrees` : les lignes silver des livraisons déjà intégrées (lues dans la table plus tard) ; seules comptent celles arrivées
     AVANT cette livraison (heure d'arrivée, puis nom), donc un retraitement ne voit pas les suivantes et une livraison ne se compare pas à
@@ -103,6 +115,12 @@ def construire_silver(
     """
     if ligne_registre.statut not in STATUTS_BRONZE:
         return ResultatSilver(lignes=[], quarantaine=[])
+    pays, usine = ligne_registre.pays, ligne_registre.usine
+    if pays is None or usine is None:
+        raise ValueError(
+            f"Le silver ne peut pas intégrer la livraison {ligne_registre.livraison_id} : le registre ne donne pas son pays et son usine "
+            f"(pays={pays!r}, usine={usine!r}), qui font partie de l'identité d'un lot."
+        )
 
     textes = [ligne.valeurs for ligne in lignes_bronze]
     coupees = [LigneMalformee(numero=coupee.numero_fichier, champs=coupee.champs) for coupee in lignes_coupees]
@@ -148,9 +166,9 @@ def construire_silver(
         bronze = au_bronze[id(texte)]
         valeurs = valeurs_normalisees(contrat, texte)
         cle = _cle(contrat, valeurs)
-        origine = anterieures.get(cle)
+        origine = anterieures.get(_lot(pays, usine, cle))
         if origine is None:
-            lignes.append(LigneSilver(numero_ligne=bronze.numero_ligne, valeurs=valeurs, **reference))
+            lignes.append(LigneSilver(pays=pays, usine=usine, numero_ligne=bronze.numero_ligne, valeurs=valeurs, **reference))
         elif origine.valeurs != valeurs:                                     # même clé, contenu différent : on ne sait pas lequel est juste
             message = (f"clé primaire {list(contrat.cle_primaire)} déjà intégrée par la livraison {origine.livraison_id} avec un contenu "
                        f"différent : {', '.join(cle)}")

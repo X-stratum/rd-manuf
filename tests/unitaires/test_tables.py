@@ -32,7 +32,7 @@ from rd_manuf.tables import (
 )
 
 TRACABILITE_BRONZE = ["livraison_id", "heure_arrivee", "numero_ligne"]
-TRACABILITE_SILVER = ["livraison_id", "heure_arrivee", "numero_ligne", "version_contrat"]
+TRACABILITE_SILVER = ["livraison_id", "heure_arrivee", "pays", "usine", "numero_ligne", "version_contrat"]
 ARRIVEE = datetime(2026, 11, 11, 14, 35, 0, tzinfo=UTC)
 NOM = "livraison_production_FRA_AA_001_2026-11-11-14-30-05Z.csv"
 
@@ -135,9 +135,11 @@ def test_le_silver_a_la_tracabilite_puis_les_colonnes_du_contrat(contrat):
     table = table_silver(contrat)
 
     assert _noms(table) == _champs(LigneSilver, sauf=("valeurs",)) + [colonne.nom for colonne in contrat.colonnes]
-    assert _colonnes(table)[:4] == [
+    assert _colonnes(table)[:6] == [
         ("livraison_id", "STRING", True),
         ("heure_arrivee", "TIMESTAMP", True),
+        ("pays", "STRING", True),
+        ("usine", "STRING", True),
         ("numero_ligne", "BIGINT", True),
         ("version_contrat", "STRING", True),
     ]
@@ -150,20 +152,20 @@ def test_chaque_type_du_contrat_a_son_type_sql(contrat, type_du_contrat, type_sq
 
     table = table_silver(replace(contrat, colonnes=colonnes))
 
-    assert {colonne.type_sql for colonne in table.colonnes[4:]} == {type_sql}
+    assert {colonne.type_sql for colonne in table.colonnes[6:]} == {type_sql}
 
 
 def test_une_colonne_obligatoire_du_contrat_est_not_null_en_silver_et_seulement_la(contrat):
     table = table_silver(contrat)
     obligatoires = {colonne.nom: colonne.obligatoire for colonne in contrat.colonnes}
 
-    assert {colonne.nom: colonne.obligatoire for colonne in table.colonnes[4:]} == obligatoires
+    assert {colonne.nom: colonne.obligatoire for colonne in table.colonnes[6:]} == obligatoires
     assert not all(obligatoires.values()), "le contrat réel doit avoir une colonne facultative, sinon ce test ne prouve rien"
 
 
 def test_les_colonnes_du_contrat_reel_en_bronze_et_en_silver(contrat):
     """L'ALARME du contrat réel : valeurs en clair, elles échouent quand le contrat change et se mettent à jour à la main."""
-    assert [(c.nom, c.type_sql, c.obligatoire) for c in table_silver(contrat).colonnes[4:]] == [
+    assert [(c.nom, c.type_sql, c.obligatoire) for c in table_silver(contrat).colonnes[6:]] == [
         ("id_lot", "STRING", True),
         ("id_ligne", "STRING", True),
         ("date_production", "DATE", True),
@@ -187,7 +189,7 @@ def test_une_colonne_du_contrat_qui_porte_le_nom_d_une_colonne_de_tracabilite_es
 
 
 @pytest.mark.parametrize("construire", [table_bronze, table_silver])
-@pytest.mark.parametrize("nom_pris", ["Livraison_ID", "HEURE_ARRIVEE", "Numero_Ligne", "VERSION_CONTRAT"])
+@pytest.mark.parametrize("nom_pris", ["Livraison_ID", "HEURE_ARRIVEE", "Numero_Ligne", "VERSION_CONTRAT", "PAYS", "Usine"])
 def test_la_casse_ne_contourne_pas_un_nom_de_tracabilite(contrat, construire, nom_pris):
     """Delta ne distingue pas les majuscules des minuscules : `Livraison_ID` ferait deux colonnes `livraison_id`."""
     contrat_piege = replace(contrat, colonnes=contrat.colonnes + (Colonne(nom=nom_pris, type="chaine"),))

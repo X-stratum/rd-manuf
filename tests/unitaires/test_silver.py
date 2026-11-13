@@ -81,7 +81,8 @@ def test_les_lignes_valides_sont_typees_et_gardent_leur_tracabilite(tmp_path, co
     assert ligne_registre.statut == "ACCEPTEE"
     assert [ligne.valeurs for ligne in resultat.lignes] == [_typee(ligne) for ligne in generer_livraison(contrat, NB_LIGNES, GRAINE)]
     assert resultat.lignes[0] == LigneSilver(
-        livraison_id=NOM, heure_arrivee=ARRIVEE, numero_ligne=1, version_contrat=contrat.version, valeurs=resultat.lignes[0].valeurs
+        livraison_id=NOM, heure_arrivee=ARRIVEE, pays="FRA", usine="AA", numero_ligne=1, version_contrat=contrat.version,
+        valeurs=resultat.lignes[0].valeurs,
     )
     assert [ligne.numero_ligne for ligne in resultat.lignes] == list(range(1, NB_LIGNES + 1))
     assert resultat.quarantaine == []
@@ -361,12 +362,12 @@ def _livraison_a(tmp_path, contrat):
     return resultat.lignes
 
 
-def _livraison_b(tmp_path, contrat, modifiees=0, nb_lignes=NB_LIGNES):
+def _livraison_b(tmp_path, contrat, modifiees=0, nb_lignes=NB_LIGNES, nom=NOM_B):
     """Une seconde livraison : les mêmes clés que la première, dont les `modifiees` premières lignes ont un contenu différent."""
     lignes = generer_livraison(contrat, nb_lignes, GRAINE)
     for ligne in lignes[:modifiees]:
         ligne["quantite_produite"] += 1
-    chemin = tmp_path / NOM_B
+    chemin = tmp_path / nom
     ecrire_livraison_csv(contrat, lignes, chemin)
     return chemin
 
@@ -506,3 +507,82 @@ def test_le_departage_des_plus_anciennes_ne_depend_pas_de_l_ordre_des_lignes_pas
 
     assert (len(resultat.lignes), len(resultat.quarantaine)) == (0, NB_LIGNES)
     assert all("a.csv" in v.message and "b.csv" not in v.message for q in resultat.quarantaine for v in q.violations)
+
+
+# ==============================================================================
+# 9. 🏭 L'IDENTITÉ D'UN LOT : (pays, usine, id_lot) ; la ligne de production n'en fait pas partie
+# ==============================================================================
+# Deux usines numérotent leurs lots chacune de leur côté : `LOT-000001` de l'une n'est pas `LOT-000001` de l'autre. Les comparer par
+# `id_lot` seul les ferait entrer en conflit ou, pire, ignorerait en silence la seconde quand le contenu est le même. Une usine, elle,
+# numérote les lots de toutes ses lignes de production : deux lignes d'une même usine ne réutilisent pas un `id_lot` (le conflit est
+# visible, jamais silencieux).
+NOM_AUTRE_USINE = "livraison_production_FRA_AB_001_2026-11-12-09-00-00Z.csv"
+NOM_AUTRE_PAYS = "livraison_production_DEU_AA_001_2026-11-12-09-00-00Z.csv"
+NOM_AUTRE_LIGNE = "livraison_production_FRA_AA_002_2026-11-12-09-00-00Z.csv"
+
+
+@pytest.mark.parametrize("modifiees", [0, NB_LIGNES], ids=["meme-contenu", "contenu-different"])
+@pytest.mark.parametrize(
+    "nom_autre_origine, origine",
+    [pytest.param(NOM_AUTRE_USINE, ("FRA", "AB"), id="autre-usine"), pytest.param(NOM_AUTRE_PAYS, ("DEU", "AA"), id="autre-pays")],
+)
+def test_une_autre_origine_n_est_ni_un_doublon_ni_un_conflit(tmp_path, contrat, nom_autre_origine, origine, modifiees):
+    deja = _livraison_a(tmp_path, contrat)
+    chemin = _livraison_b(tmp_path, contrat, modifiees=modifiees, nom=nom_autre_origine)
+
+    ligne_registre, resultat = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B, deja_integrees=deja)
+
+    assert ligne_registre.statut == "ACCEPTEE"
+    assert (len(resultat.lignes), resultat.quarantaine) == (NB_LIGNES, [])
+    assert {(ligne.pays, ligne.usine) for ligne in resultat.lignes} == {origine}
+
+
+def test_deux_lignes_de_production_d_une_meme_usine_ne_reutilisent_pas_un_id_lot(tmp_path, contrat):
+    deja = _livraison_a(tmp_path, contrat)
+
+    _, doublon = _silver_du_fichier(contrat, _livraison_b(tmp_path, contrat, nom=NOM_AUTRE_LIGNE), arrivee=ARRIVEE_B, deja_integrees=deja)
+    _, conflit = _silver_du_fichier(
+        contrat, _livraison_b(tmp_path, contrat, modifiees=NB_LIGNES, nom=NOM_AUTRE_LIGNE), arrivee=ARRIVEE_B, deja_integrees=deja
+    )
+
+    assert doublon == RIEN                                                      # même contenu : déjà là
+    assert (len(conflit.lignes), len(conflit.quarantaine)) == (0, NB_LIGNES)    # contenu différent : un conflit visible
+    assert {v.code for q in conflit.quarantaine for v in q.violations} == {CodeErreur.CLE_EN_CONFLIT}
+
+
+def test_le_conflit_ne_vient_que_de_la_meme_origine(tmp_path, contrat):
+    """Une autre usine, arrivée PLUS TÔT et au contenu de la livraison courante, ne masque pas le conflit avec la vraie origine."""
+    de_la_meme_usine = _livraison_a(tmp_path, contrat)
+    d_une_autre_usine = [
+        replace(ligne, livraison_id="autre_usine.csv", usine="AB", heure_arrivee=ARRIVEE - timedelta(hours=1),
+                valeurs={**ligne.valeurs, "quantite_produite": ligne.valeurs["quantite_produite"] + 1})
+        for ligne in de_la_meme_usine
+    ]
+    chemin = _livraison_b(tmp_path, contrat, modifiees=NB_LIGNES)       # le contenu de l'autre usine, différent de celui de sa propre usine
+
+    _, resultat = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B, deja_integrees=[*d_une_autre_usine, *de_la_meme_usine])
+
+    assert (len(resultat.lignes), len(resultat.quarantaine)) == (0, NB_LIGNES)
+    assert all(NOM in v.message and "autre_usine" not in v.message for q in resultat.quarantaine for v in q.violations)
+
+
+def test_les_lignes_portent_le_pays_et_l_usine_du_registre(tmp_path, contrat):
+    nom = "livraison_production_DEU_BA_002_2026-11-11-14-30-05Z.csv"
+
+    ligne_registre, resultat = _silver_du_fichier(contrat, _ecrire(tmp_path, contrat, nom=nom))
+
+    assert (ligne_registre.pays, ligne_registre.usine) == ("DEU", "BA")
+    assert len(resultat.lignes) == NB_LIGNES
+    assert {(ligne.pays, ligne.usine) for ligne in resultat.lignes} == {("DEU", "BA")}
+
+
+@pytest.mark.parametrize("sans", [("pays",), ("usine",), ("pays", "usine")], ids=["sans-pays", "sans-usine", "sans-pays-ni-usine"])
+def test_une_livraison_sans_pays_ou_sans_usine_ne_peut_pas_entrer_au_silver(tmp_path, contrat, sans):
+    """Un nom invalide ne peut pas arriver jusqu'ici ; un registre construit autrement doit être refusé, pas écrit avec des NULL."""
+    chemin = _ecrire(tmp_path, contrat)
+    _, ligne_registre = traiter_fichier(contrat, chemin, [], ARRIVEE)
+    bronze = construire_lignes_bronze(contrat, ligne_registre, lire_selon_format(chemin, "csv"))
+    sans_origine = replace(ligne_registre, **{champ: None for champ in sans})
+
+    with pytest.raises(ValueError, match="pays et son usine"):
+        construire_silver(contrat, sans_origine, bronze, [])

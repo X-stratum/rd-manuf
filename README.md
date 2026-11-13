@@ -55,7 +55,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 
 - 🟢 **Bronze** ([`bronze.py`](src/rd_manuf/bronze.py)) : les lignes reçues, en texte, avec leur traçabilité ; les lignes coupées d'un CSV sont gardées à part.
 - 🟢 **Silver : une livraison** ([`silver.py`](src/rd_manuf/silver.py)) : les lignes typées ; les rejetées vont en quarantaine ; il décide comme la réception.
-- 🟢 **Silver : doublons** ([`silver.py`](src/rd_manuf/silver.py)) : une clé déjà intégrée par une livraison plus ancienne : même contenu ignoré, sinon quarantaine.
+- 🟢 **Silver : doublons** ([`silver.py`](src/rd_manuf/silver.py)) : un lot (pays, usine, numéro) déjà intégré par une livraison plus ancienne : même contenu ignoré, sinon quarantaine.
 - ⚪ **Gold** : des indicateurs prêts à l'emploi pour le métier.
 
 </details>

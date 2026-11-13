@@ -19,12 +19,19 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Seuil de rejet** : la part maximale de lignes rejetées (2 %) au-delà de laquelle toute la livraison est bloquée.
 - **Bronze / Silver** : deux étapes de traitement. Le bronze garde les données telles que reçues ; le silver contient les données contrôlées, prêtes à servir.
 - **Usine et ligne de production** : dans le nom d'un fichier, l'usine est le site (deux lettres, `AA`) et la ligne de production est l'une des lignes de fabrication de ce site (trois chiffres, `001`).
+- **Lot** : une quantité fabriquée d'un coup, repérée par un numéro (`id_lot`) que choisit l'usine. Deux usines peuvent donc utiliser le même numéro : un lot s'identifie par son pays, son usine et son numéro.
 - **Schéma d'une table** : la liste de ses colonnes, avec le type de chaque valeur (texte, entier, date…) et le droit ou non d'être vide.
 - **PR** (*pull request*) : une demande de modification, relue avant d'être intégrée au projet.
 - **CI** : la vérification automatique lancée à chaque PR (style du code, puis tests).
 - **Sabotage** : une modification volontaire du code pour vérifier que les tests détectent bien l'erreur.
 
 ---
+
+## #36 — Silver : un lot s'identifie par son pays, son usine et son numéro
+*2026-11-14 · [PR #36](https://github.com/X-stratum/rd-manuf/pull/36)*
+
+**En clair.** Le silver ne confond plus les lots de deux usines. Deux usines qui numérotent chacune leurs lots depuis `LOT-000001` se heurtaient : la seconde livraison était acceptée à la réception, mais toutes ses lignes partaient en quarantaine comme « en conflit » ; et si le contenu était le même, la ligne de la seconde usine était ignorée sans aucune trace. Un lot s'identifie maintenant par son pays, son usine et son numéro, et chaque ligne du silver porte son pays et son usine.
+**Décisions.** La ligne de production ne fait pas partie de l'identité d'un lot : une usine numérote les lots de toutes ses lignes, et deux de ses lignes qui réutiliseraient un numéro avec un contenu différent restent en conflit. Si ce choix est faux, l'erreur est visible (une quarantaine), alors que le choix inverse laisserait passer de vrais doublons sans signal ; l'identité est écrite à un seul endroit, facile à changer. Le contrat n'est pas modifié, et la décision de la réception non plus (statut et seuil de rejet inchangés) : seule la comparaison des lots entre livraisons change. `pays` et `usine` sont des noms réservés, comme `livraison_id` : une colonne du contrat qui porterait ces noms est refusée, en bronze comme en silver. Une livraison dont le registre n'a ni pays ni usine est refusée par le silver avec une erreur claire, plutôt qu'écrite avec des valeurs vides. Pas encore décidé : le lien entre la ligne de production du nom de fichier et la colonne `id_ligne` des données.
 
 ## #35 — Nom de fichier : séparer l'usine et sa ligne de production
 *2026-11-13 · [PR #35](https://github.com/X-stratum/rd-manuf/pull/35)*
