@@ -586,3 +586,14 @@ def test_une_livraison_sans_pays_ou_sans_usine_ne_peut_pas_entrer_au_silver(tmp_
 
     with pytest.raises(ValueError, match="pays et son usine"):
         construire_silver(contrat, sans_origine, bronze, [])
+
+def test_une_livraison_bloquee_sans_pays_ni_usine_est_aussi_refusee(tmp_path, contrat_strict):
+    """Une livraison bloquée entre elle aussi : sans origine elle est refusée, au lieu de rendre un résultat vide comme avec une origine."""
+    chemin = _ecrire(tmp_path, contrat_strict, anomalies={CodeErreur.HORS_PLAGE: 2})
+    _, ligne_registre = traiter_fichier(contrat_strict, chemin, [], ARRIVEE)
+    bronze = construire_lignes_bronze(contrat_strict, ligne_registre, lire_selon_format(chemin, "csv"))
+    assert ligne_registre.statut == "BLOQUEE"
+    assert construire_silver(contrat_strict, ligne_registre, bronze, []) == RIEN                  # avec son origine : rien, comme avant
+
+    with pytest.raises(ValueError, match="pays et son usine"):
+        construire_silver(contrat_strict, replace(ligne_registre, pays=None, usine=None), bronze, [])
