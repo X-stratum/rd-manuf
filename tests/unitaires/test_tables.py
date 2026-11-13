@@ -7,9 +7,9 @@ Les types SQL, eux, sont écrits ici en clair : c'est la référence indépendan
 """
 import re
 import types
-from dataclasses import fields, replace
+from dataclasses import dataclass, fields, replace
 from datetime import UTC, date, datetime
-from typing import get_args, get_origin, get_type_hints
+from typing import Optional, Union, get_args, get_origin, get_type_hints
 
 import pytest
 
@@ -52,7 +52,19 @@ def _champs(classe, sauf=()):
 def _est_facultatif(classe, nom_du_champ):
     """Le champ est annoté `X | None` : la colonne doit accepter NULL, et inversement."""
     annotation = get_type_hints(classe)[nom_du_champ]
-    return get_origin(annotation) in (types.UnionType,) and type(None) in get_args(annotation)
+    return get_origin(annotation) in (Union, types.UnionType) and type(None) in get_args(annotation)
+
+
+@dataclass
+class _ChampsDeTest:
+    ecriture_barre: str | None
+    ecriture_optional: Optional[str]
+    ecriture_union: Union[str, None]
+    obligatoire: str
+
+
+def test_est_facultatif_reconnait_les_trois_ecritures_d_une_valeur_facultative():
+    assert [_est_facultatif(_ChampsDeTest, champ.name) for champ in fields(_ChampsDeTest)] == [True, True, True, False]
 
 
 # ==============================================================================
@@ -174,6 +186,51 @@ def test_une_colonne_du_contrat_qui_porte_le_nom_d_une_colonne_de_tracabilite_es
 
 
 @pytest.mark.parametrize("construire", [table_bronze, table_silver])
+@pytest.mark.parametrize("nom_pris", ["Livraison_ID", "HEURE_ARRIVEE", "Numero_Ligne", "VERSION_CONTRAT"])
+def test_la_casse_ne_contourne_pas_un_nom_de_tracabilite(contrat, construire, nom_pris):
+    """Delta ne distingue pas les majuscules des minuscules : `Livraison_ID` ferait deux colonnes `livraison_id`."""
+    contrat_piege = replace(contrat, colonnes=contrat.colonnes + (Colonne(nom=nom_pris, type="chaine"),))
+
+    with pytest.raises(ValueError, match=nom_pris):
+        construire(contrat_piege)
+
+
+@pytest.mark.parametrize("construire", [table_bronze, table_silver])
+def test_deux_colonnes_du_contrat_qui_ne_different_que_par_la_casse_sont_refusees(contrat, construire):
+    premiere = contrat.colonnes[0]
+    doublon = replace(premiere, nom=premiere.nom.upper())
+
+    with pytest.raises(ValueError, match=doublon.nom):
+        construire(replace(contrat, colonnes=contrat.colonnes + (doublon,)))
+
+
+@pytest.mark.parametrize("construire", [table_bronze, table_silver])
+def test_le_doublon_de_casse_est_vu_quel_que_soit_l_ordre_des_colonnes(contrat, construire):
+    """La majuscule est cette fois sur la PREMIÈRE colonne : la garde doit comparer les deux noms en minuscules, pas seulement le second."""
+    colonnes = (Colonne(nom="Mesure_X", type="entier", obligatoire=False), Colonne(nom="mesure_x", type="entier", obligatoire=False))
+
+    with pytest.raises(ValueError, match="mesure_x"):
+        construire(replace(contrat, colonnes=contrat.colonnes + colonnes))
+
+
+@pytest.mark.parametrize("construire", [table_bronze, table_silver])
+@pytest.mark.parametrize("nom_invalide", ["a`b", "id lot", "1abc", "x;DROP TABLE y", "a-b", "a.b"])
+def test_un_nom_de_colonne_qui_n_est_pas_un_identifiant_simple_est_refuse(contrat, construire, nom_invalide):
+    """Un backtick sortirait du nom entre guillemets du SQL ; un espace, un point ou un tiret sont refusés par Delta."""
+    contrat_piege = replace(contrat, colonnes=contrat.colonnes + (Colonne(nom=nom_invalide, type="chaine"),))
+
+    with pytest.raises(ValueError, match=re.escape(nom_invalide)):
+        construire(contrat_piege)
+
+
+def test_un_nom_de_colonne_avec_des_accents_est_accepte(contrat):
+    """La garde ne doit pas être plus stricte que nécessaire : un identifiant en français reste un identifiant."""
+    colonne = Colonne(nom="température_moyenne", type="decimal", obligatoire=False)
+
+    assert "température_moyenne" in _noms(table_silver(replace(contrat, colonnes=contrat.colonnes + (colonne,))))
+
+
+@pytest.mark.parametrize("construire", [table_bronze, table_silver])
 def test_un_type_inconnu_du_contrat_est_refuse_avec_son_nom(contrat, construire):
     contrat_piege = replace(contrat, colonnes=(Colonne(nom="est_ok", type="booleen"),))
 
@@ -244,7 +301,7 @@ def test_toutes_les_tables_sont_celles_de_ce_module(contrat):
 # ==============================================================================
 def test_le_sql_de_creation_d_une_table():
     assert sql_creation(BRONZE_COUPEES, CATALOGUE_PAR_DEFAUT) == (
-        "CREATE TABLE IF NOT EXISTS `rd_manuf_playground`.`bronze`.`lignes_coupees` (\n"
+        f"CREATE TABLE IF NOT EXISTS `{CATALOGUE_PAR_DEFAUT}`.`bronze`.`lignes_coupees` (\n"
         "  `livraison_id` STRING NOT NULL,\n"
         "  `heure_arrivee` TIMESTAMP NOT NULL,\n"
         "  `numero_fichier` BIGINT NOT NULL,\n"

@@ -13,6 +13,7 @@ NOT NULL en silver : une ligne valide ne peut pas être absente. Le bronze ne ju
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from rd_manuf.config import environnement_du_catalogue
@@ -28,6 +29,10 @@ TYPE_VIOLATIONS = "ARRAY<STRUCT<code: STRING, colonnes: ARRAY<STRING>, message: 
 # Noms réservés à la traçabilité, dans TOUTES les tables de données : une colonne du contrat qui les porterait créerait deux colonnes du
 # même nom, ou écraserait la traçabilité. Le refus est le même en bronze et en silver, pour qu'une colonne ait le même nom partout.
 COLONNES_RESERVEES = ("livraison_id", "heure_arrivee", "numero_ligne", "version_contrat")
+
+# Un nom de colonne devient un identifiant SQL entre backticks : lettres (accents permis), chiffres et `_`, sans commencer par un chiffre.
+# Un backtick sortirait des guillemets ; un espace, un point, un tiret ou un point-virgule sont refusés par Delta à la création.
+IDENTIFIANT_SIMPLE = re.compile(r"[^\W\d]\w*")
 
 
 @dataclass(frozen=True)
@@ -92,12 +97,25 @@ def _type_sql(colonne: Colonne) -> str:
 
 
 def _verifier_les_colonnes_du_contrat(contrat: Contrat) -> None:
-    """Un contrat que les tables ne savent pas ranger est refusé, quelle que soit la table demandée (bronze et silver vont ensemble)."""
+    """Un contrat que les tables ne savent pas ranger est refusé, quelle que soit la table demandée (bronze et silver vont ensemble).
+
+    Les noms se comparent sans tenir compte de la casse, comme le fait Delta : `Livraison_ID` serait le même nom que `livraison_id`.
+    """
+    vus: set[str] = set()
     for colonne in contrat.colonnes:
-        if colonne.nom in COLONNES_RESERVEES:
+        nom = colonne.nom
+        if not IDENTIFIANT_SIMPLE.fullmatch(nom):
             raise ValueError(
-                f"La colonne du contrat « {colonne.nom} » porte le nom d'une colonne de traçabilité : {list(COLONNES_RESERVEES)}."
+                f"La colonne du contrat « {nom} » n'est pas un identifiant simple (lettres, chiffres et _, sans commencer par un "
+                "chiffre) : elle ne peut pas devenir une colonne de table."
             )
+        if nom.lower() in COLONNES_RESERVEES:
+            raise ValueError(
+                f"La colonne du contrat « {nom} » porte le nom d'une colonne de traçabilité : {list(COLONNES_RESERVEES)}."
+            )
+        if nom.lower() in vus:
+            raise ValueError(f"La colonne du contrat « {nom} » ne diffère d'une autre que par la casse : Delta ne les distingue pas.")
+        vus.add(nom.lower())
         _type_sql(colonne)
 
 
