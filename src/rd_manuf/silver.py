@@ -9,6 +9,10 @@ Entrent : les livraisons acceptées, acceptées avec rejets et bloquées (même 
 lignes ni quarantaine : elle est bloquée en entier, et le diagnostic est au registre. Un refus et un rejeu non plus. La quarantaine ne
 sert donc qu'aux livraisons acceptées avec rejets, lignes coupées comprises. Un doublon exact est ignoré : il reste au bronze.
 
+Une clé déjà intégrée par une livraison PLUS ANCIENNE (arrivée avant, selon le registre) suit la même règle : la première arrivée fait
+foi. Même contenu : ignorée ; contenu différent : quarantaine `CLE_EN_CONFLIT`, avec la livraison d'origine nommée. Cela ne change NI le
+statut NI le seuil de rejet : la réception ne connaît que la livraison en cours, et le silver ne doit jamais décider autrement qu'elle.
+
 Ce module construit des lignes ; il n'écrit nulle part (l'écriture dans une table viendra avec le déploiement).
 """
 from __future__ import annotations
@@ -19,7 +23,16 @@ from datetime import datetime
 from typing import Any
 
 from rd_manuf.bronze import STATUTS_BRONZE, LigneBronze, LigneBronzeCoupee
-from rd_manuf.contrat import CLE_NUMERO_LIGNE, Contrat, LigneMalformee, StatutLivraison, Violation, valeurs_normalisees, valider_livraison
+from rd_manuf.contrat import (
+    CLE_NUMERO_LIGNE,
+    CodeErreur,
+    Contrat,
+    LigneMalformee,
+    StatutLivraison,
+    Violation,
+    valeurs_normalisees,
+    valider_livraison,
+)
 from rd_manuf.registre import LigneRegistre
 
 
@@ -49,17 +62,37 @@ class ResultatSilver:
     quarantaine: list[LigneQuarantaine]
 
 
+def _cle(contrat: Contrat, valeurs: dict[str, Any]) -> tuple[str, ...]:
+    """La clé d'unicité d'une ligne, calculée comme `valider_livraison` le fait au sein d'une livraison."""
+    return tuple(str(valeurs[nom]) for nom in contrat.cle_primaire)
+
+
+def _lignes_plus_anciennes(
+    contrat: Contrat, deja_integrees: Sequence[LigneSilver], arrivee: datetime
+) -> dict[tuple[str, ...], LigneSilver]:
+    """Par clé, la ligne de la livraison arrivée la PREMIÈRE, parmi celles arrivées strictement avant `arrivee`."""
+    anterieures: dict[tuple[str, ...], LigneSilver] = {}
+    for ligne in sorted(deja_integrees, key=lambda ligne: ligne.heure_arrivee):
+        if ligne.heure_arrivee < arrivee:
+            anterieures.setdefault(_cle(contrat, ligne.valeurs), ligne)
+    return anterieures
+
+
 def construire_silver(
     contrat: Contrat,
     ligne_registre: LigneRegistre,
     lignes_bronze: Sequence[LigneBronze],
     lignes_coupees: Sequence[LigneBronzeCoupee],
+    deja_integrees: Sequence[LigneSilver] = (),
 ) -> ResultatSilver:
     """Rejuge la livraison depuis le bronze ; vide si le registre dit qu'elle n'entre pas ou si elle est bloquée.
 
     Lève `ValueError` si, avec la même version de contrat que le registre, le statut recalculé n'est pas celui du registre, ou si, quelle
     que soit la version, les lignes reçues (bien formées et coupées) ne font pas le compte du registre : c'est le signe que le silver ne
     reçoit pas tout ce qui est arrivé, et il ne doit alors rien intégrer.
+
+    `deja_integrees` : les lignes silver des livraisons déjà intégrées (lues dans la table plus tard) ; seules comptent celles arrivées
+    AVANT cette livraison, donc un retraitement ne voit pas les suivantes et une livraison ne se compare pas à elle-même.
     """
     if ligne_registre.statut not in STATUTS_BRONZE:
         return ResultatSilver(lignes=[], quarantaine=[])
@@ -91,10 +124,6 @@ def construire_silver(
         "version_contrat": contrat.version,
     }
 
-    lignes = [
-        LigneSilver(numero_ligne=au_bronze[id(texte)].numero_ligne, valeurs=valeurs_normalisees(contrat, texte), **reference)
-        for texte in jugement.lignes_valides
-    ]
     quarantaine = []
     for rejetee in jugement.lignes_rejetees:
         ligne = au_bronze.get(id(rejetee.ligne))                             # reconnue par son identité, pas par une clé de ses données
@@ -105,4 +134,21 @@ def construire_silver(
             numero = rejetee.ligne[CLE_NUMERO_LIGNE]
             quarantaine.append(LigneQuarantaine(numero_ligne=None, numero_fichier=numero, contenu=coupee_par_numero[numero].champs,
                                                 violations=rejetee.violations, **reference))
+
+    anterieures = _lignes_plus_anciennes(contrat, deja_integrees, ligne_registre.heure_arrivee)
+    lignes = []
+    for texte in jugement.lignes_valides:
+        bronze = au_bronze[id(texte)]
+        valeurs = valeurs_normalisees(contrat, texte)
+        cle = _cle(contrat, valeurs)
+        origine = anterieures.get(cle)
+        if origine is None:
+            lignes.append(LigneSilver(numero_ligne=bronze.numero_ligne, valeurs=valeurs, **reference))
+        elif origine.valeurs != valeurs:                                     # même clé, contenu différent : on ne sait pas lequel est juste
+            message = (f"clé primaire {list(contrat.cle_primaire)} déjà intégrée par la livraison {origine.livraison_id} avec un contenu "
+                       f"différent : {', '.join(cle)}")
+            conflit = Violation(CodeErreur.CLE_EN_CONFLIT, contrat.cle_primaire, message)
+            quarantaine.append(LigneQuarantaine(numero_ligne=bronze.numero_ligne, numero_fichier=None, contenu=dict(bronze.valeurs),
+                                                violations=(conflit,), **reference))
+        # même clé, même contenu : déjà là, ni silver ni quarantaine (comme un doublon exact dans une livraison)
     return ResultatSilver(lignes=lignes, quarantaine=quarantaine)

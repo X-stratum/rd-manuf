@@ -6,7 +6,7 @@ Une livraison bloquée, refusée ou rejouée ne rend rien ; la quarantaine ne se
 comprises. Ces tests ne touchent aucune table : le module construit des lignes.
 """
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -49,13 +49,13 @@ def _ecrire_csv_avec_lignes_coupees(tmp_path, entete):
     return chemin
 
 
-def _silver_du_fichier(contrat, chemin, registre=(), arrivee=ARRIVEE, contrat_du_silver=None, sans_coupees=False):
+def _silver_du_fichier(contrat, chemin, registre=(), arrivee=ARRIVEE, contrat_du_silver=None, sans_coupees=False, deja_integrees=()):
     """Le parcours complet sur un vrai fichier : le registre décide, le bronze range, puis le silver rejuge le bronze."""
     _, ligne_registre = traiter_fichier(contrat, chemin, registre, arrivee)
     fichier = lire_selon_format(chemin, lire_nom_fichier(chemin.name).format)
     bronze = construire_lignes_bronze(contrat, ligne_registre, fichier)
     coupees = [] if sans_coupees else construire_lignes_coupees(ligne_registre, fichier)
-    return ligne_registre, construire_silver(contrat_du_silver or contrat, ligne_registre, bronze, coupees)
+    return ligne_registre, construire_silver(contrat_du_silver or contrat, ligne_registre, bronze, coupees, deja_integrees=deja_integrees)
 
 
 def _typee(ligne):
@@ -343,3 +343,123 @@ def test_modifier_une_ligne_de_quarantaine_ne_modifie_pas_le_bronze(tmp_path, co
     resultat.quarantaine[0].contenu["temperature_c"] = "modifié par un consommateur"
 
     assert bronze[-1].valeurs == avant
+
+
+# ==============================================================================
+# 8. 🔁 LES DOUBLONS ENTRE LIVRAISONS : la première arrivée fait foi, sans jamais changer le statut décidé à la réception
+# ==============================================================================
+# Le silver reçoit les lignes silver des livraisons PLUS ANCIENNES (`deja_integrees`). Même clé et même contenu : ignorée, comme un doublon
+# exact dans une livraison. Même clé et contenu différent : quarantaine CLE_EN_CONFLIT. Le statut et le seuil de rejet ne changent pas : la
+# réception ne connaît que la livraison en cours, le silver ne doit jamais décider autrement qu'elle.
+NOM_B = "livraison_production_FRA_AA_001_2026-11-12-09-00-00Z.csv"
+ARRIVEE_B = ARRIVEE + timedelta(days=1)
+
+
+def _livraison_a(tmp_path, contrat):
+    """Une première livraison de 20 lignes, arrivée la première : ses lignes silver sont les « déjà intégrées » de la suivante."""
+    _, resultat = _silver_du_fichier(contrat, _ecrire(tmp_path, contrat))
+    return resultat.lignes
+
+
+def _livraison_b(tmp_path, contrat, modifiees=0, nb_lignes=NB_LIGNES):
+    """Une seconde livraison : les mêmes clés que la première, dont les `modifiees` premières lignes ont un contenu différent."""
+    lignes = generer_livraison(contrat, nb_lignes, GRAINE)
+    for ligne in lignes[:modifiees]:
+        ligne["quantite_produite"] += 1
+    chemin = tmp_path / NOM_B
+    ecrire_livraison_csv(contrat, lignes, chemin)
+    return chemin
+
+
+def test_une_cle_deja_integree_avec_le_meme_contenu_est_ignoree(tmp_path, contrat):
+    deja = _livraison_a(tmp_path, contrat)
+
+    ligne_registre, resultat = _silver_du_fichier(contrat, _livraison_b(tmp_path, contrat), arrivee=ARRIVEE_B, deja_integrees=deja)
+
+    assert (ligne_registre.statut, len(deja)) == ("ACCEPTEE", NB_LIGNES)
+    assert resultat == RIEN                                    # les 20 lignes sont déjà là : ni silver, ni quarantaine
+
+
+def test_une_cle_deja_integree_avec_un_autre_contenu_va_en_quarantaine_avec_la_livraison_d_origine(tmp_path, contrat):
+    deja = _livraison_a(tmp_path, contrat)
+
+    chemin = _livraison_b(tmp_path, contrat, modifiees=3, nb_lignes=22)
+
+    ligne_registre, resultat = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B, deja_integrees=deja)
+
+    assert ligne_registre.statut == "ACCEPTEE"                 # le statut décidé à la réception ne change pas
+    assert [q.contenu for q in resultat.quarantaine] == lire_csv(chemin).lignes[:3]     # tel que reçu, en texte
+    assert [ligne.numero_ligne for ligne in resultat.lignes] == [21, 22]            # les deux clés nouvelles entrent
+    assert [q.numero_ligne for q in resultat.quarantaine] == [1, 2, 3]
+    assert {(v.code, v.colonnes) for q in resultat.quarantaine for v in q.violations} == {(CodeErreur.CLE_EN_CONFLIT, contrat.cle_primaire)}
+    assert all(NOM in v.message for q in resultat.quarantaine for v in q.violations)      # la livraison d'origine est nommée
+
+
+def test_le_statut_ne_change_pas_meme_si_toutes_les_lignes_sont_en_conflit(tmp_path, contrat):
+    """Si le conflit comptait dans le seuil, 20 rejets sur 20 bloqueraient la livraison : le silver déciderait autrement."""
+    deja = _livraison_a(tmp_path, contrat)
+
+    ligne_registre, resultat = _silver_du_fichier(
+        contrat, _livraison_b(tmp_path, contrat, modifiees=NB_LIGNES), arrivee=ARRIVEE_B, deja_integrees=deja
+    )
+
+    assert ligne_registre.statut == "ACCEPTEE"
+    assert (len(resultat.lignes), len(resultat.quarantaine)) == (0, NB_LIGNES)
+
+
+def test_une_livraison_arrivee_plus_tard_n_est_pas_prise_en_compte(tmp_path, contrat):
+    """La première arrivée fait foi : un retraitement ne voit que les livraisons arrivées AVANT lui."""
+    plus_tard = [
+        replace(ligne, livraison_id="plus_tard.csv", heure_arrivee=ARRIVEE_B + timedelta(days=1),
+                valeurs={**ligne.valeurs, "quantite_produite": ligne.valeurs["quantite_produite"] + 1})
+        for ligne in _livraison_a(tmp_path, contrat)
+    ]
+
+    _, resultat = _silver_du_fichier(contrat, _livraison_b(tmp_path, contrat), arrivee=ARRIVEE_B, deja_integrees=plus_tard)
+
+    assert (len(resultat.lignes), resultat.quarantaine) == (NB_LIGNES, [])
+
+
+def test_une_livraison_ne_se_compare_pas_a_elle_meme(tmp_path, contrat):
+    chemin = _livraison_b(tmp_path, contrat)
+    _, premier_passage = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B)
+
+    _, second_passage = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B, deja_integrees=premier_passage.lignes)    # un retraitement
+
+    assert second_passage == premier_passage and len(premier_passage.lignes) == NB_LIGNES
+
+
+def test_une_ligne_invalide_ne_reserve_pas_sa_cle(tmp_path, contrat_sans_seuil):
+    """La première livraison a rejeté la ligne 20 (hors plage) : elle n'est pas au silver, sa clé reste libre pour la livraison suivante."""
+    _, premier = _silver_du_fichier(contrat_sans_seuil, _ecrire(tmp_path, contrat_sans_seuil, anomalies={CodeErreur.HORS_PLAGE: 1}))
+    assert len(premier.lignes) == NB_LIGNES - 1
+
+    _, resultat = _silver_du_fichier(contrat_sans_seuil, _livraison_b(tmp_path, contrat_sans_seuil), arrivee=ARRIVEE_B,
+                                     deja_integrees=premier.lignes)
+
+    assert ([ligne.numero_ligne for ligne in resultat.lignes], resultat.quarantaine) == ([NB_LIGNES], [])
+
+
+def test_sans_livraison_plus_ancienne_le_resultat_est_inchange(tmp_path, contrat):
+    chemin = _ecrire(tmp_path, contrat)
+
+    _, par_defaut = _silver_du_fichier(contrat, chemin)
+    _, avec_liste_vide = _silver_du_fichier(contrat, chemin, deja_integrees=[])
+
+    assert avec_liste_vide == par_defaut and len(par_defaut.lignes) == NB_LIGNES
+
+
+def test_la_plus_ancienne_des_livraisons_anterieures_fait_foi(tmp_path, contrat):
+    """Deux livraisons plus anciennes portent la même clé avec des contenus différents : c'est la PREMIÈRE arrivée qui fait foi."""
+    premiere = _livraison_a(tmp_path, contrat)
+    intermediaire = [
+        replace(ligne, livraison_id="intermediaire.csv", heure_arrivee=ARRIVEE + timedelta(hours=12),
+                valeurs={**ligne.valeurs, "quantite_produite": ligne.valeurs["quantite_produite"] + 1})
+        for ligne in premiere
+    ]
+    chemin = _livraison_b(tmp_path, contrat, modifiees=NB_LIGNES)       # le même contenu que l'intermédiaire, différent de la première
+
+    _, resultat = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B, deja_integrees=[*intermediaire, *premiere])
+
+    assert (len(resultat.lignes), len(resultat.quarantaine)) == (0, NB_LIGNES)
+    assert all(NOM in v.message and "intermediaire" not in v.message for q in resultat.quarantaine for v in q.violations)

@@ -24,6 +24,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #32 — Silver : une clé déjà intégrée par une livraison plus ancienne
+*2026-11-13 · [PR #32](https://github.com/X-stratum/rd-manuf/pull/32)*
+
+**En clair.** Le silver sait maintenant traiter une clé qui existe déjà : quand une livraison contient une ligne dont la clé a été intégrée par une livraison arrivée avant, la ligne est ignorée si le contenu est identique, et mise en quarantaine s'il diffère. La première arrivée fait foi, car on ne sait pas laquelle des deux versions est la bonne. Rien n'est encore écrit dans une table.
+**Décisions.** Le statut de la livraison et son seuil de rejet ne changent pas : la réception ne connaît que la livraison en cours, et le silver ne doit jamais décider autrement qu'elle (sinon 20 conflits sur 20 auraient bloqué à tort une livraison que la réception avait acceptée). Le code d'erreur reste `CLE_EN_CONFLIT`, comme pour deux lignes d'une même livraison, avec un message qui nomme la livraison d'origine : aucune entrée de plus au catalogue d'alertes. « Première » veut dire arrivée avant, d'après l'heure d'arrivée du registre : un retraitement ne voit que les livraisons arrivées avant lui, et une livraison ne se compare pas à elle-même. Une ligne rejetée ne réserve pas sa clé, comme au sein d'une livraison. Le silver reçoit les lignes déjà intégrées en paramètre : il reste une fonction pure, et c'est l'écriture en tables, la brique suivante, qui les lira dans la table.
+
 ## #31 — Silver : les lignes valides typées et la quarantaine
 *2026-11-13 · [PR #31](https://github.com/X-stratum/rd-manuf/pull/31)*
 
