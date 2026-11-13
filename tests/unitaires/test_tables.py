@@ -85,6 +85,7 @@ def test_les_types_du_registre():
         ("codes_refus", "ARRAY<STRING>", True),
         ("pays", "STRING", False),
         ("usine", "STRING", False),
+        ("ligne", "STRING", False),
         ("horodatage_fichier", "TIMESTAMP", False),
         ("heure_arrivee", "TIMESTAMP", True),
         ("empreinte", "STRING", False),

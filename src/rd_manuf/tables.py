@@ -63,6 +63,7 @@ REGISTRE = Table(SCHEMA_OPS, "registre", (
     _colonne("codes_refus", "ARRAY<STRING>"),
     _colonne("pays", "STRING", obligatoire=False),
     _colonne("usine", "STRING", obligatoire=False),
+    _colonne("ligne", "STRING", obligatoire=False),
     _colonne("horodatage_fichier", "TIMESTAMP", obligatoire=False),
     _colonne("heure_arrivee", "TIMESTAMP"),
     _colonne("empreinte", "STRING", obligatoire=False),

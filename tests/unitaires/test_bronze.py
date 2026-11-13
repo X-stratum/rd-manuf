@@ -39,7 +39,7 @@ def _registre_accepte():
     """Une ligne de registre ACCEPTEE minimale, pour les tests qui construisent leur fichier sans passer par le disque."""
     return LigneRegistre(
         livraison_id=NOM, statut="ACCEPTEE", version_contrat="1.0.0", nb_recues=1, nb_valides=1, nb_rejetees=0, codes_refus=(),
-        pays="FRA", usine="AA_001", horodatage_fichier=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC), heure_arrivee=ARRIVEE,
+        pays="FRA", usine="AA", ligne="001", horodatage_fichier=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC), heure_arrivee=ARRIVEE,
         empreinte=None, rejeu_de=None,
     )
 

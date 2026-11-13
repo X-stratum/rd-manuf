@@ -42,7 +42,8 @@ def test_une_livraison_acceptee_donne_une_ligne_complete(tmp_path, contrat):
         nb_rejetees=0,
         codes_refus=(),
         pays="FRA",
-        usine="AA_001",
+        usine="AA",
+        ligne="001",
         horodatage_fichier=INSTANT_DU_NOM,
         heure_arrivee=ARRIVEE,
         empreinte=None,
@@ -56,7 +57,7 @@ def test_un_nom_invalide_donne_une_ligne_sans_origine_et_avec_son_motif(tmp_path
     ligne = construire_ligne_registre(reception, ARRIVEE)
 
     assert (ligne.statut, ligne.codes_refus) == ("REFUSEE", ("NOM_FICHIER_INVALIDE",))
-    assert (ligne.pays, ligne.usine, ligne.horodatage_fichier) == (None, None, None)
+    assert (ligne.pays, ligne.usine, ligne.ligne, ligne.horodatage_fichier) == (None, None, None, None)
     assert ligne.livraison_id == "donnees.csv"
 
 
@@ -67,7 +68,7 @@ def test_un_fichier_illisible_garde_son_origine_et_son_motif(tmp_path, contrat):
     ligne = construire_ligne_registre(receptionner_fichier(contrat, chemin), ARRIVEE)
 
     assert (ligne.statut, ligne.codes_refus) == ("REFUSEE", ("FICHIER_ILLISIBLE",))
-    assert (ligne.pays, ligne.usine, ligne.horodatage_fichier) == ("FRA", "AA_001", INSTANT_DU_NOM)
+    assert (ligne.pays, ligne.usine, ligne.ligne, ligne.horodatage_fichier) == ("FRA", "AA", "001", INSTANT_DU_NOM)
 
 
 def test_tous_les_motifs_de_refus_sont_gardes_dans_l_ordre(contrat, entete):
@@ -112,7 +113,7 @@ def test_le_meme_fichier_deux_fois_est_un_rejeu_ignore_avec_une_trace(tmp_path, 
     assert reception is None                                       # rien n'est relu ni rejugé : la première livraison reste valable
     assert (seconde.statut, seconde.rejeu_de) == (STATUT_REJEU, NOM)
     assert seconde.heure_arrivee == ARRIVEE + timedelta(minutes=5)
-    assert (seconde.pays, seconde.usine, seconde.horodatage_fichier) == ("FRA", "AA_001", INSTANT_DU_NOM)
+    assert (seconde.pays, seconde.usine, seconde.ligne, seconde.horodatage_fichier) == ("FRA", "AA", "001", INSTANT_DU_NOM)
     assert (seconde.nb_recues, seconde.nb_valides, seconde.nb_rejetees) == (0, 0, 0)
 
 
@@ -159,6 +160,7 @@ def test_une_livraison_bloquee_peut_etre_renvoyee_sous_le_meme_nom(tmp_path, con
     [
         pytest.param("livraison_production_FRA_AA_001_2026-11-11-14-30-06Z.csv", id="autre-instant"),
         pytest.param("livraison_production_FRA_AA_002_2026-11-11-14-30-05Z.csv", id="autre-ligne-de-production"),
+        pytest.param("livraison_production_FRA_AB_001_2026-11-11-14-30-05Z.csv", id="autre-usine"),
         pytest.param("livraison_production_DEU_AA_001_2026-11-11-14-30-05Z.csv", id="autre-pays"),
     ],
 )

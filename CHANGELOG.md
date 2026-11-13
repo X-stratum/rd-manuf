@@ -18,12 +18,19 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Rejet** : une ligne qui ne respecte pas le contrat est mise de côté pour être corrigée, au lieu d'être utilisée.
 - **Seuil de rejet** : la part maximale de lignes rejetées (2 %) au-delà de laquelle toute la livraison est bloquée.
 - **Bronze / Silver** : deux étapes de traitement. Le bronze garde les données telles que reçues ; le silver contient les données contrôlées, prêtes à servir.
+- **Usine et ligne de production** : dans le nom d'un fichier, l'usine est le site (deux lettres, `AA`) et la ligne de production est l'une des lignes de fabrication de ce site (trois chiffres, `001`).
 - **Schéma d'une table** : la liste de ses colonnes, avec le type de chaque valeur (texte, entier, date…) et le droit ou non d'être vide.
 - **PR** (*pull request*) : une demande de modification, relue avant d'être intégrée au projet.
 - **CI** : la vérification automatique lancée à chaque PR (style du code, puis tests).
 - **Sabotage** : une modification volontaire du code pour vérifier que les tests détectent bien l'erreur.
 
 ---
+
+## #35 — Nom de fichier : séparer l'usine et sa ligne de production
+*2026-11-13 · [PR #35](https://github.com/X-stratum/rd-manuf/pull/35)*
+
+**En clair.** Dans le nom d'un fichier, `AA_001` n'est pas un code d'usine en un seul morceau : `AA` est l'usine (deux lettres) et `001` est une ligne de production de cette usine (trois chiffres). Le projet lit maintenant les deux séparément, et le registre des livraisons garde une colonne `ligne` à côté de `usine`. Un nom de fichier valide reste valide : `livraison_production_FRA_AA_001_2026-11-11-14-30-05Z.csv` s'écrit et se lit comme avant.
+**Décisions.** Le sens du code était décidé à la #22 (« usine et ligne de production »), mais le code le gardait en un seul morceau, ce qui laissait lire `AA_001` comme « le numéro de l'usine ». Séparer les deux est le préalable pour distinguer plusieurs usines d'un même pays, puis plusieurs lignes d'une même usine. Un fichier déjà intégré qui revient est un rejeu si le pays, l'usine, la ligne et l'instant sont les mêmes : sans la ligne, deux lignes de production d'une même usine qui envoient à la même seconde seraient prises l'une pour le rejeu de l'autre. La colonne `ligne` est du texte et non un nombre, pour garder les zéros de `001`. Le message de refus d'un nom nomme maintenant `{USINE}` et `{LIGNE}` et donne leurs largeurs, parce que la forme abstraite `LL_NNN` ne disait pas que c'étaient deux informations. Pas encore décidé : le lien entre la ligne du nom et la colonne `id_ligne` des données (L1, L2, L3). Cette PR ne change pas non plus la comparaison des lots entre livraisons : elle se fait encore toutes usines confondues, ce sera la PR suivante.
 
 ## #34 — Tables : les schémas du registre, du bronze et du silver
 *2026-11-13 · [PR #34](https://github.com/X-stratum/rd-manuf/pull/34)*
