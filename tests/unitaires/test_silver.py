@@ -11,13 +11,13 @@ from datetime import UTC, date, datetime
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from rd_manuf.silver import LigneQuarantaine, LigneSilver, ResultatSilver, construire_silver
 
 from rd_manuf.bronze import construire_lignes_bronze, construire_lignes_coupees
 from rd_manuf.contrat import CodeErreur
 from rd_manuf.lecture import lire_csv, lire_selon_format
 from rd_manuf.nom_fichier import lire_nom_fichier
 from rd_manuf.registre import traiter_fichier
+from rd_manuf.silver import LigneQuarantaine, LigneSilver, ResultatSilver, construire_silver
 from rd_manuf.simulateur import ecrire_livraison_csv, generer_livraison
 
 GRAINE = 42
