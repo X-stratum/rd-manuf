@@ -24,6 +24,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #30 — Plan global : remis à jour, avec la suite et des gardes
+*2026-11-13 · [PR #30](https://github.com/X-stratum/rd-manuf/pull/30)*
+
+**En clair.** Le plan global (image et README) montre maintenant l'ordre réel de la suite : le silver d'une livraison est la prochaine brique, puis les doublons entre livraisons, puis l'écriture en tables au premier déploiement. Registre et bronze y sont verts : leur logique est écrite et testée, seul le stockage manque. Les puces sont plus courtes et couvrent aussi les environnements et le contrat 2.0.0. Et la CI vérifie désormais que le README et le plan ne divergent plus.
+**Décisions.** Le vert veut dire « logique écrite et testée », pas « écrit dans une table » : sinon un bloc terminé côté code paraissait inachevé pendant des semaines. L'écriture en tables est un bloc à part, placé au déploiement, et le silver est le seul bloc orange. Une puce ne dépasse pas 220 caractères : le détail est dans le code, les tests et ce journal. Quatre gardes en test (statuts identiques, chaque module listé, liens valides, longueur des puces) : un plan oublié fait échouer la CI au lieu de dépendre de la vigilance de chacun. La hauteur de l'image se règle sur la colonne la plus fournie, ce qui permet d'ajouter des blocs sans rien décaler à la main.
+
 ## #29 — Date sans heure : une colonne date ne contient qu'une date
 *2026-11-13 · [PR #29](https://github.com/X-stratum/rd-manuf/pull/29)*
 

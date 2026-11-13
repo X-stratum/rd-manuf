@@ -31,17 +31,19 @@ COLONNES = [
         ("Jugement des lignes", ["Chaque ligne contre le", "contrat ; seuil de rejet"], FAIT)]),
     ("03", "DÉCIDER", [
         ("Décision", ["Acceptée, avec rejets,", "bloquée ou refusée"], FAIT),
-        ("Registre", ["Ligne par livraison faite ;", "table à écrire"], PROCHAIN)]),
+        ("Registre", ["Ligne par livraison,", "rejeux et conflits"], FAIT)]),
     ("04", "STOCKER", [
-        ("Bronze", ["Lignes construites ;", "table à écrire"], PROCHAIN),
-        ("Silver", ["Données contrôlées ;", "rejets en quarantaine"], A_VENIR),
+        ("Bronze", ["Lignes reçues en texte,", "coupées à part"], FAIT),
+        ("Silver : une livraison", ["Lignes typées ;", "rejets en quarantaine"], PROCHAIN),
+        ("Silver : doublons", ["Même clé dans deux", "livraisons"], A_VENIR),
         ("Gold", ["Indicateurs prêts", "pour le métier"], A_VENIR)]),
     ("05", "PRÉVENIR", [
         ("Routage d'alertes", ["Qui agit et qui est", "informé, par rôles"], FAIT),
-        ("Annuaire", ["Contacts gardés hors", "du dépôt public"], PROCHAIN),
+        ("Annuaire", ["Contacts gardés hors", "du dépôt public"], A_VENIR),
         ("Envoi", ["Prévient réellement", "les bonnes personnes"], A_VENIR)]),
     ("06", "LIVRER", [
         ("Déploiement dev", ["Bundle écrit et validé ;", "rien de déployé"], A_VENIR),
+        ("Écrire en tables", ["Registre, bronze et", "silver dans Databricks"], A_VENIR),
         ("Mise en production", ["Version 0.1.0, puis", "reprise sur incident"], A_VENIR)]),
 ]
 ACTEURS = [  # (numéro de la colonne au-dessus de laquelle la carte se place, titre, lignes)
@@ -53,6 +55,7 @@ REGLES = [  # (numéro de la colonne alignée, titre, lignes) : écrites, donc f
     (1, "Contrat de données", ["Colonnes, types, limites"]),
     (2, "Codes d'erreur", ["Stables, jamais renommés"]),
     (4, "Catalogue d'alertes", ["Qui agit, qui est informé"]),
+    (5, "Environnements", ["Un catalogue par cible ;", "un inconnu est refusé"]),
 ]
 OUTILS = [  # (titre, lignes) : faits
     ("Simulateur", ["Livraisons de test avec", "anomalies à la demande"]),
@@ -97,11 +100,16 @@ STYLE_STATUT = {
 }
 
 # géométrie (en pixels du SVG)
-LARGEUR, HAUTEUR = 1400, 920
+LARGEUR = 1400
 X_COLONNES, LARGEUR_COLONNE, ECART = 176, 186, 13
-Y_ACTEURS, Y_CHAINE, Y_REGLES, Y_OUTILS = 196, 306, 656, 760
-H_COULOIR, H_CHAINE = 90, 330
+H_COULOIR = 90
 H_CARTE_PRINCIPALE, H_CARTE_COMPACTE = 84, 68
+PAS_CARTE = 92                                   # une carte de la chaîne (84) et son espacement
+Y_ACTEURS, Y_CHAINE = 196, 306
+H_CHAINE = 54 + PAS_CARTE * max(len(cartes) for _, _, cartes in COLONNES)    # la colonne la plus fournie décide de la hauteur
+Y_REGLES = Y_CHAINE + H_CHAINE + 20
+Y_OUTILS = Y_REGLES + 104
+HAUTEUR = Y_OUTILS + 160
 
 
 def _x_colonne(i: int) -> float:
@@ -178,7 +186,7 @@ def _entete(d: _Dessin, faits: int, total: int) -> None:
 
 
 def _legende(d: _Dessin) -> None:
-    d.rect(24, 128, LARGEUR - 48, 764, "#ffffff", LINE, 14, None, 1.2)
+    d.rect(24, 128, LARGEUR - 48, HAUTEUR - 156, "#ffffff", LINE, 14, None, 1.2)
     d.texte(44, 168, "STATUT", 9.5, MUTED, 700, "start", MONO, 1.5)
     x = 108
     for statut, nom in ((FAIT, "Fait"), (PROCHAIN, "Prochain (étape en cours)"), (A_VENIR, "À venir")):
@@ -205,7 +213,7 @@ def _chaine(d: _Dessin) -> None:
         couleur_compteur = TEAL if faits == len(cartes) else MUTED
         d.texte(x + LARGEUR_COLONNE - 12, Y_CHAINE + 33, f"{faits}/{len(cartes)}", 10, couleur_compteur, 700, "end", MONO)
         for rang, (titre, lignes, statut) in enumerate(cartes):
-            d.carte(x + 8, Y_CHAINE + 46 + rang * 92, LARGEUR_COLONNE - 16, H_CARTE_PRINCIPALE, titre, lignes, statut)
+            d.carte(x + 8, Y_CHAINE + 46 + rang * PAS_CARTE, LARGEUR_COLONNE - 16, H_CARTE_PRINCIPALE, titre, lignes, statut)
         if i < len(COLONNES) - 1:        # petit triangle de lecture entre deux colonnes
             milieu = x + LARGEUR_COLONNE + ECART / 2
             haut, bas = Y_CHAINE + 28, Y_CHAINE + 38
@@ -233,7 +241,7 @@ def _outils(d: _Dessin) -> None:
 
 
 def _pied(d: _Dessin, total: int) -> None:
-    y = 862
+    y = HAUTEUR - 58
     d.brut(f'<line x1="44" y1="{y}" x2="{LARGEUR - 44}" y2="{y}" stroke="{LINE}" stroke-width="1"/>')
     d.texte(52, y + 20, "FEUILLE 1/1", 9.5, MUTED, 600, "start", MONO, 1.5)
     d.texte(160, y + 20, "PLAN GLOBAL", 9.5, MUTED, 600, "start", MONO, 1.5)
