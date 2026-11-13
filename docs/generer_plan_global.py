@@ -35,7 +35,7 @@ COLONNES = [
     ("04", "STOCKER", [
         ("Bronze", ["Lignes reçues en texte,", "coupées à part"], FAIT),
         ("Silver : une livraison", ["Lignes typées ;", "rejets en quarantaine"], FAIT),
-        ("Silver : doublons", ["Même clé dans deux", "livraisons"], PROCHAIN),
+        ("Silver : doublons", ["Même clé dans deux", "livraisons"], FAIT),
         ("Gold", ["Indicateurs prêts", "pour le métier"], A_VENIR)]),
     ("05", "PRÉVENIR", [
         ("Routage d'alertes", ["Qui agit et qui est", "informé, par rôles"], FAIT),
@@ -43,7 +43,7 @@ COLONNES = [
         ("Envoi", ["Prévient réellement", "les bonnes personnes"], A_VENIR)]),
     ("06", "LIVRER", [
         ("Déploiement dev", ["Bundle écrit et validé ;", "rien de déployé"], A_VENIR),
-        ("Écrire en tables", ["Registre, bronze et", "silver dans Databricks"], A_VENIR),
+        ("Écrire en tables", ["Registre, bronze et", "silver dans Databricks"], PROCHAIN),
         ("Mise en production", ["Version 0.1.0, puis", "reprise sur incident"], A_VENIR)]),
 ]
 ACTEURS = [  # (numéro de la colonne au-dessus de laquelle la carte se place, titre, lignes)

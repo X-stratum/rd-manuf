@@ -55,7 +55,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 
 - 🟢 **Bronze** ([`bronze.py`](src/rd_manuf/bronze.py)) : les lignes reçues, en texte, avec leur traçabilité ; les lignes coupées d'un CSV sont gardées à part.
 - 🟢 **Silver : une livraison** ([`silver.py`](src/rd_manuf/silver.py)) : les lignes typées ; les rejetées vont en quarantaine ; il décide comme la réception.
-- 🟠 **Silver : doublons** : une même clé reçue dans deux livraisons.
+- 🟢 **Silver : doublons** ([`silver.py`](src/rd_manuf/silver.py)) : une clé déjà intégrée par une livraison plus ancienne : même contenu ignoré, sinon quarantaine.
 - ⚪ **Gold** : des indicateurs prêts à l'emploi pour le métier.
 
 </details>
@@ -73,7 +73,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <summary><b>06 · Livrer</b> : du bac à sable à la production</summary>
 
 - ⚪ **Déploiement dev** ([`databricks.yml`](databricks.yml)) : trois cibles reliées à leurs catalogues, validées par Databricks ; rien n'est déployé.
-- ⚪ **Écrire en tables** : registre, bronze et silver écrits dans Databricks, avec le premier déploiement.
+- 🟠 **Écrire en tables** : registre, bronze et silver écrits dans Databricks, avec le premier déploiement.
 - ⚪ **Mise en production** : version 0.1.0, puis reprise sur incident.
 
 </details>
