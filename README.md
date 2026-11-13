@@ -54,8 +54,8 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <summary><b>04 · Stocker</b> : bronze, silver, gold</summary>
 
 - 🟢 **Bronze** ([`bronze.py`](src/rd_manuf/bronze.py)) : les lignes reçues, en texte, avec leur traçabilité ; les lignes coupées d'un CSV sont gardées à part.
-- 🟠 **Silver : une livraison** : les lignes typées ; les lignes rejetées vont en quarantaine pour être corrigées.
-- ⚪ **Silver : doublons** : une même clé reçue dans deux livraisons.
+- 🟢 **Silver : une livraison** ([`silver.py`](src/rd_manuf/silver.py)) : les lignes typées ; les rejetées vont en quarantaine ; il décide comme la réception.
+- 🟠 **Silver : doublons** : une même clé reçue dans deux livraisons.
 - ⚪ **Gold** : des indicateurs prêts à l'emploi pour le métier.
 
 </details>
@@ -114,6 +114,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `nom_fichier.py` : la convention de nom des fichiers livrés ;
   - `registre.py` : la ligne de registre de chaque livraison, et la détection des rejeux ;
   - `bronze.py` : les lignes bronze d'une livraison, copiées en texte avec leur traçabilité, et ses lignes coupées conservées à part ;
+  - `silver.py` : les lignes valides typées et la quarantaine d'une livraison, rejugées depuis le bronze comme à la réception ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test ;

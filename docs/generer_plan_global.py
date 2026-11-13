@@ -34,8 +34,8 @@ COLONNES = [
         ("Registre", ["Ligne par livraison,", "rejeux et conflits"], FAIT)]),
     ("04", "STOCKER", [
         ("Bronze", ["Lignes reçues en texte,", "coupées à part"], FAIT),
-        ("Silver : une livraison", ["Lignes typées ;", "rejets en quarantaine"], PROCHAIN),
-        ("Silver : doublons", ["Même clé dans deux", "livraisons"], A_VENIR),
+        ("Silver : une livraison", ["Lignes typées ;", "rejets en quarantaine"], FAIT),
+        ("Silver : doublons", ["Même clé dans deux", "livraisons"], PROCHAIN),
         ("Gold", ["Indicateurs prêts", "pour le métier"], A_VENIR)]),
     ("05", "PRÉVENIR", [
         ("Routage d'alertes", ["Qui agit et qui est", "informé, par rôles"], FAIT),

@@ -328,8 +328,11 @@ def controler_ligne(contrat: Contrat, ligne: dict[str, Any]) -> list[str]:
 # ==============================================================================
 # 5. 📦 VALIDATION D'UNE LIVRAISON
 # ==============================================================================
-def _valeurs_normalisees(contrat: Contrat, ligne: dict[str, Any]) -> dict[str, Any]:
+def valeurs_normalisees(contrat: Contrat, ligne: dict[str, Any]) -> dict[str, Any]:
     """Valeurs de la ligne telles que le CONTRAT les comprend : toute forme d'absence devient None, le reste est converti.
+
+    PRÉCONDITION : la ligne a déjà été diagnostiquée sans violation (`diagnostiquer_ligne`). Sur une ligne invalide, la conversion lève
+    `ValueError` : aucun rattrapage ici, c'est l'appelant qui juge d'abord (`valider_livraison` le fait pour toutes ses lignes valides).
 
     Sert à juger si deux lignes sont « identiques » : 1000 et "1000", " L1 " et "L1", ou deux NaN créés séparément
     (nan != nan en Python) sont la même information. À n'appeler que sur une ligne déjà validée par `diagnostiquer_ligne`.
@@ -373,7 +376,7 @@ def valider_livraison(
             rejetees.append(LigneRejetee(ligne=ligne, violations=tuple(violations)))
             continue
 
-        valeurs = _valeurs_normalisees(contrat, ligne)
+        valeurs = valeurs_normalisees(contrat, ligne)
         cle = tuple(str(valeurs[nom]) for nom in contrat.cle_primaire)
         deja_vue = premiere_par_cle.get(cle)
         if deja_vue is None:
