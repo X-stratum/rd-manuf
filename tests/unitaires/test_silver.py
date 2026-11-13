@@ -12,11 +12,11 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from rd_manuf.bronze import construire_lignes_bronze, construire_lignes_coupees
+from rd_manuf.bronze import LigneBronze, construire_lignes_bronze, construire_lignes_coupees
 from rd_manuf.contrat import CodeErreur
 from rd_manuf.lecture import lire_csv, lire_selon_format
 from rd_manuf.nom_fichier import lire_nom_fichier
-from rd_manuf.registre import traiter_fichier
+from rd_manuf.registre import LigneRegistre, traiter_fichier
 from rd_manuf.silver import LigneQuarantaine, LigneSilver, ResultatSilver, construire_silver
 from rd_manuf.simulateur import ecrire_livraison_csv, generer_livraison
 
@@ -281,3 +281,65 @@ def test_une_ligne_de_quarantaine_ne_se_modifie_pas():
 
     with pytest.raises(AttributeError):
         ligne.numero_ligne = 99
+
+
+# ==============================================================================
+# 7. 🛡️ POINTS RELEVÉS À LA REVUE : un bronze incomplet, la clé interne des lignes coupées, la quarantaine partagée
+# ==============================================================================
+@pytest.mark.parametrize("version", [None, "9.9.9"], ids=["meme-version", "autre-version-retraitement"])
+def test_un_bronze_incomplet_est_refuse_quelle_que_soit_la_version_du_contrat(tmp_path, contrat, version):
+    """Une ligne valide manque au bronze : le statut recalculé reste « acceptée », seul le compte des lignes reçues le révèle.
+    Sans cette garde, le silver perdrait la ligne en silence."""
+    chemin = _ecrire(tmp_path, contrat)
+    _, ligne_registre = traiter_fichier(contrat, chemin, (), ARRIVEE)
+    fichier = lire_csv(chemin)
+    bronze = construire_lignes_bronze(contrat, ligne_registre, fichier)
+    contrat_du_silver = contrat if version is None else replace(contrat, version=version)
+
+    with pytest.raises(ValueError, match="20 lignes"):
+        construire_silver(contrat_du_silver, ligne_registre, bronze[:4] + bronze[5:], [])
+
+
+def test_un_bronze_trop_long_est_refuse_aussi(tmp_path, contrat):
+    """L'autre sens : une ligne en trop (ici un doublon exact, que le jugement ignorerait sans changer le statut)."""
+    chemin = _ecrire(tmp_path, contrat)
+    _, ligne_registre = traiter_fichier(contrat, chemin, (), ARRIVEE)
+    bronze = construire_lignes_bronze(contrat, ligne_registre, lire_csv(chemin))
+
+    with pytest.raises(ValueError, match="21 lignes"):
+        construire_silver(contrat, ligne_registre, [*bronze, bronze[0]], [])
+
+
+def test_un_contrat_avec_une_colonne_numero_ligne_ne_perturbe_pas_la_quarantaine(contrat_sans_seuil):
+    """Les lignes coupées sont reconnues par leur identité, pas par une clé `numero_ligne` : un contrat peut avoir une colonne de ce nom."""
+    colonne = replace(contrat_sans_seuil.colonnes[1], nom="numero_ligne")           # une copie de id_ligne : valeurs L1, L2 ou L3
+    contrat = replace(contrat_sans_seuil, colonnes=(*contrat_sans_seuil.colonnes, colonne))
+    base = {"id_ligne": "L1", "date_production": "2026-11-01", "quantite_produite": "1000", "quantite_rebut": "10",
+            "temperature_c": "200.0"}
+    bronze = [
+        LigneBronze(NOM, ARRIVEE, 1, {"id_lot": "LOT-000001", **base, "numero_ligne": "L1"}),
+        LigneBronze(NOM, ARRIVEE, 2, {"id_lot": "LOT-000002", **base, "numero_ligne": "L9"}),      # hors du domaine : rejetée
+    ]
+    ligne_registre = LigneRegistre(
+        livraison_id=NOM, statut="ACCEPTEE_AVEC_REJETS", version_contrat=contrat.version, nb_recues=2, nb_valides=1, nb_rejetees=1,
+        codes_refus=(), pays="FRA", usine="AA_001", horodatage_fichier=datetime(2026, 11, 11, 14, 30, 5, tzinfo=UTC),
+        heure_arrivee=ARRIVEE, empreinte=None, rejeu_de=None,
+    )
+
+    resultat = construire_silver(contrat, ligne_registre, bronze, [])
+
+    assert [ligne.numero_ligne for ligne in resultat.lignes] == [1]
+    assert [(q.numero_ligne, q.numero_fichier) for q in resultat.quarantaine] == [(2, None)]
+    assert [(v.code, v.colonnes) for v in resultat.quarantaine[0].violations] == [(CodeErreur.VALEUR_HORS_DOMAINE, ("numero_ligne",))]
+
+
+def test_modifier_une_ligne_de_quarantaine_ne_modifie_pas_le_bronze(tmp_path, contrat_sans_seuil):
+    chemin = _ecrire(tmp_path, contrat_sans_seuil, anomalies={CodeErreur.HORS_PLAGE: 1})
+    _, ligne_registre = traiter_fichier(contrat_sans_seuil, chemin, (), ARRIVEE)
+    bronze = construire_lignes_bronze(contrat_sans_seuil, ligne_registre, lire_csv(chemin))
+    avant = dict(bronze[-1].valeurs)
+
+    resultat = construire_silver(contrat_sans_seuil, ligne_registre, bronze, [])
+    resultat.quarantaine[0].contenu["temperature_c"] = "modifié par un consommateur"
+
+    assert bronze[-1].valeurs == avant

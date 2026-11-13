@@ -57,8 +57,9 @@ def construire_silver(
 ) -> ResultatSilver:
     """Rejuge la livraison depuis le bronze ; vide si le registre dit qu'elle n'entre pas ou si elle est bloquée.
 
-    Lève `ValueError` si, avec la même version de contrat que le registre, le statut recalculé n'est pas celui du registre : c'est le signe
-    que le silver ne reçoit pas tout ce qui est arrivé (par exemple sans les lignes coupées), et il ne doit alors rien intégrer.
+    Lève `ValueError` si, avec la même version de contrat que le registre, le statut recalculé n'est pas celui du registre, ou si, quelle
+    que soit la version, les lignes reçues (bien formées et coupées) ne font pas le compte du registre : c'est le signe que le silver ne
+    reçoit pas tout ce qui est arrivé, et il ne doit alors rien intégrer.
     """
     if ligne_registre.statut not in STATUTS_BRONZE:
         return ResultatSilver(lignes=[], quarantaine=[])
@@ -72,6 +73,12 @@ def construire_silver(
             f"Le silver recalcule le statut {jugement.statut.value} pour la livraison {ligne_registre.livraison_id} sous le contrat "
             f"{contrat.version}, mais le registre a le statut {ligne_registre.statut} sous la même version : le silver ne reçoit pas tout "
             "ce qui est arrivé."
+        )
+    lues = len(lignes_bronze) + len(lignes_coupees)
+    if lues != ligne_registre.nb_recues:
+        raise ValueError(
+            f"Le silver reçoit {lues} lignes (bien formées et coupées) pour la livraison {ligne_registre.livraison_id}, mais le registre "
+            f"a reçu {ligne_registre.nb_recues} lignes : une livraison incomplète ne doit pas être intégrée."
         )
     if jugement.statut == StatutLivraison.BLOQUEE:
         return ResultatSilver(lignes=[], quarantaine=[])
@@ -90,12 +97,12 @@ def construire_silver(
     ]
     quarantaine = []
     for rejetee in jugement.lignes_rejetees:
-        if CLE_NUMERO_LIGNE in rejetee.ligne:                                # une ligne coupée, rejetée par `valider_livraison`
+        ligne = au_bronze.get(id(rejetee.ligne))                             # reconnue par son identité, pas par une clé de ses données
+        if ligne is not None:
+            quarantaine.append(LigneQuarantaine(numero_ligne=ligne.numero_ligne, numero_fichier=None, contenu=dict(ligne.valeurs),
+                                                violations=rejetee.violations, **reference))
+        else:                                                                # une ligne coupée, rejetée par `valider_livraison`
             numero = rejetee.ligne[CLE_NUMERO_LIGNE]
             quarantaine.append(LigneQuarantaine(numero_ligne=None, numero_fichier=numero, contenu=coupee_par_numero[numero].champs,
-                                                violations=rejetee.violations, **reference))
-        else:
-            ligne = au_bronze[id(rejetee.ligne)]
-            quarantaine.append(LigneQuarantaine(numero_ligne=ligne.numero_ligne, numero_fichier=None, contenu=ligne.valeurs,
                                                 violations=rejetee.violations, **reference))
     return ResultatSilver(lignes=lignes, quarantaine=quarantaine)
