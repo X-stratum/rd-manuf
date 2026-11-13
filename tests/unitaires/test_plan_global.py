@@ -41,9 +41,13 @@ def test_le_compteur_de_blocs_est_coherent():
 # ==============================================================================
 # 🔒 GARDES : le README et le plan ne doivent pas diverger (la CI échoue si on oublie l'un des deux)
 # ==============================================================================
-def _plan_du_readme() -> str:
+def _section_du_readme(titre: str) -> str:
+    """Le texte d'une section `## titre` du README, jusqu'à la suivante ; échoue clairement si le titre a changé."""
     texte = README.read_text(encoding="utf-8")
-    return texte[texte.index("## Plan global"):texte.index("## Environnements")]
+    assert f"## {titre}" in texte, f"la section « {titre} » est introuvable dans le README"
+    debut = texte.index(f"## {titre}")
+    fin = texte.find("\n## ", debut + 1)
+    return texte[debut:] if fin == -1 else texte[debut:fin]
 
 
 def _puces(texte: str) -> dict[str, tuple[str, str]]:
@@ -57,8 +61,8 @@ def _puces(texte: str) -> dict[str, tuple[str, str]]:
 
 
 def test_chaque_bloc_de_l_image_a_sa_puce_au_meme_statut_dans_le_readme():
-    """Les 15 blocs des colonnes : même nom, même statut dans l'image et dans le README, et aucune puce sans bloc."""
-    plan_des_colonnes = _plan_du_readme().split("Règles écrites et outils")[0]
+    """Les blocs des colonnes : même nom, même statut dans l'image et dans le README, et aucune puce sans bloc."""
+    plan_des_colonnes = _section_du_readme("Plan global").split("Règles écrites et outils")[0]
     puces = _puces(plan_des_colonnes)
     attendu = {nom: EMOJI[statut] for _, _, blocs in _generateur().COLONNES for nom, _, statut in blocs}
 
@@ -68,10 +72,10 @@ def test_chaque_bloc_de_l_image_a_sa_puce_au_meme_statut_dans_le_readme():
 
 
 def test_chaque_module_du_code_est_decrit_dans_l_organisation_du_depot():
-    texte = README.read_text(encoding="utf-8")
+    organisation = _section_du_readme("Organisation du dépôt")      # pas tout le README : cité dans le plan seulement, ça ne compte pas
     modules = [fichier.name for fichier in sorted(SRC.glob("*.py")) if fichier.name != "__init__.py"]
 
-    assert [nom for nom in modules if f"`{nom}`" not in texte] == []
+    assert [nom for nom in modules if f"`{nom}`" not in organisation] == []
 
 
 def test_les_liens_du_readme_pointent_vers_des_fichiers_qui_existent():
@@ -82,6 +86,7 @@ def test_les_liens_du_readme_pointent_vers_des_fichiers_qui_existent():
 
 
 def test_les_puces_du_plan_restent_synthetiques():
-    trop_longues = {nom: len(ligne) for nom, (_, ligne) in _puces(_plan_du_readme()).items() if len(ligne) > LONGUEUR_MAX_PUCE}
+    puces = _puces(_section_du_readme("Plan global"))
+    trop_longues = {nom: len(ligne) for nom, (_, ligne) in puces.items() if len(ligne) > LONGUEUR_MAX_PUCE}
 
     assert trop_longues == {}, f"puces de plus de {LONGUEUR_MAX_PUCE} caractères : {trop_longues}"
