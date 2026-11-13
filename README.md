@@ -15,7 +15,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 
 <p align="center">
   <a href="docs/plan-global.svg">
-    <img src="docs/plan-global.svg" alt="Plan global du projet : six étapes, de la réception de la livraison à la mise en production, avec les acteurs, les règles écrites et les outils, et l'avancement de chaque bloc." width="100%">
+    <img src="docs/plan-global.svg" alt="Plan global du projet : sept étapes, de la réception de la livraison à son exploitation, avec les acteurs, les règles écrites et les outils, et l'avancement de chaque bloc." width="100%">
   </a>
 </p>
 
@@ -75,6 +75,19 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 - ⚪ **Déploiement dev** ([`databricks.yml`](databricks.yml)) : trois cibles reliées à leurs catalogues, validées par Databricks ; rien n'est déployé.
 - 🟠 **Écrire en tables** : registre, bronze et silver écrits dans Databricks, avec le premier déploiement.
 - ⚪ **Mise en production** : version 0.1.0, puis reprise sur incident.
+
+</details>
+
+<details>
+<summary><b>07 · Exploiter</b> : faire tourner et surveiller le pipeline</summary>
+
+- ⚪ **Orchestration** : les étapes enchaînées en jobs Databricks, un passage par livraison.
+- ⚪ **Ingestion incrémentale** : ne traiter que les nouveaux fichiers du dossier d'arrivée.
+- ⚪ **Surveillance** : fraîcheur des livraisons, volumes, taux de rejet par usine, échecs.
+- ⚪ **Retraitement** : reprendre une livraison corrigée ou rejugée sous un autre contrat, avec un signal de reclassification.
+- ⚪ **Droits et secrets** : qui accède à quoi (catalogues), et où vivent les jetons.
+- ⚪ **Évolution du contrat** : changer de version sans casser l'historique ni les lignes déjà intégrées.
+- ⚪ **Tests de volume** : mesurer le pipeline sur de vraies tailles de livraison, pour choisir entre Python et Spark.
 
 </details>
 
