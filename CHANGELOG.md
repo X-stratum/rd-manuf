@@ -28,6 +28,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #42 — Écrivain : ranger les résultats dans des tables, sans encore parler à Databricks
+*2026-11-14 · [PR #42](https://github.com/X-stratum/rd-manuf/pull/42)*
+
+**En clair.** Le pipeline sait maintenant préparer l'écriture de tout ce qu'il produit (le registre, le bronze, les lignes coupées, le silver, la quarantaine) dans des tables, et relire ces tables pour retrouver son état. Rien n'est encore envoyé à Databricks : tout se vérifie sur l'ordinateur, avec un magasin en mémoire qui sert de référence, et des requêtes SQL générées et inspectées sans être lancées. La journée multi-usines de la #41 tourne sans changement sur cet état adossé à un magasin, et donne exactement le même résultat que sur des listes ; rejouée, elle n'ajoute que des lignes de registre ; une panne injectée à n'importe quel moment d'une écriture se rattrape en reprenant la livraison.
+**Décisions.** Les couches de données s'écrivent d'abord et le registre en dernier : le registre est ce qui décide d'un rejeu, donc ce qui dit qu'une livraison est intégrée, et entre deux tables il n'y a pas d'atomicité. Chaque écriture n'insère que ce qui manque sur la clé de traçabilité de la table, et la livraison reprise avec la même heure d'arrivée ne duplique rien. La quarantaine a une clé dont deux parties sont tantôt absentes (ligne bien formée ou coupée) : elles se comparent par l'égalité tolérante à l'absence, sinon ces lignes seraient réinsérées à chaque reprise. Aucune valeur venue d'un fichier n'entre jamais dans le texte d'une requête : elles voyagent dans un seul paramètre JSON, typé par le schéma de la table ; seuls des noms de tables et de colonnes, vérifiés, sont écrits dans le SQL. Les alertes n'ont pas de table (elles seront envoyées) : elles restent en mémoire. Ce qui n'est pas prouvé, faute de workspace : le comportement réel de Delta (le `MERGE`, les types, les tableaux, le fuseau d'une colonne d'instant), l'acceptation du paramètre JSON par le service, la taille maximale d'une requête (mille enregistrements par lot est un choix prudent, pas une mesure) et la conversion des valeurs rendues par le service, que le futur exécuteur devra faire. Cela se prouvera en jouant la journée sur le playground depuis l'ordinateur, dans la PR suivante ; le bloc « Écrire en tables » du plan reste donc à faire.
+
 ## #41 — Journée de test : des livraisons de trois pays jouées de bout en bout
 *2026-11-14 · [PR #41](https://github.com/X-stratum/rd-manuf/pull/41)*
 
