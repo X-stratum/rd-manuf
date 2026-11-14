@@ -1,7 +1,7 @@
 # rd-manuf : des données industrielles sous contrôle
 
 **Qualité, gouvernance et traçabilité de la donnée R&D Manufacturing.**
-Démonstration d'un workflow de data engineering, de bout en bout, construit pas à pas avec un processus d'équipe : branches, Pull Requests, CI GitHub Actions et revue de code.
+Démonstration d'un workflow de data engineering, construit pas à pas avec un processus d'équipe : branches, Pull Requests, CI GitHub Actions et revue de code.
 
 Le projet ne se résume pas à une architecture de stockage : un contrat de données lisible par le métier, un contrôle à la réception de chaque livraison, une traçabilité de ce qui est accepté, bloqué ou refusé, des alertes routées par rôle, une surveillance de la fraîcheur et du taux de rejet, et des preuves de test. Les données sont rangées en bronze → silver → gold sur Databricks ; c'est le moyen, pas le sujet.
 
@@ -13,7 +13,7 @@ Une ligne incorrecte est écartée au lieu d'être utilisée, une livraison trop
 et le projet détermine qui doit agir (l'usine émettrice, le métier ou l'équipe data) et qui doit seulement être informé.
 Les règles sont écrites dans un « contrat de données », un fichier lisible par le métier.
 Chaque livraison laisse une trace (acceptée, avec rejets, bloquée, refusée ou rejouée), les données valides alimentent un premier indicateur de production, et une surveillance repère les usines qui n'envoient plus rien ou dont le taux de rejet dérive.
-Tout est testé en local sur une journée simulée de trois pays ; rien n'a encore tourné sur un vrai workspace.
+Le code est testé en local, notamment sur une journée simulée de trois pays ; rien n'a encore tourné sur un vrai workspace.
 
 <p align="center">
   <a href="docs/plan-global.svg">
