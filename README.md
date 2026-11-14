@@ -87,7 +87,8 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 - ⚪ **Orchestration** : les étapes enchaînées en jobs Databricks, un passage par livraison.
 - ⚪ **Ingestion incrémentale** : ne traiter que les nouveaux fichiers du dossier d'arrivée.
 - 🟢 **Surveillance : délais** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : les sources en retard, jamais livrées, ou inconnues ; des constats, sans envoi.
-- ⚪ **Surveillance : volumes** : volumes et taux de rejet anormaux par source.
+- 🟢 **Surveillance : rejets** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : le taux de rejet de chaque source sur ses dernières livraisons, comparé à une part du seuil du contrat ; des constats, sans envoi.
+- ⚪ **Surveillance : volumes** : volumes de livraison anormaux par source.
 - ⚪ **Retraitement** : reprendre une livraison corrigée ou rejugée sous un autre contrat, avec un signal de reclassification.
 - ⚪ **Droits et secrets** : qui accède à quoi (catalogues), et où vivent les jetons.
 - ⚪ **Évolution du contrat** : changer de version sans casser l'historique ni les lignes déjà intégrées.
@@ -139,7 +140,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ; une requête interrompue au clavier est annulée côté entrepôt ;
   - `sondage.py` : la première exécution sur un workspace, en lecture seule : des essais de conversion et la présence de nos tables, avec le délai réglable, les durées affichées et l'interruption propre ;
   - `gold.py` : la production par jour, pays, usine et ligne de fabrication, calculée depuis le silver (une fonction pure, sans écrire) ;
-  - `surveillance.py` : la fraîcheur des livraisons : les sources qui n'ont pas livré à temps, comparées au registre (fonction pure) ;
+  - `surveillance.py` : la fraîcheur des livraisons (les sources qui n'ont pas livré à temps) et le taux de rejet dans le temps, comparés au registre (fonctions pures) ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet, fichiers abîmés) ;
@@ -256,6 +257,38 @@ etat = Etat()
 with TemporaryDirectory() as dossier:
     jouer(contrat, catalogue, journee_multi_usines(contrat), Path(dossier), etat)
 for constat in controler_fraicheur(etat.registre, sources, PREMIERE_ARRIVEE + timedelta(hours=30)):
+    print(constat)
+```
+
+## Surveillance : le taux de rejet dans le temps
+
+Une livraison dont le taux de rejet dépasse le seuil du contrat est déjà **bloquée**, avec une alerte. Ce que la surveillance ajoute est la question que cette alerte pose au métier (« incident ponctuel ou dérive durable ? ») : le taux de chaque source **sur ses dernières livraisons**. Le seuil n'est pas inventé ici : c'est `taux_rejet_max` du [contrat de données](contracts/data/livraison_production.yaml), et le niveau de pré-alerte en est une **part**, donc il suit le contrat si celui-ci change. La section `taux_de_rejet` du fichier de surveillance règle cette part (`part_du_seuil`, de 0 exclu à 1 inclus) et la fenêtre (`fenetre_livraisons`, un entier d'au moins 1) ; les valeurs du dépôt sont un choix de départ, pas une mesure.
+
+La fonction `controler_taux_de_rejet` ([`surveillance.py`](src/rd_manuf/surveillance.py)) rend un constat `TAUX_DE_REJET_ELEVE` par source dont le taux dépasse, strictement, `part × seuil` :
+
+- le taux est celui des **sommes** (rejetés sur reçus, sur la fenêtre), jamais la moyenne des taux des livraisons ;
+- une livraison **bloquée** compte : c'est le signal ; une livraison refusée ou rejouée n'a pas de taux et ne compte pas ;
+- une source qui a moins de livraisons que la fenêtre n'est pas jugée : une pré-alerte sur une seule livraison serait du bruit ;
+- le constat dit le taux, le niveau d'alerte, le seuil du contrat, le nombre de livraisons regardées et combien ont été bloquées.
+
+C'est une fonction pure : elle n'écrit rien et ne prévient personne. Sur la journée de test, avec une fenêtre de 2 livraisons, depuis la racine du dépôt :
+
+```python
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from rd_manuf.alertes import charger_catalogue
+from rd_manuf.contrat import charger_contrat
+from rd_manuf.journee import Etat, jouer, journee_multi_usines
+from rd_manuf.surveillance import ParametresTauxRejet, controler_taux_de_rejet
+
+contrat = charger_contrat(Path("contracts/data/livraison_production.yaml"))
+catalogue = charger_catalogue(Path("contracts/alertes/catalogue.yaml"))
+etat = Etat()
+with TemporaryDirectory() as dossier:
+    jouer(contrat, catalogue, journee_multi_usines(contrat), Path(dossier), etat)
+parametres = ParametresTauxRejet(fenetre_livraisons=2, part_du_seuil=0.5)
+for constat in controler_taux_de_rejet(etat.registre, parametres, contrat.taux_rejet_max):
     print(constat)
 ```
 

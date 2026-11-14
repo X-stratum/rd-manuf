@@ -13,10 +13,16 @@
 #   avec rejets), la source est en retard. Une livraison bloquée, refusée ou rejouée ne compte pas : ses données n'ont pas atteint le silver.
 #   Pas de calendrier pour l'instant : une usine arrêtée le week-end demande un délai qui le couvre.
 #
+# 📉 taux_de_rejet : la surveillance du taux de rejet dans le temps, par source. Le seuil de blocage n'est PAS ici : c'est `taux_rejet_max`
+#   du contrat de données, et le niveau de pré-alerte en est une part, donc il suit le contrat s'il change.
+#   fenetre_livraisons : combien des dernières livraisons d'une source on regarde (une source qui en a moins n'est pas jugée) ;
+#   part_du_seuil : entre 0 (exclu) et 1 (inclus) ; 0.5 : on prévient quand le taux des sommes dépasse la moitié du seuil du contrat.
+#   Les valeurs ci-dessous sont un choix de départ, pas une mesure.
+#
 # 🔁 Cycle de vie : toute modification passe par une Pull Request relue. Ajouter une source = ajouter un bloc ci-dessous.
 # ==============================================================================
 
-version: "1.0.0"
+version: "1.1.0"
 
 sources:
   - pays: FRA
@@ -53,3 +59,7 @@ sources:
     usine: CB
     ligne: "001"
     delai_max_heures: 48
+
+taux_de_rejet:
+  fenetre_livraisons: 5
+  part_du_seuil: 0.5

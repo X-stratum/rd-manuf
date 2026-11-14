@@ -7,9 +7,13 @@ Les valeurs attendues des premiers tests sont comptées ICI, à la main ; la jou
 ses attendus recalculés à part depuis la liste des livraisons, jamais lus dans le résultat du code. La surveillance ne route rien
 vers des personnes : elle rend des constats (annuaire et envoi viendront ailleurs).
 
+Second axe : le TAUX DE REJET dans le temps, par source. Le seuil n'est pas inventé ici : il vient du contrat de données
+(`taux_rejet_max`), et le niveau de pré-alerte en est une PART, réglée dans le fichier de surveillance avec la fenêtre de livraisons.
+
 Le module est importé par son nom (`surveillance.controler_...`) pour qu'un module encore vide fasse échouer chaque test sur son assertion,
 et non la collecte de tout le fichier.
 """
+import math
 import re
 import subprocess
 import sys
@@ -268,7 +272,8 @@ def test_le_vrai_fichier_ne_contient_ni_adresse_ni_secret_ni_nom_de_personne():
 
     assert "://" not in texte and "@" not in donnees
     cles = set(re.findall(r"^\s*(?:- )?([a-z_]+):", donnees, re.MULTILINE))
-    assert cles <= {"version", "sources", "pays", "usine", "ligne", "delai_max_heures"}
+    attendues = {"version", "sources", "pays", "usine", "ligne", "delai_max_heures", "taux_de_rejet", "fenetre_livraisons", "part_du_seuil"}
+    assert cles <= attendues
 
 
 # ==============================================================================
@@ -645,6 +650,425 @@ def test_rejouer_la_journee_le_lendemain_ne_rafraichit_aucune_source(contrat, tm
 
     assert avant == integrees                         # toutes en retard, depuis leur vraie dernière intégration
     assert en_retard() == avant                       # le rejeu, arrivé 20 heures plus tard, n'a rien rafraîchi
+
+
+# ==============================================================================
+# 7. 📉 LE TAUX DE REJET : les paramètres, lus dans le fichier de surveillance
+# ==============================================================================
+TAUX = "taux_de_rejet:\n  fenetre_livraisons: 5\n  part_du_seuil: 0.5\n"
+
+
+def _parametres(tmp_path, texte):
+    return surveillance.charger_parametres_taux_rejet(_ecrire(tmp_path, texte))
+
+
+def test_le_vrai_fichier_donne_des_parametres_de_taux_de_rejet_utilisables():
+    parametres = surveillance.charger_parametres_taux_rejet(CHEMIN_SOURCES)
+
+    assert isinstance(parametres, surveillance.ParametresTauxRejet)
+    assert parametres.fenetre_livraisons >= 1 and 0 < parametres.part_du_seuil <= 1
+
+
+def test_des_parametres_valides_se_chargent(tmp_path):
+    assert _parametres(tmp_path, BON + TAUX) == surveillance.ParametresTauxRejet(fenetre_livraisons=5, part_du_seuil=0.5)
+
+
+def test_une_part_de_un_est_acceptee_et_rendue_en_decimal(tmp_path):
+    parametres = _parametres(tmp_path, BON + TAUX.replace("0.5", "1"))
+
+    assert parametres.part_du_seuil == 1.0 and isinstance(parametres.part_du_seuil, float)
+
+
+def test_le_chargeur_des_sources_accepte_un_fichier_avec_la_section_et_sans_elle(tmp_path):
+    assert len(surveillance.charger_sources_attendues(_ecrire(tmp_path, BON + TAUX))) == 1
+    assert len(surveillance.charger_sources_attendues(_ecrire(tmp_path, BON))) == 1
+
+
+def test_les_parametres_sont_immuables(tmp_path):
+    parametres = _parametres(tmp_path, BON + TAUX)
+
+    with pytest.raises(AttributeError):
+        parametres.fenetre_livraisons = 9
+
+
+SECTIONS_INVALIDES = ["taux_de_rejet:\n  fenetre_livraisons: 0\n  part_du_seuil: 9\n", "taux_de_rejet: 5\n", "taux_de_rejet:\n"]
+
+
+@pytest.mark.parametrize("section", SECTIONS_INVALIDES, ids=["valeurs invalides", "pas un dictionnaire", "section vide"])
+def test_le_chargeur_des_sources_refuse_aussi_une_section_presente_mais_invalide(tmp_path, section):
+    """Un fichier doit avoir une seule validité : sans cela, le défaut n'apparaîtrait qu'à l'appel de l'autre chargeur."""
+    with pytest.raises(surveillance.SourcesInvalides, match="taux_de_rejet"):
+        surveillance.charger_sources_attendues(_ecrire(tmp_path, BON + section))
+
+
+@pytest.mark.parametrize("charger", ["charger_sources_attendues", "charger_parametres_taux_rejet"])
+def test_un_yaml_casse_parle_du_fichier_de_surveillance_et_pas_seulement_des_sources(tmp_path, charger):
+    with pytest.raises(surveillance.SourcesInvalides, match="fichier de surveillance"):
+        getattr(surveillance, charger)(_ecrire(tmp_path, BON + "taux_de_rejet: [\n"))
+
+
+def test_une_section_absente_est_refusee_avec_son_nom(tmp_path):
+    with pytest.raises(surveillance.SourcesInvalides, match="taux_de_rejet"):
+        _parametres(tmp_path, BON)
+
+
+@pytest.mark.parametrize("section", ["taux_de_rejet: 5\n", "taux_de_rejet: []\n", "taux_de_rejet:\n", "taux_de_rejet: {}\n"],
+                         ids=["nombre", "liste", "vide", "dictionnaire vide"])
+def test_une_section_mal_formee_est_refusee_avec_son_nom(tmp_path, section):
+    with pytest.raises(surveillance.SourcesInvalides, match="taux_de_rejet"):
+        _parametres(tmp_path, BON + section)
+
+
+@pytest.mark.parametrize("champ", ["fenetre_livraisons", "part_du_seuil"])
+def test_un_champ_manquant_de_la_section_est_refuse_avec_son_nom(tmp_path, champ):
+    lignes = [ligne for ligne in TAUX.splitlines() if champ not in ligne]
+
+    with pytest.raises(surveillance.SourcesInvalides, match=champ):
+        _parametres(tmp_path, BON + "\n".join(lignes) + "\n")
+
+
+def test_un_champ_inconnu_de_la_section_est_refuse_avec_son_nom(tmp_path):
+    with pytest.raises(surveillance.SourcesInvalides, match="fenetre_livraison\\b"):
+        _parametres(tmp_path, BON + TAUX + "  fenetre_livraison: 3\n")
+
+
+@pytest.mark.parametrize("cle", ["fenetre_livraisons", "part_du_seuil"])
+def test_une_cle_repetee_dans_la_section_est_refusee_avec_son_nom(tmp_path, cle):
+    ligne = next(ligne for ligne in TAUX.splitlines() if cle in ligne)
+
+    with pytest.raises(surveillance.SourcesInvalides, match=f"clé « {cle} » est répétée"):
+        _parametres(tmp_path, BON + TAUX + ligne + "\n")
+
+
+@pytest.mark.parametrize("valeur", ["0", "-1", "3.5", "3.0", "'5'", "true", "null", "[5]"],
+                         ids=["zéro", "négatif", "décimal", "décimal rond", "texte", "booléen", "vide", "liste"])
+def test_une_fenetre_qui_n_est_pas_un_entier_d_au_moins_un_est_refusee(tmp_path, valeur):
+    with pytest.raises(surveillance.SourcesInvalides, match="fenetre_livraisons"):
+        _parametres(tmp_path, BON + TAUX.replace("fenetre_livraisons: 5", f"fenetre_livraisons: {valeur}"))
+
+
+def test_une_fenetre_d_une_seule_livraison_est_acceptee(tmp_path):
+    assert _parametres(tmp_path, BON + TAUX.replace("5", "1")).fenetre_livraisons == 1
+
+
+@pytest.mark.parametrize("valeur", ["0", "-0.1", "1.5", ".nan", ".inf", "-.inf", "'0.5'", "true", "null", "[0.5]"],
+                         ids=["zéro", "négatif", "au-dessus de un", "nan", "inf", "-inf", "texte", "booléen", "vide", "liste"])
+def test_une_part_hors_de_zero_exclu_a_un_inclus_est_refusee(tmp_path, valeur):
+    with pytest.raises(surveillance.SourcesInvalides, match="part_du_seuil"):
+        _parametres(tmp_path, BON + TAUX.replace("part_du_seuil: 0.5", f"part_du_seuil: {valeur}"))
+
+
+PARAMETRES_INVALIDES = [
+    (0, 0.5, "fenetre_livraisons"), (-1, 0.5, "fenetre_livraisons"), (2.5, 0.5, "fenetre_livraisons"),
+    (True, 0.5, "fenetre_livraisons"), (3, 0, "part_du_seuil"), (3, 1.01, "part_du_seuil"),
+    (3, float("nan"), "part_du_seuil"), (3, False, "part_du_seuil"),
+]
+
+
+@pytest.mark.parametrize(
+    ("fenetre", "part", "champ"), PARAMETRES_INVALIDES,
+    ids=["fenêtre 0", "fenêtre < 0", "fenêtre décimale", "fenêtre booléenne", "part 0", "part > 1", "part nan", "part booléenne"],
+)
+def test_des_parametres_construits_a_la_main_sont_controles_comme_ceux_du_fichier(fenetre, part, champ):
+    """Une fenêtre de zéro prendrait tout le registre (`liste[-0:]`) : le refus doit venir de l'objet, pas seulement du chargeur."""
+    with pytest.raises(ValueError, match=champ):
+        surveillance.ParametresTauxRejet(fenetre_livraisons=fenetre, part_du_seuil=part)
+
+
+# ==============================================================================
+# 8. 📉 LE TAUX DE REJET : comptés à la main (seuil du contrat 2 % et part 0,5 : niveau d'alerte à 1 %)
+# ==============================================================================
+SEUIL = 0.02
+
+
+def _ligne_taux(recues, rejetees, statut=AVEC_REJETS, origine=FRA, heures=1):
+    """Une ligne de registre avec ses compteurs ; `heures` : l'arrivée, en heures avant « maintenant »."""
+    pays, usine, ligne = origine
+    arrivee = MAINTENANT - timedelta(hours=heures)
+    return LigneRegistre(
+        livraison_id=f"livraison_{pays}_{usine}_{ligne}_{heures}.csv", statut=statut, version_contrat="2.0.0", nb_recues=recues,
+        nb_valides=recues - rejetees, nb_rejetees=rejetees, codes_refus=(), pays=pays, usine=usine, ligne=ligne,
+        horodatage_fichier=None, heure_arrivee=arrivee, empreinte=None, rejeu_de=None,
+    )
+
+
+def _parametres_de(fenetre, part):
+    return surveillance.ParametresTauxRejet(fenetre_livraisons=fenetre, part_du_seuil=part)
+
+
+def _taux(registre, parametres=None, seuil=SEUIL):
+    return surveillance.controler_taux_de_rejet(registre, parametres or _parametres_de(3, 0.5), seuil)
+
+
+def test_le_code_du_constat_de_taux_est_celui_annonce():
+    assert surveillance.TAUX_DE_REJET_ELEVE == "TAUX_DE_REJET_ELEVE"
+
+
+def test_un_taux_au_dessus_du_niveau_a_un_constat_complet():
+    (constat,) = _taux([_ligne_taux(1000, 11, AVEC_REJETS)], _parametres_de(1, 0.5))
+
+    assert constat == surveillance.ConstatTauxRejet(
+        code="TAUX_DE_REJET_ELEVE", pays="FRA", usine="AA", ligne="001", taux=11 / 1000, niveau=0.01, seuil_contrat=SEUIL,
+        nb_livraisons=1, nb_bloquees=0,
+    )
+
+
+def test_a_pile_le_niveau_il_n_y_a_pas_de_constat_un_cheveu_au_dessus_oui():
+    assert _taux([_ligne_taux(1000, 10)], _parametres_de(1, 0.5)) == []
+    assert len(_taux([_ligne_taux(1000, 11)], _parametres_de(1, 0.5))) == 1
+
+
+def test_le_taux_est_celui_des_sommes_pas_la_moyenne_des_taux_des_livraisons():
+    """Une livraison de 10 lignes à 50 % et une de 100 000 à 0,1 % : la moyenne des taux dirait 25 %, la somme dit 0,105 %."""
+    registre = [_ligne_taux(10, 5, BLOQUEE, heures=2), _ligne_taux(100_000, 100, AVEC_REJETS, heures=1)]
+
+    assert _taux(registre, _parametres_de(2, 0.5)) == []
+
+
+def test_la_somme_peut_depasser_le_niveau_quand_aucune_livraison_acceptee_ne_le_depasse():
+    """Deux livraisons à 1,5 % chacune (au-dessus du niveau de 1 %, sous le seuil de 2 %) : le taux des sommes est de 1,5 %."""
+    registre = [_ligne_taux(1000, 15, heures=2), _ligne_taux(2000, 30, heures=1)]
+
+    (constat,) = _taux(registre, _parametres_de(2, 0.5))
+
+    assert constat.taux == pytest.approx(45 / 3000, abs=1e-12) and constat.nb_livraisons == 2
+
+
+def test_seules_les_n_dernieres_livraisons_comptent_dans_l_ordre_d_arrivee():
+    anciennes_mauvaises = [_ligne_taux(100, 50, BLOQUEE, heures=h) for h in (9, 8, 7)]
+    recentes_bonnes = [_ligne_taux(100, 0, ACCEPTEE, heures=h) for h in (3, 2, 1)]
+
+    assert _taux(anciennes_mauvaises + recentes_bonnes, _parametres_de(3, 0.5)) == []
+    (constat,) = _taux(anciennes_mauvaises + recentes_bonnes[:2], _parametres_de(3, 0.5))
+    assert constat.nb_livraisons == 3 and constat.nb_bloquees == 1
+
+
+def test_la_fenetre_suit_l_ordre_d_arrivee_meme_quand_le_registre_est_dans_un_autre_ordre():
+    """Plus de livraisons que la fenêtre ET un registre à l'envers : seul un vrai tri par arrivée garde les trois plus récentes."""
+    anciennes_mauvaises = [_ligne_taux(100, 50, BLOQUEE, heures=h) for h in (9, 8, 7)]
+    recentes_bonnes = [_ligne_taux(100, 0, ACCEPTEE, heures=h) for h in (3, 2, 1)]
+
+    assert _taux(recentes_bonnes + anciennes_mauvaises, _parametres_de(3, 0.5)) == []
+    (constat,) = _taux(recentes_bonnes[:1] + anciennes_mauvaises + recentes_bonnes[1:2], _parametres_de(3, 0.5))
+    assert constat.nb_bloquees == 1                          # les trois plus récentes : la mauvaise de 7 h, puis les bonnes de 3 h et 2 h
+
+
+def test_l_ordre_du_registre_ne_change_rien():
+    registre = [_ligne_taux(100, 5, BLOQUEE, heures=3), _ligne_taux(100, 0, ACCEPTEE, heures=2), _ligne_taux(100, 3, AVEC_REJETS, heures=1)]
+
+    assert _taux(registre) == _taux(list(reversed(registre)))
+
+
+def test_moins_de_livraisons_que_la_fenetre_ne_sont_pas_jugees():
+    registre = [_ligne_taux(100, 50, BLOQUEE, heures=2), _ligne_taux(100, 50, BLOQUEE, heures=1)]
+
+    assert _taux(registre, _parametres_de(3, 0.5)) == []
+    assert len(_taux(registre, _parametres_de(2, 0.5))) == 1
+
+
+def test_une_livraison_bloquee_compte_dans_la_fenetre_et_dans_nb_bloquees():
+    registre = [_ligne_taux(100, 3, BLOQUEE, heures=3), _ligne_taux(100, 0, ACCEPTEE, heures=2), _ligne_taux(100, 3, BLOQUEE, heures=1)]
+
+    (constat,) = _taux(registre)
+
+    assert constat.nb_bloquees == 2 and constat.nb_livraisons == 3
+    assert constat.taux == pytest.approx(6 / 300, abs=1e-12)
+
+
+@pytest.mark.parametrize("statut", [REFUSEE, STATUT_REJEU])
+def test_une_livraison_refusee_ou_rejouee_ne_compte_pas_meme_avec_des_lignes_recues(statut):
+    """La journée de test a des refus avec 100 lignes reçues : ils ne sont ni des livraisons saines ni des blocages."""
+    registre = [_ligne_taux(100, 50, BLOQUEE, heures=3), _ligne_taux(100, 0, statut, heures=2), _ligne_taux(100, 0, statut, heures=1)]
+
+    assert _taux(registre, _parametres_de(2, 0.5)) == []                    # il n'y a qu'UNE livraison jugeable : fenêtre non remplie
+    (constat,) = _taux(registre, _parametres_de(1, 0.5))
+    assert constat.nb_livraisons == 1 and constat.taux == 0.5
+
+
+def test_une_livraison_sans_ligne_recue_ne_compte_pas():
+    registre = [_ligne_taux(0, 0, ACCEPTEE, heures=2), _ligne_taux(100, 5, BLOQUEE, heures=1)]
+
+    assert _taux(registre, _parametres_de(2, 0.5)) == []
+    (constat,) = _taux(registre, _parametres_de(1, 0.5))
+    assert constat.nb_livraisons == 1
+
+
+def test_chaque_origine_est_jugee_separement_et_les_constats_sont_tries():
+    registre = [_ligne_taux(100, 5, BLOQUEE, USA, 1), _ligne_taux(100, 5, BLOQUEE, DEU, 1), _ligne_taux(100, 0, ACCEPTEE, FRA, 1)]
+
+    constats = _taux(registre, _parametres_de(1, 0.5))
+
+    assert [(c.pays, c.usine, c.ligne) for c in constats] == [DEU, USA]
+
+
+def test_deux_lignes_de_production_d_une_meme_usine_ne_se_melangent_pas():
+    registre = [_ligne_taux(100, 5, BLOQUEE, ("FRA", "AA", "001"), 1), _ligne_taux(100, 0, ACCEPTEE, ("FRA", "AA", "002"), 1)]
+
+    assert [c.ligne for c in _taux(registre, _parametres_de(1, 0.5))] == ["001"]
+
+
+def test_un_nom_de_fichier_invalide_n_a_pas_d_origine_donc_n_est_jamais_juge():
+    sans_origine = _ligne_taux(100, 50, BLOQUEE, ("FRA", "AA", "001"), 1)
+    sans_origine = LigneRegistre(**{**sans_origine.__dict__, "pays": None, "usine": None, "ligne": None})
+
+    assert _taux([sans_origine], _parametres_de(1, 0.5)) == []
+
+
+def test_le_niveau_suit_le_seuil_du_contrat():
+    registre = [_ligne_taux(1000, 15)]
+    un = _parametres_de(1, 0.5)
+
+    assert len(_taux(registre, un, seuil=0.02)) == 1                         # niveau 1 % : 1,5 % le dépasse
+    assert _taux(registre, un, seuil=0.05) == []                             # niveau 2,5 % : plus de constat
+    (constat,) = _taux(registre, _parametres_de(1, 1.0), seuil=0.01)         # niveau 1 % aussi, par une autre part
+    assert (constat.niveau, constat.seuil_contrat) == (0.01, 0.01)
+
+
+BORDS = [(0.7, 0.01, 1000, 7), (0.3, 0.02, 1000, 6), (0.7, 0.02, 1000, 14), (0.1, 0.03, 10000, 30)]
+
+
+@pytest.mark.parametrize(("part", "seuil", "recues", "pile"), BORDS, ids=["0,7 × 1 %", "0,3 × 2 %", "0,7 × 2 %", "0,1 × 3 %"])
+def test_pile_au_niveau_pas_de_constat_et_un_rejet_de_plus_en_donne_un_meme_si_les_flottants_arrondissent_mal(part, seuil, recues, pile):
+    """0,7 × 0,01 vaut 0.006999999999999999 en flottants : sans arrondi, 7 rejets sur 1 000 (exactement 0,7 %) seraient signalés à tort."""
+    parametres = _parametres_de(1, part)
+
+    assert _taux([_ligne_taux(recues, pile, BLOQUEE)], parametres, seuil=seuil) == []
+    assert len(_taux([_ligne_taux(recues, pile + 1, BLOQUEE)], parametres, seuil=seuil)) == 1
+
+
+def test_le_bord_est_exact_sur_toute_une_grille_de_parts_de_seuils_et_de_tailles():
+    """Chaque cas où part × seuil × lignes est un entier : pile ce nombre de rejets n'est jamais signalé, un de plus l'est toujours."""
+    from decimal import Decimal
+
+    erreurs = []
+    for part in [Decimal(x) / 10 for x in range(1, 11)] + [Decimal("0.25"), Decimal("0.33"), Decimal("0.75")]:
+        for seuil in [Decimal(x) / 100 for x in range(1, 11)] + [Decimal("0.005"), Decimal("0.03")]:
+            for recues in (100, 1000, 10_000, 100_000):
+                exact = part * seuil * recues
+                if exact != exact.to_integral_value():
+                    continue
+                pile = int(exact)
+                parametres = _parametres_de(1, float(part))
+                if _taux([_ligne_taux(recues, pile, BLOQUEE)], parametres, seuil=float(seuil)):
+                    erreurs.append(("à tort", part, seuil, recues, pile))
+                if not _taux([_ligne_taux(recues, pile + 1, BLOQUEE)], parametres, seuil=float(seuil)):
+                    erreurs.append(("raté", part, seuil, recues, pile + 1))
+
+    assert erreurs == []
+
+
+def test_le_niveau_du_constat_est_arrondi_comme_celui_de_la_comparaison():
+    (constat,) = _taux([_ligne_taux(1000, 8, BLOQUEE)], _parametres_de(1, 0.7), seuil=0.01)
+
+    assert constat.niveau == 0.007
+
+
+def test_un_seuil_de_zero_signale_toute_livraison_avec_un_rejet_et_aucune_sans_rejet():
+    assert len(_taux([_ligne_taux(100, 1, BLOQUEE)], _parametres_de(1, 0.5), seuil=0.0)) == 1
+    assert _taux([_ligne_taux(100, 0, ACCEPTEE)], _parametres_de(1, 0.5), seuil=0.0) == []
+
+
+@pytest.mark.parametrize("seuil", [-0.1, 1.5, float("nan"), float("inf"), True, "0.02", None],
+                         ids=["négatif", "au-dessus de un", "nan", "inf", "booléen", "texte", "vide"])
+def test_un_seuil_de_contrat_invalide_est_refuse_avec_son_nom(seuil):
+    with pytest.raises(ValueError, match="taux_rejet_max"):
+        _taux([_ligne_taux(100, 5, BLOQUEE)], _parametres_de(1, 0.5), seuil=seuil)
+
+
+def test_le_constat_de_taux_est_immuable():
+    (constat,) = _taux([_ligne_taux(1000, 50, BLOQUEE)], _parametres_de(1, 0.5))
+
+    with pytest.raises(AttributeError):
+        constat.taux = 0.0
+
+
+def test_le_controle_du_taux_ne_modifie_pas_ses_entrees_et_accepte_un_iterable():
+    registre = [_ligne_taux(100, 5, BLOQUEE, heures=2), _ligne_taux(100, 0, ACCEPTEE, heures=1)]
+    avant = list(registre)
+
+    _taux(registre)
+
+    assert registre == avant
+    assert [c.code for c in _taux((ligne for ligne in registre), _parametres_de(2, 0.5))] == ["TAUX_DE_REJET_ELEVE"]
+
+
+def test_un_registre_vide_ne_donne_rien():
+    assert _taux([]) == []
+
+
+def test_une_arrivee_sans_fuseau_au_registre_est_refusee_aussi_pour_le_taux():
+    base = _ligne_taux(100, 5, BLOQUEE)
+    naive = LigneRegistre(**{**base.__dict__, "heure_arrivee": datetime(2026, 11, 14, 1, 0)})
+
+    with pytest.raises(ValueError, match="fuseau"):
+        _taux([naive], _parametres_de(1, 0.5))
+
+
+def test_le_controle_du_taux_n_ecrit_aucun_fichier(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    _taux([_ligne_taux(100, 5, BLOQUEE)], _parametres_de(1, 0.5))
+
+    assert list(tmp_path.iterdir()) == []
+
+
+# ==============================================================================
+# 9. 📅 LA JOURNÉE MULTI-USINES : taux comptés d'après la RECETTE, jamais lus dans le résultat du code
+# ==============================================================================
+def _rejets_de_la_recette(contrat):
+    """Les rejets que chaque livraison est fabriquée pour avoir, sur 100 lignes : le seuil tolère R rejets, la bloquée en a R + 1."""
+    tolerables = math.floor(round(contrat.taux_rejet_max * 100, 9))
+    return {"deu-ba-001-avec-rejets": tolerables, "usa-ca-001-bloquee": tolerables + 1, "usa-ca-002-lignes-coupees": 1}
+
+
+def test_a_une_seule_livraison_par_fenetre_seule_l_usine_dont_la_derniere_livraison_depasse_le_niveau_est_signalee(journee, contrat):
+    _, etat = journee
+    rejets = _rejets_de_la_recette(contrat)
+    seuil = contrat.taux_rejet_max
+
+    constats = surveillance.controler_taux_de_rejet(etat.registre, _parametres_de(1, 0.5), seuil)
+
+    assert rejets["deu-ba-001-avec-rejets"] / 100 > seuil * 0.5               # 2 % sur 100 lignes : au-dessus du niveau de 1 %
+    assert [(c.pays, c.usine, c.ligne) for c in constats] == [DEU]
+    assert constats[0].taux == pytest.approx(rejets["deu-ba-001-avec-rejets"] / 100, abs=1e-12)
+    assert (constats[0].nb_livraisons, constats[0].nb_bloquees) == (1, 0)
+
+
+def test_avec_deux_livraisons_par_fenetre_c_est_l_usine_dont_une_livraison_a_ete_bloquee_puis_renvoyee_corrigee(journee, contrat):
+    _, etat = journee
+    rejets = _rejets_de_la_recette(contrat)
+
+    constats = surveillance.controler_taux_de_rejet(etat.registre, _parametres_de(2, 0.5), contrat.taux_rejet_max)
+
+    (constat,) = constats                                                                      # DEU BA 001 n'a qu'une livraison : pas jugée
+    assert (constat.pays, constat.usine, constat.ligne) == USA
+    assert constat.taux == pytest.approx(rejets["usa-ca-001-bloquee"] / 200, abs=1e-12)        # (R + 1 rejets) sur (100 + 100) lignes
+    assert (constat.nb_livraisons, constat.nb_bloquees) == (2, 1)
+
+
+def test_les_refus_de_la_journee_n_entrent_dans_aucune_fenetre(journee, contrat):
+    """FRA_AA_004, DEU_BA_004 et DEU_BA_005 ont 100 lignes reçues mais sont refusés : jamais jugés, même avec une fenêtre de un."""
+    _, etat = journee
+
+    constats = surveillance.controler_taux_de_rejet(etat.registre, _parametres_de(1, 0.0001), contrat.taux_rejet_max)
+
+    origines = {(c.pays, c.usine, c.ligne) for c in constats}
+    assert origines == {DEU, ("USA", "CA", "002")}                                  # les seules dernières livraisons avec des rejets
+    assert not origines & {("FRA", "AA", "004"), ("DEU", "BA", "004"), ("DEU", "BA", "005")}
+
+
+def test_rejouer_la_journee_le_lendemain_ne_change_pas_les_constats_de_taux(contrat, tmp_path):
+    catalogue = charger_catalogue(CHEMIN_CATALOGUE)
+    livraisons = journee_multi_usines(contrat)
+    etat = Etat()
+    jouer(contrat, catalogue, livraisons, tmp_path / "jour", etat)
+    parametres = _parametres_de(2, 0.5)
+    avant = surveillance.controler_taux_de_rejet(etat.registre, parametres, contrat.taux_rejet_max)
+
+    jouer(contrat, catalogue, livraisons, tmp_path / "lendemain", etat, decalage=timedelta(hours=20))
+
+    assert surveillance.controler_taux_de_rejet(etat.registre, parametres, contrat.taux_rejet_max) == avant
+    assert len(avant) == 1
 
 
 # ==============================================================================
