@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1734 1288" width="1734" height="1288" role="img" aria-labelledby="t d">
 <title id="t">rd-manuf : plan global</title>
-<desc id="d">Du fichier envoyé par l'usine aux données prêtes à l'emploi : 20 blocs terminés sur 33, sept étapes (recevoir, contrôler, décider, stocker, prévenir, livrer et exploiter), les règles écrites et les outils.</desc>
+<desc id="d">Du fichier envoyé par l'usine aux données prêtes à l'emploi : 21 blocs terminés sur 34, sept étapes (recevoir, contrôler, décider, stocker, prévenir, livrer et exploiter), les règles écrites et les outils.</desc>
 <defs>
 <pattern id="grille" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#e6ebef" stroke-width="1"/></pattern>
 <marker id="fd" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="#1f7a6d"/></marker>
@@ -12,10 +12,10 @@
 <text x="40" y="36" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="11" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="2">RD-MANUF  ·  R&amp;D MANUFACTURING  ·  DATABRICKS</text>
 <text x="40" y="90" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="60" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="-0.5">PLAN GLOBAL</text>
 <text x="40" y="112" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="400" fill="#5b6b7a" text-anchor="start">Du fichier envoyé par l&#x27;usine aux données prêtes à l&#x27;emploi : ce qui est fait, ce qui vient ensuite, ce qui reste à construire.</text>
-<text x="1694" y="78" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="46" font-weight="800" fill="#1f7a6d" text-anchor="end">20 / 33</text>
+<text x="1694" y="78" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="46" font-weight="800" fill="#1f7a6d" text-anchor="end">21 / 34</text>
 <text x="1694" y="98" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="end" letter-spacing="1.5">BLOCS TERMINÉS</text>
 <rect x="1394" y="106" width="300" height="8" rx="4" fill="#dde4ea"/>
-<rect x="1394" y="106" width="181.8181818181818" height="8" rx="4" fill="#1f7a6d"/>
+<rect x="1394" y="106" width="185.2941176470588" height="8" rx="4" fill="#1f7a6d"/>
 <rect x="24" y="128" width="1686" height="1132" rx="14" fill="#ffffff" stroke="#cfd8de" stroke-width="1.2"/>
 <text x="44" y="168" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="700" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">STATUT</text>
 <rect x="108" y="157" width="18" height="14" rx="4" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.4"/>
@@ -96,7 +96,7 @@
 <rect x="610" y="314" width="204" height="682" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
 <text x="622" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="start">03</text>
 <text x="640" y="340" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="15" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.2">DÉCIDER</text>
-<text x="802" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#1f7a6d" text-anchor="end">2/2</text>
+<text x="802" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#1f7a6d" text-anchor="end">3/3</text>
 <rect x="618" y="352" width="188" height="84" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
 <text x="796" y="368" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
 <text x="630" y="389" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Décision</text>
@@ -111,6 +111,13 @@
 <text x="630" y="510" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">rejeux et conflits</text>
 <rect x="630" y="517" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <rect x="630" y="517" width="164" height="4" rx="2" fill="#1f7a6d"/>
+<rect x="618" y="536" width="188" height="84" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="796" y="552" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="630" y="573" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Enchaînement</text>
+<text x="630" y="589" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Fichier, registre, bronze,</text>
+<text x="630" y="602" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">silver et alertes</text>
+<rect x="630" y="609" width="164" height="4" rx="2" fill="#e1e7ec"/>
+<rect x="630" y="609" width="164" height="4" rx="2" fill="#1f7a6d"/>
 <path d="M816.5 334 L824.5 339 L816.5 344z" fill="#1f7a6d"/>
 <rect x="827" y="314" width="204" height="682" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
 <text x="839" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="start">04</text>
@@ -307,6 +314,6 @@
 <line x1="44" y1="1230" x2="1690" y2="1230" stroke="#cfd8de" stroke-width="1"/>
 <text x="52" y="1250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">FEUILLE 1/1</text>
 <text x="160" y="1250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">PLAN GLOBAL</text>
-<text x="280" y="1250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="700" fill="#1b2733" text-anchor="start" letter-spacing="1.5">33 BLOCS  ·  3 STATUTS  ·  3 TYPES DE FLUX  ·  7 ÉTAPES</text>
+<text x="280" y="1250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="700" fill="#1b2733" text-anchor="start" letter-spacing="1.5">34 BLOCS  ·  3 STATUTS  ·  3 TYPES DE FLUX  ·  7 ÉTAPES</text>
 <text x="1682" y="1250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="end" letter-spacing="1.5">RÉV. 4  ·  2026-11-12</text>
 </svg>
