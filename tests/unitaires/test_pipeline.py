@@ -15,7 +15,7 @@ from rd_manuf.contrat import CodeErreur, StatutLivraison
 from rd_manuf.pipeline import traiter_livraison
 from rd_manuf.registre import STATUT_REJEU, traiter_fichier
 from rd_manuf.silver import ResultatSilver
-from rd_manuf.simulateur import ecrire_livraison_csv, generer_livraison
+from rd_manuf.simulateur import ecrire_livraison_csv, ecrire_livraison_parquet, generer_livraison, nom_de_fichier
 
 CHEMIN_CATALOGUE = Path(__file__).resolve().parents[2] / "contracts" / "alertes" / "catalogue.yaml"
 GRAINE = 42
@@ -334,3 +334,35 @@ def test_les_resultats_vides_ne_partagent_pas_leurs_listes(tmp_path, contrat, ca
 def test_une_heure_d_arrivee_sans_fuseau_est_refusee(tmp_path, contrat, catalogue):
     with pytest.raises(ValueError, match="fuseau"):
         _traiter(contrat, catalogue, _csv(tmp_path, contrat), arrivee=datetime(2026, 11, 11, 14, 35))
+
+
+# ==============================================================================
+# 7. 🧪 LES FABRICATIONS DU SIMULATEUR, de bout en bout : noms, numéros de lot et Parquet
+# ==============================================================================
+def test_deux_lignes_de_production_d_une_usine_avec_des_plages_de_lots_disjointes_ne_se_genent_pas(tmp_path, contrat, catalogue):
+    instant = datetime(2026, 11, 12, 9, 0, 0, tzinfo=UTC)
+    premiere = tmp_path / nom_de_fichier("FRA", "AA", "001", instant, "csv")
+    ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES, GRAINE, premier_lot=1), premiere)
+    seconde = tmp_path / nom_de_fichier("FRA", "AA", "002", instant, "parquet")
+    lignes_suivantes = generer_livraison(contrat, NB_LIGNES, GRAINE + 1, premier_lot=NB_LIGNES + 1)
+    ecrire_livraison_parquet(contrat, lignes_suivantes, seconde)
+    deja = _traiter(contrat, catalogue, premiere).silver.lignes
+
+    resultat = _traiter(contrat, catalogue, seconde, deja_integrees=deja, arrivee=ARRIVEE + timedelta(days=1))
+
+    assert resultat.ligne_registre.statut == "ACCEPTEE"
+    assert (len(resultat.silver.lignes), resultat.silver.quarantaine, resultat.alertes) == (NB_LIGNES, [], [])
+
+
+def test_la_meme_plage_de_lots_avec_un_autre_contenu_est_un_conflit_que_les_plages_disjointes_evitent(tmp_path, contrat, catalogue):
+    instant = datetime(2026, 11, 12, 9, 0, 0, tzinfo=UTC)
+    premiere = tmp_path / nom_de_fichier("FRA", "AA", "001", instant, "csv")
+    ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES, GRAINE), premiere)
+    seconde = tmp_path / nom_de_fichier("FRA", "AA", "002", instant, "csv")
+    ecrire_livraison_csv(contrat, generer_livraison(contrat, NB_LIGNES, GRAINE + 1), seconde)         # mêmes numéros de lot, autre contenu
+    deja = _traiter(contrat, catalogue, premiere).silver.lignes
+
+    resultat = _traiter(contrat, catalogue, seconde, deja_integrees=deja, arrivee=ARRIVEE + timedelta(days=1))
+
+    assert (len(resultat.silver.lignes), len(resultat.silver.quarantaine)) == (0, NB_LIGNES)
+    assert _codes(resultat) == ["CLE_EN_CONFLIT"]
