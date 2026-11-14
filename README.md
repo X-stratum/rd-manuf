@@ -98,7 +98,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 - 🟢 **Contrat de données** ([`livraison_production.yaml`](contracts/data/livraison_production.yaml)) : colonnes, types, limites et règles, lisibles par le métier ; version 2.0.0.
 - 🟢 **Codes d'erreur** : stables, jamais renommés, car les alertes s'appuient dessus.
 - 🟢 **Environnements** ([`config.py`](src/rd_manuf/config.py)) : un catalogue par cible (playground, dev, prod) ; un catalogue inconnu est refusé.
-- 🟢 **Simulateur** ([`simulateur.py`](src/rd_manuf/simulateur.py)) : fabrique des livraisons de test (CSV ou Parquet, noms de fichiers, numéros de lot) avec des anomalies demandées, pour rejouer un incident.
+- 🟢 **Simulateur** ([`simulateur.py`](src/rd_manuf/simulateur.py)) : fabrique des livraisons de test (CSV ou Parquet, noms, numéros de lot) avec des anomalies et des fichiers abîmés demandés, pour rejouer un incident.
 - 🟢 **Tests, CI et revue** ([`tests/unitaires/`](tests/unitaires/), [`.github/`](.github/)) : tests avant le code, CI à chaque PR, environnement conda en une commande.
 - 🟢 **Journal des changements** ([`CHANGELOG.md`](CHANGELOG.md)) : le projet raconté pas à pas, en langage clair.
 
@@ -133,7 +133,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `tables.py` : les schémas des cinq tables (registre, bronze, lignes coupées, silver, quarantaine) et leur SQL de création, sans rien écrire ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
-  - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet) ;
+  - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet, fichiers abîmés) ;
   - `config.py` : garde-fou sur le choix de l'environnement.
 - [`tests/unitaires/`](tests/unitaires/) : les tests.
 - [`docs/`](docs/) : l'image du plan global et le programme qui la fabrique.

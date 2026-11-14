@@ -59,6 +59,18 @@ def test_un_parquet_tronque_est_illisible(tmp_path, contrat):
         lire_parquet(chemin)
 
 
+def test_un_parquet_a_colonne_en_double_est_lu_avec_ses_deux_noms(tmp_path):
+    """Le fichier est valide (Parquet accepte deux colonnes de même nom) : le LECTEUR ne juge pas, il rapporte les noms tels que reçus,
+    pour que la réception dise `COLONNE_DUPLIQUEE`, comme pour un CSV. Le refuser comme illisible cacherait la colonne à corriger."""
+    chemin = tmp_path / "livraison.parquet"
+    pq.write_table(pa.Table.from_arrays([pa.array(["a"]), pa.array(["b"]), pa.array([1])], names=["id_lot", "id_lot", "autre"]), chemin)
+
+    fichier = lire_parquet(chemin)
+
+    assert fichier.colonnes == ["id_lot", "id_lot", "autre"]
+    assert len(fichier.lignes) == 1
+
+
 # ==============================================================================
 # 3. 🔗 DE BOUT EN BOUT : un vrai Parquet typé (dates, entiers, décimaux, absence) est jugé comme un CSV
 # ==============================================================================

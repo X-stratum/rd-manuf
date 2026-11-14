@@ -61,13 +61,16 @@ def lire_parquet(chemin: str | Path) -> FichierLu:
 
     Les valeurs arrivent déjà typées (entiers, dates, absences `None`) : le contrat les juge de la même façon que celles d'un CSV.
     Un fichier qui n'est pas un Parquet valide (tronqué, autre format) lève `FichierIllisible`.
+    Deux colonnes de même nom sont rapportées telles que reçues (`COLONNE_DUPLIQUEE` à la réception, comme en CSV) : `ParquetFile` les lit,
+    alors que `read_table` (l'API « dataset ») refuse le fichier en le disant illisible. Les valeurs d'un doublon ne sont pas distinguables
+    dans les lignes (un dictionnaire n'a qu'une clé) : la livraison est refusée avant que personne ne les lise.
     """
     # Importé ici : le lecteur CSV et les autres modules n'ont pas besoin de ce paquet lourd.
     import pyarrow as pa
     import pyarrow.parquet as pq
 
     try:
-        table = pq.read_table(chemin)
+        table = pq.ParquetFile(chemin).read()
     except pa.ArrowException as erreur:
         raise FichierIllisible(f"Le fichier ne peut pas être lu comme un Parquet : {erreur}") from erreur
     return FichierLu(colonnes=list(table.column_names), lignes=table.to_pylist(), lignes_malformees=())
