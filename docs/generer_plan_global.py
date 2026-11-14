@@ -68,6 +68,7 @@ REGLES = [  # (numéro de la colonne alignée, titre, lignes) : écrites, donc f
 ]
 OUTILS = [  # (titre, lignes) : faits
     ("Simulateur", ["Livraisons de test avec", "anomalies à la demande"]),
+    ("Journée de test", ["Une journée multi-usines,", "rejouée le lendemain"]),
     ("Tests unitaires", ["Écrits avant le code,", "sabotage pour les prouver"]),
     ("CI GitHub", ["Style puis tests à", "chaque Pull Request"]),
     ("Journal des changements", ["Le projet raconté en", "langage clair"]),
