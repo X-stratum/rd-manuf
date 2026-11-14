@@ -28,7 +28,7 @@ TYPE_VIOLATIONS = "ARRAY<STRUCT<code: STRING, colonnes: ARRAY<STRING>, message: 
 
 # Noms réservés à la traçabilité, dans TOUTES les tables de données : une colonne du contrat qui les porterait créerait deux colonnes du
 # même nom, ou écraserait la traçabilité. Le refus est le même en bronze et en silver, pour qu'une colonne ait le même nom partout.
-COLONNES_RESERVEES = ("livraison_id", "heure_arrivee", "numero_ligne", "version_contrat")
+COLONNES_RESERVEES = ("livraison_id", "heure_arrivee", "pays", "usine", "numero_ligne", "version_contrat")
 
 # Un nom de colonne devient un identifiant SQL entre backticks : lettres (accents permis), chiffres et `_`, sans commencer par un chiffre.
 # Un backtick sortirait des guillemets ; un espace, un point, un tiret ou un point-virgule sont refusés par Delta à la création.
@@ -137,6 +137,8 @@ def table_silver(contrat: Contrat) -> Table:
     return Table(SCHEMA_SILVER, "lignes", (
         _colonne("livraison_id", "STRING"),
         _colonne("heure_arrivee", "TIMESTAMP"),
+        _colonne("pays", "STRING"),
+        _colonne("usine", "STRING"),
         _colonne("numero_ligne", "BIGINT"),
         _colonne("version_contrat", "STRING"),
         *(_colonne(colonne.nom, _type_sql(colonne), obligatoire=colonne.obligatoire) for colonne in contrat.colonnes),
