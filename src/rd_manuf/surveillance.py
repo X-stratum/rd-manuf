@@ -137,7 +137,7 @@ def _lire_yaml(chemin: str | Path) -> Any:
     try:
         return yaml.load(Path(chemin).read_text(encoding="utf-8"), Loader=_LecteurSansCleRepetee)
     except yaml.YAMLError as erreur:
-        raise SourcesInvalides(f"Le fichier des sources attendues n'est pas du YAML lisible : {erreur}") from erreur
+        raise SourcesInvalides(f"Le fichier de surveillance n'est pas du YAML lisible : {erreur}") from erreur
 
 
 def _valider_texte(rang: int, champ: str, valeur: Any) -> str:
@@ -191,10 +191,8 @@ def _lire_fichier(chemin: str | Path) -> dict[str, Any]:
     return brut
 
 
-def charger_parametres_taux_rejet(chemin: str | Path) -> ParametresTauxRejet:
-    """La section `taux_de_rejet` du fichier de surveillance : la fenêtre de livraisons et la part du seuil du contrat. `SourcesInvalides`
-    si la section manque, est mal formée, a un champ manquant, inconnu ou répété, ou une valeur hors de ce qui est permis."""
-    section = _lire_fichier(chemin).get("taux_de_rejet")
+def _parametres_de_la_section(brut: dict[str, Any]) -> ParametresTauxRejet:
+    section = brut.get("taux_de_rejet")
     if not isinstance(section, dict) or not section:
         raise SourcesInvalides(f"La section « taux_de_rejet » manque ou est vide (champs attendus : {', '.join(CHAMPS_DU_TAUX_DE_REJET)}).")
     for champ in CHAMPS_DU_TAUX_DE_REJET:
@@ -209,10 +207,19 @@ def charger_parametres_taux_rejet(chemin: str | Path) -> ParametresTauxRejet:
     return ParametresTauxRejet(fenetre_livraisons=section["fenetre_livraisons"], part_du_seuil=float(section["part_du_seuil"]))
 
 
+def charger_parametres_taux_rejet(chemin: str | Path) -> ParametresTauxRejet:
+    """La section `taux_de_rejet` du fichier de surveillance : la fenêtre de livraisons et la part du seuil du contrat. `SourcesInvalides`
+    si la section manque, est mal formée, a un champ manquant, inconnu ou répété, ou une valeur hors de ce qui est permis."""
+    return _parametres_de_la_section(_lire_fichier(chemin))
+
+
 def charger_sources_attendues(chemin: str | Path) -> tuple[SourceAttendue, ...]:
     """Les sources déclarées, triées par pays, usine et ligne. Un fichier absent lève l'erreur de fichier habituelle ; un contenu mal formé,
-    `SourcesInvalides`. Refuse tout ce qui est ambigu : champ manquant ou inconnu, doublon, délai nul ou non fini."""
+    `SourcesInvalides`. Refuse tout ce qui est ambigu : champ manquant ou inconnu, doublon, délai nul ou non fini. Une section
+    `taux_de_rejet` présente est validée aussi, même si ce chargeur ne s'en sert pas."""
     brut = _lire_fichier(chemin)
+    if "taux_de_rejet" in brut:                  # un fichier, une seule validité : sinon le défaut n'apparaîtrait qu'à l'autre appel
+        _parametres_de_la_section(brut)
     liste = brut.get("sources")
     if not isinstance(liste, list) or not liste:
         raise SourcesInvalides("« sources » doit être une liste d'au moins une source.")
@@ -281,6 +288,7 @@ def controler_fraicheur(registre: Iterable[LigneRegistre], sources: Iterable[Sou
 # ==============================================================================
 # 📉 LE TAUX DE REJET
 # ==============================================================================
+CHIFFRES_DU_NIVEAU = 12                                      # l'arrondi du niveau d'alerte, comme `journee.py` arrondit `seuil × lignes`
 STATUTS_AVEC_UN_TAUX = frozenset({*STATUTS_INTEGRES, StatutLivraison.BLOQUEE.value})     # les livraisons dont des lignes ont été jugées
 
 
@@ -301,7 +309,8 @@ def controler_taux_de_rejet(
     gardé un nombre de lignes reçues. Le taux est celui des sommes. Une source qui a moins de livraisons jugeables que la fenêtre n'est
     pas jugée."""
     seuil = _verifier_le_seuil(taux_rejet_max)
-    niveau = parametres.part_du_seuil * seuil
+    # 0,7 × 0,01 vaut 0.006999999999999999 en flottants : sans arrondi, un taux pile au niveau passerait au-dessus
+    niveau = round(parametres.part_du_seuil * seuil, CHIFFRES_DU_NIVEAU)
     par_origine: dict[Origine, list[tuple[datetime, int, LigneRegistre]]] = {}
     for rang, ligne in enumerate(registre):
         if ligne.pays is None or ligne.usine is None or ligne.ligne is None:

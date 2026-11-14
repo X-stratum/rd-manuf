@@ -691,6 +691,22 @@ def test_les_parametres_sont_immuables(tmp_path):
         parametres.fenetre_livraisons = 9
 
 
+SECTIONS_INVALIDES = ["taux_de_rejet:\n  fenetre_livraisons: 0\n  part_du_seuil: 9\n", "taux_de_rejet: 5\n", "taux_de_rejet:\n"]
+
+
+@pytest.mark.parametrize("section", SECTIONS_INVALIDES, ids=["valeurs invalides", "pas un dictionnaire", "section vide"])
+def test_le_chargeur_des_sources_refuse_aussi_une_section_presente_mais_invalide(tmp_path, section):
+    """Un fichier doit avoir une seule validité : sans cela, le défaut n'apparaîtrait qu'à l'appel de l'autre chargeur."""
+    with pytest.raises(surveillance.SourcesInvalides, match="taux_de_rejet"):
+        surveillance.charger_sources_attendues(_ecrire(tmp_path, BON + section))
+
+
+@pytest.mark.parametrize("charger", ["charger_sources_attendues", "charger_parametres_taux_rejet"])
+def test_un_yaml_casse_parle_du_fichier_de_surveillance_et_pas_seulement_des_sources(tmp_path, charger):
+    with pytest.raises(surveillance.SourcesInvalides, match="fichier de surveillance"):
+        getattr(surveillance, charger)(_ecrire(tmp_path, BON + "taux_de_rejet: [\n"))
+
+
 def test_une_section_absente_est_refusee_avec_son_nom(tmp_path):
     with pytest.raises(surveillance.SourcesInvalides, match="taux_de_rejet"):
         _parametres(tmp_path, BON)
@@ -906,6 +922,45 @@ def test_le_niveau_suit_le_seuil_du_contrat():
     assert _taux(registre, un, seuil=0.05) == []                             # niveau 2,5 % : plus de constat
     (constat,) = _taux(registre, _parametres_de(1, 1.0), seuil=0.01)         # niveau 1 % aussi, par une autre part
     assert (constat.niveau, constat.seuil_contrat) == (0.01, 0.01)
+
+
+BORDS = [(0.7, 0.01, 1000, 7), (0.3, 0.02, 1000, 6), (0.7, 0.02, 1000, 14), (0.1, 0.03, 10000, 30)]
+
+
+@pytest.mark.parametrize(("part", "seuil", "recues", "pile"), BORDS, ids=["0,7 × 1 %", "0,3 × 2 %", "0,7 × 2 %", "0,1 × 3 %"])
+def test_pile_au_niveau_pas_de_constat_et_un_rejet_de_plus_en_donne_un_meme_si_les_flottants_arrondissent_mal(part, seuil, recues, pile):
+    """0,7 × 0,01 vaut 0.006999999999999999 en flottants : sans arrondi, 7 rejets sur 1 000 (exactement 0,7 %) seraient signalés à tort."""
+    parametres = _parametres_de(1, part)
+
+    assert _taux([_ligne_taux(recues, pile, BLOQUEE)], parametres, seuil=seuil) == []
+    assert len(_taux([_ligne_taux(recues, pile + 1, BLOQUEE)], parametres, seuil=seuil)) == 1
+
+
+def test_le_bord_est_exact_sur_toute_une_grille_de_parts_de_seuils_et_de_tailles():
+    """Chaque cas où part × seuil × lignes est un entier : pile ce nombre de rejets n'est jamais signalé, un de plus l'est toujours."""
+    from decimal import Decimal
+
+    erreurs = []
+    for part in [Decimal(x) / 10 for x in range(1, 11)] + [Decimal("0.25"), Decimal("0.33"), Decimal("0.75")]:
+        for seuil in [Decimal(x) / 100 for x in range(1, 11)] + [Decimal("0.005"), Decimal("0.03")]:
+            for recues in (100, 1000, 10_000, 100_000):
+                exact = part * seuil * recues
+                if exact != exact.to_integral_value():
+                    continue
+                pile = int(exact)
+                parametres = _parametres_de(1, float(part))
+                if _taux([_ligne_taux(recues, pile, BLOQUEE)], parametres, seuil=float(seuil)):
+                    erreurs.append(("à tort", part, seuil, recues, pile))
+                if not _taux([_ligne_taux(recues, pile + 1, BLOQUEE)], parametres, seuil=float(seuil)):
+                    erreurs.append(("raté", part, seuil, recues, pile + 1))
+
+    assert erreurs == []
+
+
+def test_le_niveau_du_constat_est_arrondi_comme_celui_de_la_comparaison():
+    (constat,) = _taux([_ligne_taux(1000, 8, BLOQUEE)], _parametres_de(1, 0.7), seuil=0.01)
+
+    assert constat.niveau == 0.007
 
 
 def test_un_seuil_de_zero_signale_toute_livraison_avec_un_rejet_et_aucune_sans_rejet():
