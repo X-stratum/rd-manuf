@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from rd_manuf.alertes import Alerte, Catalogue, router_alertes_reception
+from rd_manuf.alertes import Alerte, Catalogue, ajouter_conflits_entre_livraisons, router_alertes_reception
 from rd_manuf.bronze import STATUTS_BRONZE, LigneBronze, LigneBronzeCoupee, construire_lignes_bronze, construire_lignes_coupees
 from rd_manuf.contrat import Contrat
 from rd_manuf.lecture import lire_selon_format
@@ -43,7 +43,7 @@ class ResultatLivraison:
     lignes_bronze: list[LigneBronze]           # vide si la livraison n'entre pas (refusée, rejeu)
     lignes_coupees: list[LigneBronzeCoupee]
     silver: ResultatSilver                     # vide pour une livraison refusée, rejouée ou bloquée
-    alertes: list[Alerte]                      # vide pour un rejeu ; celles de la réception sinon
+    alertes: list[Alerte]                      # vide pour un rejeu ; celles de la réception et les conflits avec une plus ancienne
 
 
 def traiter_livraison(
@@ -73,4 +73,7 @@ def traiter_livraison(
     lignes_bronze = construire_lignes_bronze(contrat, ligne_registre, fichier)
     lignes_coupees = construire_lignes_coupees(ligne_registre, fichier)
     silver = construire_silver(contrat, ligne_registre, lignes_bronze, lignes_coupees, deja_integrees=deja_integrees)
+    alertes = ajouter_conflits_entre_livraisons(
+        catalogue, alertes, ligne_registre.livraison_id, silver.nb_conflits_entre_livraisons, contrat.cle_primaire
+    )
     return ResultatLivraison(ligne_registre, reception, lignes_bronze, lignes_coupees, silver, alertes)

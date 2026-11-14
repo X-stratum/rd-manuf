@@ -4,6 +4,7 @@ Ce fichier raconte le projet **PR par PR, du plus récent au plus ancien**, en l
 Pour le détail technique (fichiers, tests, preuves), ouvrir la PR indiquée sous chaque entrée.
 
 **Le tenir à jour.** Chaque PR ajoute sa propre entrée en tête de liste, dans la même PR. L'entrée reprend le « En clair » et les « Décisions à retenir » de la description de la PR.
+Les dates sont en UTC, comme les heures du projet.
 Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'historique d'un dépôt public ne se réécrit pas) : ce fichier en est la version lisible.
 
 ## Petit lexique
@@ -26,6 +27,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 - **Sabotage** : une modification volontaire du code pour vérifier que les tests détectent bien l'erreur.
 
 ---
+
+## #38 — Alertes : un conflit de clé avec une livraison plus ancienne prévient l'émetteur
+*2026-11-14 · [PR #38](https://github.com/X-stratum/rd-manuf/pull/38)*
+
+**En clair.** Quand une ligne d'une livraison porte le numéro d'un lot déjà intégré par une livraison plus ancienne de la même usine, avec un contenu différent, elle part en quarantaine depuis la #32. Mais personne n'était prévenu : le silver n'appelait pas les alertes, et la réception ne connaît que la livraison en cours. L'émetteur reçoit maintenant une alerte, comme pour les autres rejets, avec le nombre de lignes concernées et la colonne à regarder.
+**Décisions.** Le code reste `CLE_EN_CONFLIT`, sa règle est déjà dans le catalogue (l'émetteur agit, le métier est informé) : aucune entrée à ajouter. Il n'y a qu'une alerte par livraison et par code : si la livraison a aussi un conflit de clé à l'intérieur d'elle-même, que la réception alerte déjà, les deux sortes de lignes s'additionnent dans la même alerte au lieu d'en produire deux. Seul le silver sait combien de lignes viennent d'une autre livraison (sa quarantaine contient aussi des rejets déjà alertés), donc il le compte lui-même et le dit dans son résultat. Le statut de la livraison ne change pas : elle reste acceptée, avec une alerte. Pas encore fait : l'alerte ne nomme pas la livraison d'origine, qui reste lisible dans le message de la quarantaine.
 
 ## #37 — Enchaînement : une livraison de bout en bout en un seul appel
 *2026-11-14 · [PR #37](https://github.com/X-stratum/rd-manuf/pull/37)*
