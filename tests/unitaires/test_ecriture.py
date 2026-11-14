@@ -17,8 +17,8 @@ from pathlib import Path
 import pytest
 
 from rd_manuf.alertes import charger_catalogue
-from rd_manuf.config import ErreurEnvironnement
-from rd_manuf.ecriture import EtatMagasin, MagasinEnMemoire, MagasinSql, couches, creer_tables, en_json
+from rd_manuf.config import CATALOGUE_PAR_DEFAUT, ErreurEnvironnement
+from rd_manuf.ecriture import DecisionManquante, EtatMagasin, MagasinEnMemoire, MagasinSql, couches, creer_tables, en_json
 from rd_manuf.journee import Attendu, Etat, jouer, journee_multi_usines, verifier_invariants
 from rd_manuf.tables import (
     BRONZE_COUPEES,
@@ -36,7 +36,7 @@ from rd_manuf.tables import (
 )
 
 CHEMIN_CATALOGUE = Path(__file__).resolve().parents[2] / "contracts" / "alertes" / "catalogue.yaml"
-CATALOGUE_SQL = "rd_manuf_playground"
+CATALOGUE_SQL = CATALOGUE_PAR_DEFAUT       # le playground : la constante de `config.py`, jamais recopiée
 COUCHES = ["registre", "bronze", "coupees", "silver", "quarantaine"]
 TOUTES_LES_COUCHES = pytest.mark.parametrize("nom", COUCHES)
 # Les clés, écrites ICI à part du module : l'idempotence de l'écriture repose sur elles, un changement doit se voir.
@@ -511,16 +511,17 @@ def test_appliquer_deux_fois_le_meme_resultat_ne_duplique_rien(contrat, jouee):
 
 
 class _Capricieux(MagasinEnMemoire):
-    """Tombe en panne à la troisième écriture du registre, une seule fois : les données de la livraison sont déjà là, pas la décision."""
+    """Tombe en panne à la n-ième écriture du registre (la troisième par défaut), une seule fois : les données sont là, pas la décision."""
 
-    def __init__(self):
+    def __init__(self, panne_a=3):
         super().__init__()
         self.ecritures_du_registre = 0
+        self.panne_a = panne_a
 
     def inserer_absentes(self, table, cles, enregistrements):
         if table.nom == "registre" and enregistrements:
             self.ecritures_du_registre += 1
-            if self.ecritures_du_registre == 3:
+            if self.ecritures_du_registre == self.panne_a:
                 raise RuntimeError("panne avant le registre")
         super().inserer_absentes(table, cles, enregistrements)
 
@@ -541,6 +542,160 @@ def test_une_panne_avant_le_registre_se_rattrape_en_reprenant_la_livraison_a_la_
         couche = couches(contrat)[nom]
         assert _trier(getattr(flou, _nom_d_attribut(nom)), couche) == _trier(getattr(propre, _nom_d_attribut(nom)), couche), nom
     assert len(flou.registre) == len(propre.registre) == len(journee)
+
+
+# ------------------------------------------------------------------------------
+# 3 bis. 🚧 UNE LIVRAISON SANS REGISTRE N'EST PAS INTÉGRÉE : ses lignes ne sont pas lues comme telles
+# ------------------------------------------------------------------------------
+DONNEES = ("bronze", "coupees", "silver", "quarantaine")
+
+
+def _de_la_journee(journee, etiquette):
+    return next(livraison for livraison in journee if livraison.etiquette == etiquette)
+
+
+def _en_panne_avant_le_registre(contrat, catalogue, livraison, dossier):
+    """Un état dont la première écriture du registre échoue : les lignes de données de `livraison` sont écrites, pas sa décision."""
+    etat = EtatMagasin(contrat, _Capricieux(panne_a=1))
+    with pytest.raises(RuntimeError, match="panne"):
+        jouer(contrat, catalogue, [livraison], dossier, etat)
+    return etat
+
+
+def test_apres_une_panne_avant_le_registre_aucune_ligne_n_est_lue_et_elles_restent_diagnostiquables(contrat, catalogue, journee, tmp_path):
+    livraison = _de_la_journee(journee, "usa-ca-002-lignes-coupees")
+    attendu = livraison.attendu
+    assert min(attendu.nb_bronze, attendu.nb_coupees, attendu.nb_silver, attendu.nb_quarantaine) > 0, "il faut les quatre couches"
+
+    etat = _en_panne_avant_le_registre(contrat, catalogue, livraison, tmp_path)
+
+    assert [getattr(etat, _nom_d_attribut(nom)) for nom in COUCHES] == [[]] * len(COUCHES)
+    sans_decision = etat.lignes_sans_decision()
+    assert {nom: len(lignes) for nom, lignes in sans_decision.items()} == {
+        "bronze": attendu.nb_bronze, "coupees": attendu.nb_coupees, "silver": attendu.nb_silver, "quarantaine": attendu.nb_quarantaine}
+
+
+def test_une_livraison_sans_registre_doit_etre_reprise_avant_d_en_ecrire_une_autre(contrat, catalogue, journee, tmp_path):
+    """Sans décision, FRA_AA_001 n'est pas intégrée. Écrire la suivante (FRA_AA_003, mêmes numéros de lot) avant la reprise ferait entrer
+    les deux au silver, chaque lot deux fois et sans alerte : on refuse, la suivante attend, puis elle est jugée contre la première."""
+    premiere, suivante = _de_la_journee(journee, "fra-aa-001-saine"), _de_la_journee(journee, "fra-aa-003-conflit-de-cle")
+    etat = _en_panne_avant_le_registre(contrat, catalogue, premiere, tmp_path)
+    avant = {nom: len(getattr(etat, _nom_d_attribut(nom))) for nom in COUCHES}
+
+    with pytest.raises(DecisionManquante, match=premiere.nom):
+        jouer(contrat, catalogue, [suivante], tmp_path, etat)
+    assert {nom: len(getattr(etat, _nom_d_attribut(nom))) for nom in COUCHES} == avant, "rien de la suivante n'est écrit"
+    assert {(ligne.livraison_id) for lignes in etat.lignes_sans_decision().values() for ligne in lignes} == {premiere.nom}
+
+    jouer(contrat, catalogue, [premiere], tmp_path, etat)                   # la reprise d'abord
+    resultat, = jouer(contrat, catalogue, [suivante], tmp_path, etat)       # puis la suivante
+
+    assert Attendu.observe(resultat) == suivante.attendu
+
+
+def test_la_reprise_d_une_livraison_sans_registre_rend_ses_lignes_lisibles_sans_rien_laisser_de_cote(contrat, catalogue, journee, tmp_path):
+    livraison = _de_la_journee(journee, "usa-ca-002-lignes-coupees")
+    etat = _en_panne_avant_le_registre(contrat, catalogue, livraison, tmp_path)
+
+    resultat, = jouer(contrat, catalogue, [livraison], tmp_path, etat)
+
+    assert Attendu.observe(resultat) == livraison.attendu
+    for nom in DONNEES:
+        couche = couches(contrat)[nom]
+        assert _trier(getattr(etat, _nom_d_attribut(nom)), couche) == _trier(_objets(nom, [resultat]), couche), nom
+    assert etat.lignes_sans_decision() == {nom: [] for nom in DONNEES}
+
+
+@pytest.mark.parametrize("nom", DONNEES)
+def test_des_lignes_sans_decision_d_une_couche_quelconque_font_attendre_les_livraisons_suivantes(contrat, catalogue, journee, jouee, nom):
+    """Une panne peut tomber entre deux couches : une seule couche écrite suffit à interdire d'écrire une livraison plus tardive."""
+    livraison = _de_la_journee(journee, "usa-ca-002-lignes-coupees")
+    resultat = next(r for livraison_jouee, r in zip(journee, jouee[1], strict=True) if livraison_jouee.etiquette == livraison.etiquette)
+    suivante = jouee[1][-1]
+    assert suivante.ligne_registre.heure_arrivee > resultat.ligne_registre.heure_arrivee
+    couche = couches(contrat)[nom]
+    magasin = MagasinEnMemoire()
+    magasin.inserer_absentes(couche.table, couche.cles, [couche.vers_enregistrement(o) for o in _objets(nom, [resultat])])
+
+    with pytest.raises(DecisionManquante, match=resultat.ligne_registre.livraison_id):
+        EtatMagasin(contrat, magasin).appliquer(suivante)
+
+
+def test_des_lignes_sans_decision_d_une_livraison_plus_tardive_ne_bloquent_pas_une_plus_ancienne(contrat, jouee):
+    tardive, ancienne = jouee[1][-2], jouee[1][0]
+    assert tardive.ligne_registre.heure_arrivee > ancienne.ligne_registre.heure_arrivee and tardive.lignes_bronze
+    magasin = MagasinEnMemoire()
+    bronze = couches(contrat)["bronze"]
+    magasin.inserer_absentes(bronze.table, bronze.cles, [bronze.vers_enregistrement(ligne) for ligne in tardive.lignes_bronze])
+    etat = EtatMagasin(contrat, magasin)
+
+    etat.appliquer(ancienne)
+
+    assert etat.registre == [ancienne.ligne_registre]
+
+
+def test_la_reprise_d_une_livraison_n_est_pas_bloquee_par_ses_propres_lignes_sans_decision(contrat, jouee):
+    complete = next(r for r in jouee[1] if r.lignes_bronze and r.lignes_coupees and r.silver.lignes and r.silver.quarantaine)
+    magasin = MagasinEnMemoire()
+    etat = EtatMagasin(contrat, magasin)
+    for nom in DONNEES:
+        couche = couches(contrat)[nom]
+        magasin.inserer_absentes(couche.table, couche.cles, [couche.vers_enregistrement(o) for o in _objets(nom, [complete])])
+
+    etat.appliquer(complete)
+
+    assert etat.registre == [complete.ligne_registre] and etat.lignes_sans_decision() == {nom: [] for nom in DONNEES}
+
+
+def test_une_journee_complete_ne_laisse_aucune_ligne_sans_decision(jouee_en_magasin):
+    assert jouee_en_magasin[0].lignes_sans_decision() == {nom: [] for nom in DONNEES}
+
+
+# Une couche de données n'est lue que pour les livraisons dont le registre dit qu'elles y entrent : le bronze garde TOUT ce qui est arrivé
+# d'une livraison acceptée ou bloquée, le silver et la quarantaine seulement celles qui sont intégrées. Un refus ou un rejeu n'a rien.
+ENTRENT_AU_BRONZE = ("ACCEPTEE", "ACCEPTEE_AVEC_REJETS", "BLOQUEE")
+SONT_INTEGREES = ("ACCEPTEE", "ACCEPTEE_AVEC_REJETS")
+TOUS_LES_STATUTS = ("ACCEPTEE", "ACCEPTEE_AVEC_REJETS", "BLOQUEE", "REFUSEE", "REJEU_IGNORE")
+STATUTS_PAR_COUCHE = [
+    (nom, statut, statut in entrants)
+    for nom, entrants in (
+        ("bronze", ENTRENT_AU_BRONZE), ("coupees", ENTRENT_AU_BRONZE), ("silver", SONT_INTEGREES), ("quarantaine", SONT_INTEGREES)
+    )
+    for statut in TOUS_LES_STATUTS
+]
+IDS_STATUTS = [f"{nom}-{statut}-{'lue' if visible else 'ecartee'}" for nom, statut, visible in STATUTS_PAR_COUCHE]
+
+
+@pytest.mark.parametrize(("nom", "statut", "visible"), STATUTS_PAR_COUCHE, ids=IDS_STATUTS)
+def test_une_couche_de_donnees_n_est_lue_que_pour_les_statuts_qui_la_font_entrer(contrat, jouee, nom, statut, visible):
+    toutes = couches(contrat)
+    magasin = MagasinEnMemoire()
+    etat = EtatMagasin(contrat, magasin)
+    modele = _objets(nom, jouee[1])[0]
+    cle = (modele.livraison_id, modele.heure_arrivee)
+    registre = next(ligne for ligne in _objets("registre", jouee[1]) if (ligne.livraison_id, ligne.heure_arrivee) == cle)
+    magasin.inserer_absentes(REGISTRE, CLES_REGISTRE, [toutes["registre"].vers_enregistrement(replace(registre, statut=statut))])
+    magasin.inserer_absentes(toutes[nom].table, toutes[nom].cles, [toutes[nom].vers_enregistrement(modele)])
+
+    lues, ecartees = getattr(etat, _nom_d_attribut(nom)), etat.lignes_sans_decision()[nom]
+
+    assert (lues, ecartees) == (([modele], []) if visible else ([], [modele]))
+
+
+def test_la_decision_d_une_autre_arrivee_du_meme_nom_ne_rend_pas_les_lignes_lisibles(contrat, journee, jouee):
+    """Une livraison bloquée et son renvoi corrigé ont le même nom : seule l'heure d'arrivée dit à qui est la décision."""
+    par_etiquette = {livraison.etiquette: resultat for livraison, resultat in zip(journee, jouee[1], strict=True)}
+    bloquee, corrigee = par_etiquette["usa-ca-001-bloquee"], par_etiquette["usa-ca-001-renvoyee-corrigee"]
+    assert bloquee.ligne_registre.livraison_id == corrigee.ligne_registre.livraison_id and bloquee.lignes_bronze
+    toutes = couches(contrat)
+    magasin = MagasinEnMemoire()
+    etat = EtatMagasin(contrat, magasin)
+    magasin.inserer_absentes(REGISTRE, CLES_REGISTRE, [toutes["registre"].vers_enregistrement(corrigee.ligne_registre)])
+    bronze = toutes["bronze"]
+    magasin.inserer_absentes(bronze.table, bronze.cles, [bronze.vers_enregistrement(ligne) for ligne in bloquee.lignes_bronze])
+
+    assert etat.lignes_bronze == []
+    assert _trier(etat.lignes_sans_decision()["bronze"], toutes["bronze"]) == _trier(bloquee.lignes_bronze, toutes["bronze"])
 
 
 def test_l_etat_lit_le_magasin_a_chaque_acces_et_rend_des_listes_independantes(contrat, jouee):

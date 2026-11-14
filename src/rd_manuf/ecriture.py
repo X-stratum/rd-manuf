@@ -11,7 +11,8 @@ Trois couches, de la plus pure à la plus proche de Databricks :
 PROTOCOLE D'ÉCRITURE d'une livraison : les couches de données d'abord, le REGISTRE en dernier. Entre deux tables il n'y a pas
 d'atomicité ; le registre est ce qui décide d'un rejeu, donc ce qui dit « cette livraison est intégrée ». S'il manque, la livraison
 n'est pas intégrée : on la reprend avec la même heure d'arrivée, et comme chaque écriture n'insère que ce qui manque sur la clé de
-traçabilité, rien n'est dupliqué.
+traçabilité, rien n'est dupliqué. Tant qu'une livraison n'a pas sa décision, ses lignes de données ne sont pas lues comme intégrées, et
+aucune livraison plus tardive n'est écrite (`DecisionManquante`) : l'ordre d'arrivée fait foi, la reprise passe avant la suite.
 
 Les valeurs viennent de fichiers qu'une usine envoie : aucune n'entre jamais dans le texte d'une requête. Elles voyagent en un
 paramètre JSON, typé par le schéma de la table. Seuls des identifiants (catalogue, schéma, table, colonnes, tous connus du code ou
@@ -32,11 +33,11 @@ from datetime import UTC, date, datetime
 from typing import Any, Protocol
 
 from rd_manuf.alertes import Alerte
-from rd_manuf.bronze import LigneBronze, LigneBronzeCoupee
+from rd_manuf.bronze import STATUTS_BRONZE, LigneBronze, LigneBronzeCoupee
 from rd_manuf.config import environnement_du_catalogue
 from rd_manuf.contrat import CodeErreur, Contrat, Violation
 from rd_manuf.pipeline import ResultatLivraison
-from rd_manuf.registre import LigneRegistre
+from rd_manuf.registre import STATUTS_INTEGRES, LigneRegistre
 from rd_manuf.silver import LigneQuarantaine, LigneSilver
 from rd_manuf.tables import (
     BRONZE_COUPEES,
@@ -231,11 +232,29 @@ class MagasinEnMemoire:
 # ==============================================================================
 # 📚 L'ÉTAT ADOSSÉ À UN MAGASIN
 # ==============================================================================
+# Une couche de données n'est lue que pour les livraisons dont le REGISTRE dit qu'elles y entrent : le bronze (et les lignes coupées) pour
+# une livraison acceptée ou bloquée, le silver et la quarantaine pour une livraison intégrée. Sans décision, ou avec une autre, les lignes
+# écrites ne comptent pas : une panne entre les données et le registre ne doit pas faire croire à une livraison qui n'est pas intégrée.
+STATUTS_QUI_FONT_ENTRER = {"bronze": STATUTS_BRONZE, "coupees": STATUTS_BRONZE, "silver": STATUTS_INTEGRES, "quarantaine": STATUTS_INTEGRES}
+
+
+class DecisionManquante(RuntimeError):
+    """Une livraison arrivée plus tôt a des lignes de données sans registre : elle doit être reprise avant d'en écrire une autre.
+
+    Écrire la suivante d'abord la jugerait sans connaître la première : elles pourraient entrer toutes deux au silver, un même lot deux
+    fois, sans alerte. Rien n'est écrit quand cette erreur est levée.
+    """
+
+
 class EtatMagasin:
     """Les mêmes noms que `journee.Etat` (`registre`, `lignes_bronze`, ...) et `appliquer`, mais lus dans un magasin à chaque accès.
 
-    `appliquer` écrit les couches de données d'abord et le registre EN DERNIER (voir le protocole, en tête de module). Les alertes
-    n'ont pas de table (elles seront envoyées, pas stockées) : elles restent une liste en mémoire. Les listes rendues sont neuves.
+    `appliquer` écrit les couches de données d'abord et le registre EN DERNIER (voir le protocole, en tête de module). Tant que le registre
+    manque, la livraison n'est pas intégrée : ses lignes de données ne sont PAS rendues par `lignes_bronze`, `lignes_coupees`,
+    `lignes_silver` et `quarantaine` (sinon la livraison suivante les prendrait pour du déjà intégré), mais `lignes_sans_decision` les
+    garde à portée pour les diagnostiquer. La reprise de la livraison, à la même heure d'arrivée, les rend lisibles en écrivant le registre.
+    Les alertes n'ont pas de table (elles seront envoyées, pas stockées) : elles restent une liste en mémoire.
+    Les listes rendues sont neuves.
     """
 
     def __init__(self, contrat: Contrat, magasin: Magasin) -> None:
@@ -243,36 +262,74 @@ class EtatMagasin:
         self._magasin = magasin
         self.alertes: list[Alerte] = []
 
-    def _lire(self, nom: str) -> list:
+    def _enregistrements(self, nom: str) -> list[Enregistrement]:
         couche = self._couches[nom]
-        return [couche.depuis_enregistrement(e) for e in self._magasin.lire(couche.table, couche.ordre)]
+        return self._magasin.lire(couche.table, couche.ordre)
+
+    def _decisions(self, nom: str) -> set[tuple[str, datetime]]:
+        """Les livraisons (nom, heure d'arrivée) dont le registre dit que la couche `nom` leur appartient."""
+        statuts = STATUTS_QUI_FONT_ENTRER[nom]
+        return {(e["livraison_id"], e["heure_arrivee"]) for e in self._enregistrements("registre") if e["statut"] in statuts}
+
+    def _lire_donnees(self, nom: str, avec_decision: bool) -> list:
+        decisions = self._decisions(nom)
+        couche = self._couches[nom]
+        return [
+            couche.depuis_enregistrement(e) for e in self._enregistrements(nom)
+            if ((e["livraison_id"], e["heure_arrivee"]) in decisions) == avec_decision
+        ]
 
     @property
     def registre(self) -> list[LigneRegistre]:
-        return self._lire("registre")
+        couche = self._couches["registre"]
+        return [couche.depuis_enregistrement(e) for e in self._enregistrements("registre")]
 
     @property
     def lignes_bronze(self) -> list[LigneBronze]:
-        return self._lire("bronze")
+        return self._lire_donnees("bronze", True)
 
     @property
     def lignes_coupees(self) -> list[LigneBronzeCoupee]:
-        return self._lire("coupees")
+        return self._lire_donnees("coupees", True)
 
     @property
     def lignes_silver(self) -> list[LigneSilver]:
-        return self._lire("silver")
+        return self._lire_donnees("silver", True)
 
     @property
     def quarantaine(self) -> list[LigneQuarantaine]:
-        return self._lire("quarantaine")
+        return self._lire_donnees("quarantaine", True)
+
+    def lignes_sans_decision(self) -> dict[str, list]:
+        """Les lignes de données écrites dont le registre ne dit pas (encore) qu'elles comptent, par couche : à diagnostiquer."""
+        return {nom: self._lire_donnees(nom, False) for nom in STATUTS_QUI_FONT_ENTRER}
 
     def _ecrire(self, nom: str, objets: Sequence[Any]) -> None:
         couche = self._couches[nom]
         self._magasin.inserer_absentes(couche.table, couche.cles, [couche.vers_enregistrement(objet) for objet in objets])
 
+    def _livraisons_a_reprendre(self, ligne: LigneRegistre) -> list[str]:
+        """Les livraisons arrivées STRICTEMENT plus tôt dont des lignes de données n'ont pas de décision.
+
+        La reprise d'une livraison garde son heure d'arrivée : ses propres lignes sans décision ne comptent donc pas.
+        """
+        en_attente = {(o.livraison_id, o.heure_arrivee) for lignes in self.lignes_sans_decision().values() for o in lignes}
+        plus_tot = [(nom, heure) for nom, heure in en_attente if heure < ligne.heure_arrivee]
+        return sorted(f"{nom} (arrivée {heure:%Y-%m-%d %H:%M:%S} UTC)" for nom, heure in plus_tot)
+
     def appliquer(self, resultat: ResultatLivraison) -> None:
-        """Ajoute ce qu'une livraison a produit. Reprise possible : rejouée avec la même heure d'arrivée, elle ne duplique rien."""
+        """Ajoute ce qu'une livraison a produit. Reprise possible : rejouée avec la même heure d'arrivée, elle ne duplique rien.
+
+        Refuse, sans rien écrire, d'écrire une livraison tant qu'une livraison arrivée plus tôt a des lignes de données sans registre
+        (`DecisionManquante`) : il faut reprendre celle-là d'abord, puis rejuger celle-ci. Une livraison PLUS TARDIVE sans registre
+        ne gêne pas.
+        """
+        a_reprendre = self._livraisons_a_reprendre(resultat.ligne_registre)
+        if a_reprendre:
+            raise DecisionManquante(
+                f"{resultat.ligne_registre.livraison_id} ne peut pas être écrite : reprendre d'abord {', '.join(a_reprendre)}, "
+                f"dont des lignes de données n'ont pas de ligne de registre."
+            )
         for nom, objets in (("bronze", resultat.lignes_bronze), ("coupees", resultat.lignes_coupees),
                             ("silver", resultat.silver.lignes), ("quarantaine", resultat.silver.quarantaine)):
             if objets:
