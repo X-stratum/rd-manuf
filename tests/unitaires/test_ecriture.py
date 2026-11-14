@@ -838,6 +838,17 @@ def test_le_schema_lu_dans_le_json_donne_chaque_colonne_avec_son_type():
         assert f"`{colonne.nom}` {colonne.type_sql}" in sql, colonne.nom
 
 
+def test_le_json_est_lu_en_echec_immediat_pour_qu_une_valeur_illisible_ne_devienne_pas_null():
+    """Par défaut `from_json` est PERMISSIF : une valeur qu'il ne sait pas lire devient NULL sans erreur, même dans une colonne de clé, et
+    l'idempotence se casserait en silence. En mode `FAILFAST` la requête échoue."""
+    executeur, magasin = _sql()
+
+    magasin.inserer_absentes(REGISTRE, CLES_REGISTRE, [_registre("a.csv", HEURE)])
+
+    sql = executeur.appels[0][0]
+    assert re.search(r"from_json\(:lignes, '[^']*', map\('mode', 'FAILFAST'\)\)", sql), sql
+
+
 def test_aucune_valeur_n_entre_dans_le_texte_de_la_requete_et_toutes_sont_dans_le_parametre():
     executeur, magasin = _sql()
     lignes = [{**_registre(valeur, HEURE), "rejeu_de": valeur, "codes_refus": [valeur]} for valeur in HOSTILES]
@@ -859,6 +870,30 @@ def test_les_enregistrements_sont_ecrits_par_lots_dans_l_ordre():
 
     lots = [[ligne["livraison_id"] for ligne in json.loads(parametres["lignes"])] for _, parametres in executeur.appels]
     assert lots == [["0.csv", "1.csv"], ["2.csv", "3.csv"], ["4.csv"]]
+
+
+def test_deux_enregistrements_de_la_meme_cle_sont_refuses_sans_rien_envoyer_meme_dans_deux_lots_differents():
+    """Un `MERGE` insert-seul insérerait les deux : le magasin en mémoire n'en garde qu'un, donc les deux magasins divergeraient. Les clés
+    sont uniques par construction : un doublon est un défaut du pipeline, à refuser plutôt qu'à écrire."""
+    executeur, magasin = _sql(taille_lot=1)
+    lignes = [_registre("a.csv", HEURE, "ACCEPTEE"), _registre("b.csv", HEURE), _registre("a.csv", HEURE, "BLOQUEE")]
+
+    with pytest.raises(ValueError, match="même clé"):
+        magasin.inserer_absentes(REGISTRE, CLES_REGISTRE, lignes)
+
+    assert executeur.appels == []
+
+
+def test_des_cles_a_partie_absente_sont_des_doublons_seulement_si_toutes_leurs_parties_sont_egales():
+    executeur, magasin = _sql()
+    sans_numero = [_quarantaine("a.csv", HEURE, None, 7), _quarantaine("a.csv", HEURE, None, 7)]
+    avec_numero = [_quarantaine("a.csv", HEURE, None, 7), _quarantaine("a.csv", HEURE, 3, 7)]
+
+    with pytest.raises(ValueError, match="même clé"):
+        magasin.inserer_absentes(QUARANTAINE, CLES_QUARANTAINE, sans_numero)
+    magasin.inserer_absentes(QUARANTAINE, CLES_QUARANTAINE, avec_numero)
+
+    assert len(json.loads(executeur.appels[0][1]["lignes"])) == 2
 
 
 def test_rien_a_ecrire_n_envoie_aucune_requete():
@@ -980,6 +1015,21 @@ def test_le_json_ecrit_les_dates_et_les_instants_en_texte_iso():
     relu = json.loads(en_json([{"jour": date(2026, 11, 12), "instant": instant, "absent": None, "liste": ["a"], "table": {"k": None}}]))
 
     assert relu == [{"jour": "2026-11-12", "instant": "2026-11-12T09:05:07.123456Z", "absent": None, "liste": ["a"], "table": {"k": None}}]
+
+
+@pytest.mark.parametrize(
+    ("instant", "attendu"),
+    [
+        (datetime(1, 1, 1, tzinfo=UTC), "0001-01-01T00:00:00.000000Z"),
+        (datetime(999, 12, 31, 23, 59, 59, 999999, tzinfo=UTC), "0999-12-31T23:59:59.999999Z"),
+        (datetime(2026, 11, 12, 9, 5, 7, tzinfo=UTC), "2026-11-12T09:05:07.000000Z"),
+        (datetime(2026, 11, 12, 11, 5, 7, 5, tzinfo=timezone(timedelta(hours=2))), "2026-11-12T09:05:07.000005Z"),
+    ],
+    ids=["an-1", "an-999", "microsecondes-a-zero", "autre-fuseau"],
+)
+def test_le_json_ecrit_un_instant_avec_une_annee_de_quatre_chiffres(instant, attendu):
+    """`%Y` ne complète pas avec des zéros (l'an 1 s'écrivait `1-01-01T…`) : un nom de fichier valide peut porter l'année 0001."""
+    assert json.loads(en_json([{"instant": instant}]))[0]["instant"] == attendu
 
 
 def test_le_json_garde_les_decimaux_exacts_et_les_entiers_entiers():
