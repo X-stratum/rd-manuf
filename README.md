@@ -99,6 +99,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 - 🟢 **Codes d'erreur** : stables, jamais renommés, car les alertes s'appuient dessus.
 - 🟢 **Environnements** ([`config.py`](src/rd_manuf/config.py)) : un catalogue par cible (playground, dev, prod) ; un catalogue inconnu est refusé.
 - 🟢 **Simulateur** ([`simulateur.py`](src/rd_manuf/simulateur.py)) : fabrique des livraisons de test (CSV ou Parquet, noms, numéros de lot) avec des anomalies et des fichiers abîmés demandés, pour rejouer un incident.
+- 🟢 **Journée de test** ([`journee.py`](src/rd_manuf/journee.py)) : joue des livraisons de trois pays sur l'enchaînement, puis les rejoue le lendemain, et vérifie que l'état reste cohérent.
 - 🟢 **Tests, CI et revue** ([`tests/unitaires/`](tests/unitaires/), [`.github/`](.github/)) : tests avant le code, CI à chaque PR, environnement conda en une commande.
 - 🟢 **Journal des changements** ([`CHANGELOG.md`](CHANGELOG.md)) : le projet raconté pas à pas, en langage clair.
 
@@ -134,6 +135,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet, fichiers abîmés) ;
+  - `journee.py` : une journée multi-usines jouée sur l'enchaînement, avec l'état cumulé et les invariants qui doivent rester vrais ;
   - `config.py` : garde-fou sur le choix de l'environnement.
 - [`tests/unitaires/`](tests/unitaires/) : les tests.
 - [`docs/`](docs/) : l'image du plan global et le programme qui la fabrique.
