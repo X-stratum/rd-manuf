@@ -13,6 +13,7 @@ import json
 import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
+from unittest.mock import create_autospec
 
 import pytest
 
@@ -28,6 +29,7 @@ from databricks.sdk.service.sql import (  # noqa: E402
     ResultManifest,
     ResultSchema,
     ServiceError,
+    StatementExecutionAPI,
     StatementParameterListItem,
     StatementResponse,
     StatementState,
@@ -91,11 +93,14 @@ class FauxClient:
         self.statement_execution = service
 
 
+DEPART = 1000.0        # l'horloge ne démarre pas à zéro : un début de délai écrit en dur ne doit pas passer pour un début lu sur l'horloge
+
+
 class Horloge:
     """Le temps et le sommeil injectés : dormir fait avancer l'horloge sans attendre."""
 
     def __init__(self):
-        self.instant = 0.0
+        self.instant = DEPART
         self.pauses = []
 
     def __call__(self):
@@ -350,7 +355,7 @@ def test_une_requete_qui_depasse_le_delai_est_annulee_puis_refusee():
         _executeur(service, horloge, attente_max=10.0, pause=4.0)("SELECT 1", {})
 
     assert service.annulations == ["s1"]
-    assert 10.0 <= horloge.instant < 14.0
+    assert 10.0 <= horloge.instant - DEPART < 14.0
 
 
 def test_une_requete_est_annulee_des_que_le_delai_est_atteint_et_non_une_pause_plus_tard():
@@ -360,7 +365,68 @@ def test_une_requete_est_annulee_des_que_le_delai_est_atteint_et_non_une_pause_p
     with pytest.raises(ErreurService, match="délai"):
         _executeur(service, horloge, attente_max=4.0, pause=2.0)("SELECT 1", {})
 
-    assert horloge.instant == 4.0 and service.annulations == ["s1"]
+    assert horloge.instant - DEPART == 4.0 and service.annulations == ["s1"]
+
+
+class ServiceQuiGardeLaMain(FauxService):
+    """Un envoi qui reste `duree` secondes sur place avant de rendre une requête encore en cours : l'attente synchrone (`wait_timeout`)."""
+
+    def __init__(self, horloge, duree, premiere, suivantes=()):
+        super().__init__(premiere, suivantes)
+        self.horloge, self.duree = horloge, duree
+
+    def execute_statement(self, **options):
+        self.horloge.instant += self.duree
+        return super().execute_statement(**options)
+
+
+def test_le_delai_compte_depuis_l_envoi_et_non_depuis_la_fin_de_l_attente_synchrone():
+    horloge = Horloge()
+    en_cours = [_reponse(StatementState.RUNNING) for _ in range(60)]
+    service = ServiceQuiGardeLaMain(horloge, 50.0, _reponse(StatementState.RUNNING), en_cours)
+
+    with pytest.raises(ErreurService, match="délai"):
+        _executeur(service, horloge, attente_max=60.0, pause=2.0)("SELECT 1", {})
+
+    assert horloge.instant - DEPART == 60.0 and service.annulations == ["s1"]
+
+
+def test_une_attente_synchrone_qui_use_tout_le_delai_annule_sans_attendre_davantage():
+    horloge = Horloge()
+    en_cours = [_reponse(StatementState.RUNNING) for _ in range(60)]
+    service = ServiceQuiGardeLaMain(horloge, 50.0, _reponse(StatementState.RUNNING), en_cours)
+
+    with pytest.raises(ErreurService, match="délai"):
+        _executeur(service, horloge, attente_max=30.0, pause=2.0)("SELECT 1", {})
+
+    assert horloge.pauses == [] and service.interrogations == [] and service.annulations == ["s1"]
+
+
+def test_les_appels_au_service_respectent_les_signatures_du_vrai_sdk():
+    """Le faux service des autres tests accepte n'importe quel mot-clé ; celui-ci a les signatures de la VRAIE classe (`create_autospec`) :
+    un mot-clé qu'une version du SDK ne connaîtrait plus, ou une arité fausse, fait échouer l'envoi, l'attente ou la suite des morceaux."""
+    service = create_autospec(StatementExecutionAPI, instance=True)
+    service.execute_statement.return_value = _reponse(StatementState.PENDING)
+    service.get_statement.side_effect = [
+        _reponse(StatementState.RUNNING),
+        _reponse(SUCCES, [_colonne("n", "LONG", "BIGINT")], [["1"], ["2"]], suivant=1),
+    ]
+    service.get_statement_result_chunk_n.return_value = ResultData(data_array=[["3"]], chunk_index=1, next_chunk_index=None)
+
+    rendu = _executeur(service)("SELECT n FROM t WHERE x = :x", {"x": "1"})
+
+    assert [ligne["n"] for ligne in rendu] == [1, 2, 3]
+
+
+def test_l_annulation_respecte_la_signature_du_vrai_sdk():
+    service = create_autospec(StatementExecutionAPI, instance=True)
+    service.execute_statement.return_value = _reponse(StatementState.RUNNING)
+    service.get_statement.return_value = _reponse(StatementState.RUNNING)
+
+    with pytest.raises(ErreurService, match="délai"):
+        _executeur(service, attente_max=5.0, pause=2.0)("SELECT 1", {})
+
+    service.cancel_execution.assert_called_once_with("s1")
 
 
 def test_une_annulation_qui_echoue_ne_masque_pas_l_erreur_de_delai():

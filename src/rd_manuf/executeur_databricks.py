@@ -8,7 +8,8 @@ sans lui.
 
 Ce qui part : le texte de la requête et des paramètres NOMMÉS (`:lignes`), tous en texte, jamais de valeur dans le texte. Ce qui revient :
 le service rend chaque valeur en TEXTE (ou `None`) avec le type de sa colonne ; `convertir_valeur` en refait les types Python. Elle est
-stricte : un texte qu'elle ne reconnaît pas lève, et aucune erreur ne contient la valeur reçue (ce peut être une donnée d'usine).
+stricte : un texte qu'elle ne reconnaît pas lève (pour une liste, une table ou une structure, la forme extérieure seulement : le contenu des
+éléments n'est pas vérifié), et aucune erreur ne contient la valeur reçue (ce peut être une donnée d'usine).
 
 Limites connues, à confirmer sur un vrai workspace : la forme exacte des instants et des listes rendus par le service (la conversion
 refuse ce qu'elle ne reconnaît pas plutôt que de deviner), la durée d'une requête sur la Free Edition, et le message d'un échec du service,
@@ -132,7 +133,7 @@ class ExecuteurDatabricks:
 
     `client` est un client du SDK (ses requêtes passent par `client.statement_execution`), `entrepot` l'identifiant de l'entrepôt SQL : tous
     deux viennent de l'appelant. `dormir` et `horloge` sont injectables pour que les tests n'attendent pas pour de vrai. Une requête qui ne
-    finit pas dans `attente_max` secondes est annulée puis refusée.
+    finit pas dans `attente_max` secondes APRÈS SON ENVOI (l'attente synchrone de l'envoi comprise) est annulée puis refusée.
     """
 
     def __init__(
@@ -158,6 +159,7 @@ class ExecuteurDatabricks:
                 raise TypeError(f"Le paramètre « {nom} » doit être du texte, pas {type(valeur).__name__}.")
         parametre, attente, disposition, format_ = _outils_du_sdk()
         service = self._client.statement_execution
+        debut = self._horloge()                                # le délai compte depuis l'ENVOI, attente synchrone comprise
         reponse = service.execute_statement(
             statement=sql,
             warehouse_id=self._entrepot,
@@ -167,7 +169,7 @@ class ExecuteurDatabricks:
             disposition=disposition.INLINE,
             format=format_.JSON_ARRAY,
         )
-        reponse = self._attendre(service, reponse)
+        reponse = self._attendre(service, reponse, debut)
         etat = _nom_de_l_etat(reponse)
         if etat != ETAT_REUSSI:
             erreur = reponse.status.error
@@ -175,8 +177,7 @@ class ExecuteurDatabricks:
             raise ErreurService(f"La requête a fini à l'état {etat}" + (f" : {message}" if message else " (sans message du service)") + ".")
         return self._lignes(service, reponse)
 
-    def _attendre(self, service: Any, reponse: Any) -> Any:
-        debut = self._horloge()
+    def _attendre(self, service: Any, reponse: Any, debut: float) -> Any:
         while _nom_de_l_etat(reponse) in ETATS_EN_COURS:
             if self._horloge() - debut >= self._attente_max:
                 with suppress(Exception):                      # l'annulation est un effort : son échec ne doit pas masquer le délai
