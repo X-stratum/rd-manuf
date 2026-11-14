@@ -1,6 +1,8 @@
 """Les schémas des tables : ce que l'on écrira dans Databricks, décrit sans rien écrire.
 
 Cinq tables, rangées par couche : `ops.registre`, `bronze.lignes`, `bronze.lignes_coupees`, `silver.lignes` et `silver.quarantaine`.
+À part, la table gold `gold.production_quotidienne` (`PRODUCTION_QUOTIDIENNE`, voir `gold.py`) est décrite ici mais n'est PAS dans
+`toutes_les_tables` : c'est la liste de ce que crée `creer_tables` et de ce que cherche le sondage, et le gold aura son propre écrivain.
 Ce module ne touche ni Spark ni Databricks : il décrit les colonnes et fabrique le texte SQL de création. L'écriture viendra ensuite.
 
 Les colonnes de données (bronze, silver) se déduisent du CONTRAT, pas d'une liste écrite ici : le bronze les garde toutes en texte, le

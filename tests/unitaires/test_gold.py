@@ -309,6 +309,27 @@ def test_une_colonne_de_la_table_gold_accepte_null_exactement_quand_le_champ_est
         assert colonne.obligatoire == (colonne.nom not in facultatives), colonne.nom
 
 
+TYPE_SQL_DE_L_ANNOTATION = {int: "BIGINT", float: "DOUBLE", str: "STRING", date: "DATE"}
+
+
+def test_le_type_de_chaque_champ_de_la_ligne_gold_est_celui_de_sa_colonne():
+    """Les noms, l'ordre et la nullité sont gardés plus haut ; ici le TYPE : un champ passé de `int` à `float` doit faire échouer la CI."""
+    attendu = {}
+    for nom, indice in get_type_hints(gold.LigneProductionQuotidienne).items():
+        types = [type_ for type_ in get_args(indice) if type_ is not type(None)] or [indice]       # `float | None` → float
+        assert len(types) == 1 and types[0] in TYPE_SQL_DE_L_ANNOTATION, f"{nom} : type sans correspondance SQL ({indice})"
+        attendu[nom] = TYPE_SQL_DE_L_ANNOTATION[types[0]]
+
+    assert attendu == {colonne.nom: colonne.type_sql for colonne in tables.PRODUCTION_QUOTIDIENNE.colonnes}
+
+
+def test_la_docstring_de_tables_dit_ou_est_la_table_gold_et_pourquoi_elle_est_a_part():
+    texte = tables.__doc__
+
+    assert "production_quotidienne" in texte and "gold" in texte
+    assert "toutes_les_tables" in texte
+
+
 def test_le_sql_de_creation_de_la_table_gold():
     sql = tables.sql_creation(tables.PRODUCTION_QUOTIDIENNE, CATALOGUE_PAR_DEFAUT)
 
