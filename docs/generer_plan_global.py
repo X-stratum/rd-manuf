@@ -31,7 +31,8 @@ COLONNES = [
         ("Jugement des lignes", ["Chaque ligne contre le", "contrat ; seuil de rejet"], FAIT)]),
     ("03", "DÉCIDER", [
         ("Décision", ["Acceptée, avec rejets,", "bloquée ou refusée"], FAIT),
-        ("Registre", ["Ligne par livraison,", "rejeux et conflits"], FAIT)]),
+        ("Registre", ["Ligne par livraison,", "rejeux et conflits"], FAIT),
+        ("Enchaînement", ["Fichier, registre, bronze,", "silver et alertes"], FAIT)]),
     ("04", "STOCKER", [
         ("Bronze", ["Lignes reçues en texte,", "coupées à part"], FAIT),
         ("Silver : une livraison", ["Lignes typées ;", "rejets en quarantaine"], FAIT),

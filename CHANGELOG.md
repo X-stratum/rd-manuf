@@ -27,6 +27,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #37 — Enchaînement : une livraison de bout en bout en un seul appel
+*2026-11-14 · [PR #37](https://github.com/X-stratum/rd-manuf/pull/37)*
+
+**En clair.** Le projet sait maintenant faire entrer une livraison dans toutes les couches en un seul appel : le registre décide, puis, si elle entre, le bronze range ce qui est arrivé, le silver rejuge les lignes, et les alertes disent qui doit agir. Chaque étape existait déjà et se testait seule, mais leur ordre n'était écrit que dans des tests. Rien n'est écrit dans une table, et le plan global compte un bloc de plus (21 sur 34).
+**Décisions.** L'état reste chez l'appelant : le registre déjà écrit, les lignes silver déjà intégrées et l'heure d'arrivée sont passés en paramètres, jamais lus, jamais modifiés, et le résultat dit seulement ce qu'il y a à ajouter. Aujourd'hui l'appelant est un test ; demain ce sera l'écrivain Spark, qui remplacera les listes par des tables. L'enchaînement ne décide rien lui-même : c'est le registre qui dit si la livraison entre, et le silver garde sa garantie de décider comme la réception. Le fichier est ouvert trois fois au plus : son empreinte, la réception, puis le bronze ; un nom invalide n'en ouvre aucune, un rejeu une seule, un refus de structure deux. On optimisera plus tard. Chaque résultat vide est fabriqué neuf, parce que ses listes sont modifiables : un objet partagé aurait gardé les lignes qu'un appelant y aurait rangées. Pas encore fait : un conflit de clé entre deux livraisons part en quarantaine sans alerte, ce sera la PR suivante.
+
 ## #36 — Silver : un lot s'identifie par son pays, son usine et son numéro
 *2026-11-13 · [PR #36](https://github.com/X-stratum/rd-manuf/pull/36)*
 

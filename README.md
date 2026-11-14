@@ -47,6 +47,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 
 - 🟢 **Décision** ([`reception.py`](src/rd_manuf/reception.py)) : acceptée, acceptée avec rejets, bloquée ou refusée.
 - 🟢 **Registre** ([`registre.py`](src/rd_manuf/registre.py)) : une ligne par livraison (décision, origine, arrivée) ; un rejeu identique est ignoré, un contenu différent refusé.
+- 🟢 **Enchaînement** ([`pipeline.py`](src/rd_manuf/pipeline.py)) : du fichier reçu au registre, au bronze, au silver et aux alertes, en un appel ; l'état reste chez l'appelant.
 
 </details>
 
@@ -123,10 +124,11 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
 - [`src/rd_manuf/`](src/rd_manuf/) : le code.
   - `contrat.py` : chargement du contrat, contrôle des lignes et des livraisons, codes d'erreur ;
   - `structure.py` : contrôle de l'en-tête d'une livraison ;
-  - `reception.py` : la décision unique sur une livraison, et l'enchaînement complet sur un fichier ;
+  - `reception.py` : la décision unique sur une livraison, et la réception d'un fichier (nom, lecture, décision) ;
   - `nom_fichier.py` : la convention de nom des fichiers livrés ;
   - `registre.py` : la ligne de registre de chaque livraison, et la détection des rejeux ;
   - `bronze.py` : les lignes bronze d'une livraison, copiées en texte avec leur traçabilité, et ses lignes coupées conservées à part ;
+  - `pipeline.py` : l'enchaînement d'une livraison, du fichier reçu au registre, au bronze, au silver et aux alertes, sans rien écrire ;
   - `silver.py` : les lignes valides typées et la quarantaine d'une livraison, rejugées depuis le bronze comme à la réception ;
   - `tables.py` : les schémas des cinq tables (registre, bronze, lignes coupées, silver, quarantaine) et leur SQL de création, sans rien écrire ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
