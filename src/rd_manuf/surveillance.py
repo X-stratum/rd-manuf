@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Iterable
+from collections.abc import Hashable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -69,9 +69,26 @@ class Constat:
 # ==============================================================================
 # 📥 LE FICHIER DES SOURCES ATTENDUES
 # ==============================================================================
+class _LecteurSansCleRepetee(yaml.SafeLoader):
+    """PyYAML garde en silence la DERNIÈRE valeur d'une clé répétée : une copie-colle ferait disparaître des sources de la surveillance,
+    ou changerait un délai, sans un mot. Ce lecteur refuse la répétition, avec le nom de la clé et la ligne du fichier."""
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        vues: set[Any] = set()
+        for noeud_cle, _ in node.value:
+            if noeud_cle.tag == "tag:yaml.org,2002:merge":                 # la fusion `<<` a sa propre règle : ses clés se remplacent
+                continue
+            cle = self.construct_object(noeud_cle, deep=True)
+            if isinstance(cle, Hashable):
+                if cle in vues:
+                    raise yaml.constructor.ConstructorError(None, None, f"la clé « {cle} » est répétée", noeud_cle.start_mark)
+                vues.add(cle)
+        return super().construct_mapping(node, deep)
+
+
 def _lire_yaml(chemin: str | Path) -> Any:
     try:
-        return yaml.safe_load(Path(chemin).read_text(encoding="utf-8"))
+        return yaml.load(Path(chemin).read_text(encoding="utf-8"), Loader=_LecteurSansCleRepetee)
     except yaml.YAMLError as erreur:
         raise SourcesInvalides(f"Le fichier des sources attendues n'est pas du YAML lisible : {erreur}") from erreur
 
@@ -91,9 +108,12 @@ def _valider_delai(rang: int, valeur: Any) -> timedelta:
     if isinstance(valeur, bool) or not isinstance(valeur, (int, float)) or not math.isfinite(valeur) or valeur <= 0:
         raise SourcesInvalides(message)
     try:
-        return timedelta(hours=valeur)
+        duree = timedelta(hours=valeur)
     except OverflowError:
         raise SourcesInvalides(f"source {rang} : « delai_max_heures » est trop grand.") from None
+    if duree <= timedelta(0):                  # un nombre positif mais si petit que la durée, arrondie à la microseconde, est nulle
+        raise SourcesInvalides(f"source {rang} : « delai_max_heures » est si petit que la durée obtenue est nulle.")
+    return duree
 
 
 def _valider_source(rang: int, brut: Any) -> SourceAttendue:
@@ -182,6 +202,6 @@ def controler_fraicheur(registre: Iterable[LigneRegistre], sources: Iterable[Sou
             constats.append(Constat(LIVRAISON_EN_RETARD, *origine, integree.heure_arrivee, age, source.delai_max, dernier_statut))
     for origine, (derniere, _) in vues.items():
         if origine not in declarees:
-            age = maintenant - derniere.heure_arrivee
+            age = max(timedelta(0), maintenant - derniere.heure_arrivee)         # une arrivée dans le futur (horloge décalée) a un âge nul
             constats.append(Constat(SOURCE_INCONNUE, *origine, derniere.heure_arrivee, age, None, derniere.statut))
     return sorted(constats, key=lambda c: (c.pays, c.usine, c.ligne, c.code))

@@ -126,6 +126,51 @@ def test_un_champ_manquant_est_refuse_avec_son_nom(tmp_path, champ):
         surveillance.charger_sources_attendues(_ecrire(tmp_path, "\n".join(lignes) + "\n"))
 
 
+AUTRE_SOURCE = 'sources:\n  - pays: DEU\n    usine: BA\n    ligne: "001"\n    delai_max_heures: 24\n'
+
+
+@pytest.mark.parametrize(
+    ("texte", "cle"),
+    [
+        (BON + "    delai_max_heures: 9999\n", "delai_max_heures"),
+        (BON + '    pays: DEU\n', "pays"),
+        (BON + AUTRE_SOURCE, "sources"),
+        ('version: "1.0.0"\n' + BON, "version"),
+        (BON + '  - pays: DEU\n    usine: BA\n    ligne: "001"\n    delai_max_heures: 24\n    usine: BB\n', "usine"),
+    ],
+    ids=["délai répété", "pays répété", "sources répété", "version répétée", "clé répétée dans la seconde source"],
+)
+def test_une_cle_repetee_est_refusee_avec_son_nom_au_lieu_de_laisser_la_derniere_gagner(tmp_path, texte, cle):
+    """PyYAML garde en silence la dernière valeur d'une clé répétée : une copie-colle ferait disparaître des sources de la surveillance."""
+    nom_de_la_cle = f"clé « {cle} » est répétée"                    # le nom de la clé, pas seulement l'extrait de ligne
+    with pytest.raises(surveillance.SourcesInvalides, match=nom_de_la_cle):
+        surveillance.charger_sources_attendues(_ecrire(tmp_path, texte))
+
+
+def test_la_meme_cle_dans_deux_sources_differentes_n_est_pas_une_repetition(tmp_path):
+    texte = BON + '  - pays: DEU\n    usine: BA\n    ligne: "001"\n    delai_max_heures: 24\n'
+
+    assert len(surveillance.charger_sources_attendues(_ecrire(tmp_path, texte))) == 2
+
+
+def test_une_fusion_yaml_n_est_pas_prise_pour_une_cle_repetee(tmp_path):
+    """`<<: *base` reprend les champs d'une source puis en remplace certains : c'est du YAML légitime, pas une répétition."""
+    texte = (
+        'sources:\n  - &base\n    pays: FRA\n    usine: AA\n    ligne: "001"\n    delai_max_heures: 24\n'
+        '  - <<: *base\n    ligne: "002"\n'
+    )
+
+    sources = surveillance.charger_sources_attendues(_ecrire(tmp_path, texte))
+
+    assert [(s.pays, s.usine, s.ligne) for s in sources] == [("FRA", "AA", "001"), ("FRA", "AA", "002")]
+
+
+def test_une_cle_qui_n_est_pas_un_texte_simple_est_refusee_sans_planter(tmp_path):
+    """Une clé liste est impossible à comparer comme les autres : le refus doit rester une erreur de contenu, pas un TypeError."""
+    with pytest.raises(surveillance.SourcesInvalides):
+        surveillance.charger_sources_attendues(_ecrire(tmp_path, "? [a, b]\n: 1\nsources: []\n"))
+
+
 def test_une_cle_inconnue_au_sommet_du_fichier_est_refusee_avec_son_nom(tmp_path):
     with pytest.raises(surveillance.SourcesInvalides, match="source_attendues"):
         surveillance.charger_sources_attendues(_ecrire(tmp_path, BON + "source_attendues: []\n"))
@@ -136,6 +181,30 @@ def test_un_delai_trop_grand_pour_une_duree_est_refuse_proprement(tmp_path):
 
     with pytest.raises(surveillance.SourcesInvalides, match="delai_max_heures"):
         surveillance.charger_sources_attendues(_ecrire(tmp_path, texte))
+
+
+def test_un_delai_de_zero_dit_qu_il_doit_etre_positif_et_pas_qu_il_est_trop_petit(tmp_path):
+    texte = BON.replace("delai_max_heures: 24", "delai_max_heures: 0")
+
+    with pytest.raises(surveillance.SourcesInvalides, match="fini et positif"):
+        surveillance.charger_sources_attendues(_ecrire(tmp_path, texte))
+
+
+@pytest.mark.parametrize("valeur", ["1.0e-12", "1.0e-320", "1.0e-300"], ids=["un picoheure", "plus petit que tout", "minuscule"])
+def test_un_delai_positif_qui_devient_une_duree_nulle_est_refuse(tmp_path, valeur):
+    """Le nombre est positif mais la durée arrondie à la microseconde vaut zéro : toute livraison serait immédiatement en retard."""
+    texte = BON.replace("delai_max_heures: 24", f"delai_max_heures: {valeur}")
+
+    with pytest.raises(surveillance.SourcesInvalides, match="delai_max_heures"):
+        surveillance.charger_sources_attendues(_ecrire(tmp_path, texte))
+
+
+def test_un_tout_petit_delai_qui_reste_une_vraie_duree_est_accepte(tmp_path):
+    texte = BON.replace("delai_max_heures: 24", "delai_max_heures: 0.001")
+
+    (source,) = surveillance.charger_sources_attendues(_ecrire(tmp_path, texte))
+
+    assert source.delai_max == timedelta(seconds=3.6)
 
 
 def test_un_champ_inconnu_est_refuse_avec_son_nom_car_c_est_peut_etre_une_faute_de_frappe(tmp_path):
@@ -334,6 +403,22 @@ def test_une_origine_qui_livre_sans_etre_declaree_est_signalee_une_seule_fois():
         code="SOURCE_INCONNUE", pays="USA", usine="CA", ligne="001", derniere_arrivee=MAINTENANT - timedelta(hours=2),
         age=timedelta(hours=2), delai_max=None, dernier_statut=ACCEPTEE,
     )
+
+
+def test_une_origine_inconnue_qui_livre_dans_le_futur_a_un_age_nul_et_pas_negatif():
+    """Comme pour une source déclarée, une horloge décalée ne doit pas produire de valeur absurde."""
+    arrivee = MAINTENANT + UNE_HEURE
+
+    (constat,) = _constats([_livraison(USA, arrivee)], [])
+
+    assert constat.code == "SOURCE_INCONNUE" and constat.age == timedelta(0)
+    assert constat.derniere_arrivee == arrivee
+
+
+def test_l_age_d_une_origine_inconnue_qui_vient_d_arriver_est_nul():
+    (constat,) = _constats([_livraison(USA, MAINTENANT)], [])
+
+    assert constat.age == timedelta(0)
 
 
 def test_une_origine_inconnue_est_signalee_meme_si_toutes_ses_livraisons_ont_ete_refusees():
