@@ -1,0 +1,55 @@
+# ==============================================================================
+# 📡 SOURCES ATTENDUES — d'où l'on attend des livraisons, et à quel rythme au plus
+# ==============================================================================
+# 🎯 Rôle
+#   Le pipeline ne réagit qu'aux fichiers qui ARRIVENT : une usine qui n'envoie plus rien ne déclenche aucune alerte.
+#   Ce fichier dit quelles sources doivent livrer, et le délai maximal entre deux livraisons intégrées. La surveillance
+#   (src/rd_manuf/surveillance.py) le compare au registre : source en retard, source qui n'a jamais livré, origine non déclarée.
+#
+# 🔑 Une source = une origine du nom de fichier : pays (3 lettres), usine (2 lettres), ligne de production de l'usine (3 chiffres,
+#   TOUJOURS entre guillemets : sans eux, YAML lit 001 comme le nombre 1). Les valeurs ci-dessous sont SYNTHÉTIQUES (dépôt public).
+#
+# ⏱️ delai_max_heures : au-delà de ce nombre d'heures (strictement) depuis l'arrivée de la dernière livraison INTÉGRÉE (acceptée, ou acceptée
+#   avec rejets), la source est en retard. Une livraison bloquée, refusée ou rejouée ne compte pas : ses données n'ont pas atteint le silver.
+#   Pas de calendrier pour l'instant : une usine arrêtée le week-end demande un délai qui le couvre.
+#
+# 🔁 Cycle de vie : toute modification passe par une Pull Request relue. Ajouter une source = ajouter un bloc ci-dessous.
+# ==============================================================================
+
+version: "1.0.0"
+
+sources:
+  - pays: FRA
+    usine: AA
+    ligne: "001"
+    delai_max_heures: 24
+
+  - pays: FRA
+    usine: AA
+    ligne: "002"
+    delai_max_heures: 24
+
+  - pays: DEU
+    usine: BA
+    ligne: "001"
+    delai_max_heures: 24
+
+  - pays: DEU
+    usine: BA
+    ligne: "002"
+    delai_max_heures: 24
+
+  - pays: USA
+    usine: CA
+    ligne: "001"
+    delai_max_heures: 48        # une usine qui livre moins souvent : le délai dit ce qu'on tolère, pas ce qu'on souhaite
+
+  - pays: USA
+    usine: CA
+    ligne: "002"
+    delai_max_heures: 48
+
+  - pays: USA
+    usine: CB
+    ligne: "001"
+    delai_max_heures: 48

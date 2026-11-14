@@ -1,22 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1734 1288" width="1734" height="1288" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1734 1380" width="1734" height="1380" role="img" aria-labelledby="t d">
 <title id="t">rd-manuf : plan global</title>
-<desc id="d">Du fichier envoyé par l'usine aux données prêtes à l'emploi : 24 blocs terminés sur 37, sept étapes (recevoir, contrôler, décider, stocker, prévenir, livrer et exploiter), les règles écrites et les outils.</desc>
+<desc id="d">Du fichier envoyé par l'usine aux données prêtes à l'emploi : 25 blocs terminés sur 38, sept étapes (recevoir, contrôler, décider, stocker, prévenir, livrer et exploiter), les règles écrites et les outils.</desc>
 <defs>
 <pattern id="grille" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#e6ebef" stroke-width="1"/></pattern>
 <marker id="fd" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="#1f7a6d"/></marker>
 <marker id="fa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="#b8651b"/></marker>
 <marker id="fr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="#5b3fb0"/></marker>
 </defs>
-<rect x="0" y="0" width="1734" height="1288" rx="0" fill="#f6f8fa"/>
-<rect x="0" y="0" width="1734" height="1288" rx="0" fill="url(#grille)"/>
+<rect x="0" y="0" width="1734" height="1380" rx="0" fill="#f6f8fa"/>
+<rect x="0" y="0" width="1734" height="1380" rx="0" fill="url(#grille)"/>
 <text x="40" y="36" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="11" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="2">RD-MANUF  ·  R&amp;D MANUFACTURING  ·  DATABRICKS</text>
 <text x="40" y="90" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="60" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="-0.5">PLAN GLOBAL</text>
 <text x="40" y="112" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="400" fill="#5b6b7a" text-anchor="start">Du fichier envoyé par l&#x27;usine aux données prêtes à l&#x27;emploi : ce qui est fait, ce qui vient ensuite, ce qui reste à construire.</text>
-<text x="1694" y="78" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="46" font-weight="800" fill="#1f7a6d" text-anchor="end">24 / 37</text>
+<text x="1694" y="78" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="46" font-weight="800" fill="#1f7a6d" text-anchor="end">25 / 38</text>
 <text x="1694" y="98" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="end" letter-spacing="1.5">BLOCS TERMINÉS</text>
 <rect x="1394" y="106" width="300" height="8" rx="4" fill="#dde4ea"/>
-<rect x="1394" y="106" width="194.59459459459458" height="8" rx="4" fill="#1f7a6d"/>
-<rect x="24" y="128" width="1686" height="1132" rx="14" fill="#ffffff" stroke="#cfd8de" stroke-width="1.2"/>
+<rect x="1394" y="106" width="197.3684210526316" height="8" rx="4" fill="#1f7a6d"/>
+<rect x="24" y="128" width="1686" height="1224" rx="14" fill="#ffffff" stroke="#cfd8de" stroke-width="1.2"/>
 <text x="44" y="168" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="700" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">STATUT</text>
 <rect x="108" y="157" width="18" height="14" rx="4" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.4"/>
 <text x="134" y="168" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="500" fill="#1b2733" text-anchor="start">Fait</text>
@@ -36,19 +36,19 @@
 <text x="52" y="230" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="20" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.5">ACTEURS</text>
 <text x="52" y="248" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">qui envoie,</text>
 <text x="52" y="261" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">qui agit, qui sait</text>
-<rect x="38" y="306" width="1658" height="698" rx="10" fill="#f8fafb" stroke="#cfd8de" stroke-width="1"/>
+<rect x="38" y="306" width="1658" height="790" rx="10" fill="#f8fafb" stroke="#cfd8de" stroke-width="1"/>
 <text x="52" y="340" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="20" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.5">CHAÎNE</text>
 <text x="52" y="358" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">de la livraison</text>
 <text x="52" y="371" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">au tableau de bord</text>
-<rect x="38" y="1024" width="1658" height="90" rx="10" fill="#f8fafb" stroke="#cfd8de" stroke-width="1"/>
-<text x="52" y="1058" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="20" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.5">RÈGLES</text>
-<text x="52" y="1076" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">écrites, versionnées,</text>
-<text x="52" y="1089" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">lisibles par le métier</text>
-<rect x="38" y="1128" width="1658" height="90" rx="10" fill="#f8fafb" stroke="#cfd8de" stroke-width="1"/>
-<text x="52" y="1162" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="20" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.5">OUTILS</text>
-<text x="52" y="1180" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">preuves et</text>
-<text x="52" y="1193" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">processus d&#x27;équipe</text>
-<rect x="176" y="314" width="204" height="682" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
+<rect x="38" y="1116" width="1658" height="90" rx="10" fill="#f8fafb" stroke="#cfd8de" stroke-width="1"/>
+<text x="52" y="1150" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="20" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.5">RÈGLES</text>
+<text x="52" y="1168" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">écrites, versionnées,</text>
+<text x="52" y="1181" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">lisibles par le métier</text>
+<rect x="38" y="1220" width="1658" height="90" rx="10" fill="#f8fafb" stroke="#cfd8de" stroke-width="1"/>
+<text x="52" y="1254" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="20" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.5">OUTILS</text>
+<text x="52" y="1272" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">preuves et</text>
+<text x="52" y="1285" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="400" fill="#5b6b7a" text-anchor="start">processus d&#x27;équipe</text>
+<rect x="176" y="314" width="204" height="774" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
 <text x="188" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="start">01</text>
 <text x="206" y="340" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="15" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.2">RECEVOIR</text>
 <text x="368" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#1f7a6d" text-anchor="end">3/3</text>
@@ -74,7 +74,7 @@
 <rect x="196" y="609" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <rect x="196" y="609" width="164" height="4" rx="2" fill="#1f7a6d"/>
 <path d="M382.5 334 L390.5 339 L382.5 344z" fill="#1f7a6d"/>
-<rect x="393" y="314" width="204" height="682" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
+<rect x="393" y="314" width="204" height="774" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
 <text x="405" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="start">02</text>
 <text x="423" y="340" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="15" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.2">CONTRÔLER</text>
 <text x="585" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#1f7a6d" text-anchor="end">2/2</text>
@@ -93,7 +93,7 @@
 <rect x="413" y="517" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <rect x="413" y="517" width="164" height="4" rx="2" fill="#1f7a6d"/>
 <path d="M599.5 334 L607.5 339 L599.5 344z" fill="#1f7a6d"/>
-<rect x="610" y="314" width="204" height="682" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
+<rect x="610" y="314" width="204" height="774" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
 <text x="622" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="start">03</text>
 <text x="640" y="340" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="15" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.2">DÉCIDER</text>
 <text x="802" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#1f7a6d" text-anchor="end">3/3</text>
@@ -119,7 +119,7 @@
 <rect x="630" y="609" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <rect x="630" y="609" width="164" height="4" rx="2" fill="#1f7a6d"/>
 <path d="M816.5 334 L824.5 339 L816.5 344z" fill="#1f7a6d"/>
-<rect x="827" y="314" width="204" height="682" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
+<rect x="827" y="314" width="204" height="774" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
 <text x="839" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="start">04</text>
 <text x="857" y="340" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="15" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.2">STOCKER</text>
 <text x="1019" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#5b6b7a" text-anchor="end">4/5</text>
@@ -158,7 +158,7 @@
 <text x="847" y="786" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">comparé à la référence</text>
 <rect x="847" y="793" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <path d="M1033.5 334 L1041.5 339 L1033.5 344z" fill="#1f7a6d"/>
-<rect x="1044" y="314" width="204" height="682" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
+<rect x="1044" y="314" width="204" height="774" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
 <text x="1056" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="start">05</text>
 <text x="1074" y="340" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="15" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.2">PRÉVENIR</text>
 <text x="1236" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#5b6b7a" text-anchor="end">1/3</text>
@@ -182,7 +182,7 @@
 <text x="1064" y="602" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">les bonnes personnes</text>
 <rect x="1064" y="609" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <path d="M1250.5 334 L1258.5 339 L1250.5 344z" fill="#1f7a6d"/>
-<rect x="1261" y="314" width="204" height="682" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
+<rect x="1261" y="314" width="204" height="774" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
 <text x="1273" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="start">06</text>
 <text x="1291" y="340" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="15" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.2">LIVRER</text>
 <text x="1453" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#5b6b7a" text-anchor="end">1/4</text>
@@ -212,10 +212,10 @@
 <text x="1281" y="694" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">reprise sur incident</text>
 <rect x="1281" y="701" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <path d="M1467.5 334 L1475.5 339 L1467.5 344z" fill="#1f7a6d"/>
-<rect x="1478" y="314" width="204" height="682" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
+<rect x="1478" y="314" width="204" height="774" rx="10" fill="#eef3f7" stroke="#cfd8de" stroke-width="1"/>
 <text x="1490" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="600" fill="#5b6b7a" text-anchor="start">07</text>
 <text x="1508" y="340" font-family="'Bebas Neue','Oswald','Arial Narrow','Helvetica Neue Condensed',Impact,sans-serif" font-size="15" font-weight="800" fill="#1b2733" text-anchor="start" letter-spacing="0.2">EXPLOITER</text>
-<text x="1670" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#5b6b7a" text-anchor="end">0/7</text>
+<text x="1670" y="339" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="700" fill="#5b6b7a" text-anchor="end">1/8</text>
 <rect x="1486" y="352" width="188" height="84" rx="8" fill="#ffffff" stroke="#b4bfc9" stroke-width="1.2" stroke-dasharray="5 4"/>
 <text x="1664" y="368" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#6b7a88" text-anchor="end" letter-spacing="0.6">À VENIR</text>
 <text x="1498" y="389" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Orchestration</text>
@@ -228,36 +228,43 @@
 <text x="1498" y="497" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Seulement les nouveaux</text>
 <text x="1498" y="510" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">fichiers du dossier</text>
 <rect x="1498" y="517" width="164" height="4" rx="2" fill="#e1e7ec"/>
-<rect x="1486" y="536" width="188" height="84" rx="8" fill="#ffffff" stroke="#b4bfc9" stroke-width="1.2" stroke-dasharray="5 4"/>
-<text x="1664" y="552" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#6b7a88" text-anchor="end" letter-spacing="0.6">À VENIR</text>
-<text x="1498" y="573" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Surveillance</text>
-<text x="1498" y="589" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Fraîcheur, volumes,</text>
-<text x="1498" y="602" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">taux de rejet</text>
+<rect x="1486" y="536" width="188" height="84" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="1664" y="552" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="1498" y="573" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Surveillance : délais</text>
+<text x="1498" y="589" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Sources en retard, jamais</text>
+<text x="1498" y="602" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">livrées ou inconnues</text>
 <rect x="1498" y="609" width="164" height="4" rx="2" fill="#e1e7ec"/>
+<rect x="1498" y="609" width="164" height="4" rx="2" fill="#1f7a6d"/>
 <rect x="1486" y="628" width="188" height="84" rx="8" fill="#ffffff" stroke="#b4bfc9" stroke-width="1.2" stroke-dasharray="5 4"/>
 <text x="1664" y="644" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#6b7a88" text-anchor="end" letter-spacing="0.6">À VENIR</text>
-<text x="1498" y="665" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Retraitement</text>
-<text x="1498" y="681" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Reprendre une livraison</text>
-<text x="1498" y="694" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">corrigée ou rejugée</text>
+<text x="1498" y="665" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Surveillance : volumes</text>
+<text x="1498" y="681" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Volumes et taux de rejet</text>
+<text x="1498" y="694" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">anormaux par source</text>
 <rect x="1498" y="701" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <rect x="1486" y="720" width="188" height="84" rx="8" fill="#ffffff" stroke="#b4bfc9" stroke-width="1.2" stroke-dasharray="5 4"/>
 <text x="1664" y="736" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#6b7a88" text-anchor="end" letter-spacing="0.6">À VENIR</text>
-<text x="1498" y="757" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Droits et secrets</text>
-<text x="1498" y="773" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Qui accède à quoi ;</text>
-<text x="1498" y="786" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">où vivent les jetons</text>
+<text x="1498" y="757" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Retraitement</text>
+<text x="1498" y="773" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Reprendre une livraison</text>
+<text x="1498" y="786" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">corrigée ou rejugée</text>
 <rect x="1498" y="793" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <rect x="1486" y="812" width="188" height="84" rx="8" fill="#ffffff" stroke="#b4bfc9" stroke-width="1.2" stroke-dasharray="5 4"/>
 <text x="1664" y="828" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#6b7a88" text-anchor="end" letter-spacing="0.6">À VENIR</text>
-<text x="1498" y="849" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Évolution du contrat</text>
-<text x="1498" y="865" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Changer de version</text>
-<text x="1498" y="878" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">sans casser l&#x27;historique</text>
+<text x="1498" y="849" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Droits et secrets</text>
+<text x="1498" y="865" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Qui accède à quoi ;</text>
+<text x="1498" y="878" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">où vivent les jetons</text>
 <rect x="1498" y="885" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <rect x="1486" y="904" width="188" height="84" rx="8" fill="#ffffff" stroke="#b4bfc9" stroke-width="1.2" stroke-dasharray="5 4"/>
 <text x="1664" y="920" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#6b7a88" text-anchor="end" letter-spacing="0.6">À VENIR</text>
-<text x="1498" y="941" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Tests de volume</text>
-<text x="1498" y="957" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Mesurer sur de vraies</text>
-<text x="1498" y="970" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">tailles de livraison</text>
+<text x="1498" y="941" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Évolution du contrat</text>
+<text x="1498" y="957" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Changer de version</text>
+<text x="1498" y="970" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">sans casser l&#x27;historique</text>
 <rect x="1498" y="977" width="164" height="4" rx="2" fill="#e1e7ec"/>
+<rect x="1486" y="996" width="188" height="84" rx="8" fill="#ffffff" stroke="#b4bfc9" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="1664" y="1012" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#6b7a88" text-anchor="end" letter-spacing="0.6">À VENIR</text>
+<text x="1498" y="1033" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Tests de volume</text>
+<text x="1498" y="1049" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Mesurer sur de vraies</text>
+<text x="1498" y="1062" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">tailles de livraison</text>
+<rect x="1498" y="1069" width="164" height="4" rx="2" fill="#e1e7ec"/>
 <rect x="176" y="207" width="204" height="68" rx="8" fill="#e8eef9" stroke="#9db6e0" stroke-width="1.2"/>
 <text x="370" y="223" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#2f5fb3" text-anchor="end" letter-spacing="0.6">ACTEUR</text>
 <text x="188" y="241" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Usine émettrice</text>
@@ -273,66 +280,66 @@
 <text x="1056" y="241" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Équipe data</text>
 <text x="1056" y="256" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Construit le pipeline ;</text>
 <text x="1056" y="269" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">informée des refus</text>
-<rect x="393" y="1035" width="204" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="587" y="1051" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="405" y="1069" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Contrat de données</text>
-<text x="405" y="1084" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Colonnes, types, limites</text>
-<rect x="610" y="1035" width="204" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="804" y="1051" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="622" y="1069" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Codes d&#x27;erreur</text>
-<text x="622" y="1084" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Stables, jamais renommés</text>
-<rect x="1044" y="1035" width="204" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="1238" y="1051" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="1056" y="1069" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Catalogue d&#x27;alertes</text>
-<text x="1056" y="1084" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Qui agit, qui est informé</text>
-<rect x="1261" y="1035" width="204" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="1455" y="1051" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="1273" y="1069" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Environnements</text>
-<text x="1273" y="1084" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Un catalogue par cible ;</text>
-<text x="1273" y="1097" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">un inconnu est refusé</text>
+<rect x="393" y="1127" width="204" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="587" y="1143" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="405" y="1161" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Contrat de données</text>
+<text x="405" y="1176" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Colonnes, types, limites</text>
+<rect x="610" y="1127" width="204" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="804" y="1143" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="622" y="1161" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Codes d&#x27;erreur</text>
+<text x="622" y="1176" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Stables, jamais renommés</text>
+<rect x="1044" y="1127" width="204" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="1238" y="1143" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="1056" y="1161" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Catalogue d&#x27;alertes</text>
+<text x="1056" y="1176" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Qui agit, qui est informé</text>
+<rect x="1261" y="1127" width="204" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="1455" y="1143" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="1273" y="1161" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Environnements</text>
+<text x="1273" y="1176" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Un catalogue par cible ;</text>
+<text x="1273" y="1189" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">un inconnu est refusé</text>
 <line x1="278.0" y1="276" x2="278.0" y2="312" stroke="#1f7a6d" stroke-width="2" marker-end="url(#fd)"/>
 <line x1="929.0" y1="312" x2="929.0" y2="278" stroke="#1f7a6d" stroke-width="2" marker-end="url(#fd)"/>
 <line x1="1146.0" y1="312" x2="1146.0" y2="278" stroke="#b8651b" stroke-width="2" marker-end="url(#fa)"/>
-<line x1="495.0" y1="1035" x2="495.0" y2="1000" stroke="#5b3fb0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fr)"/>
-<line x1="712.0" y1="1035" x2="712.0" y2="1000" stroke="#5b3fb0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fr)"/>
-<line x1="1146.0" y1="1035" x2="1146.0" y2="1000" stroke="#5b3fb0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fr)"/>
-<line x1="1363.0" y1="1035" x2="1363.0" y2="1000" stroke="#5b3fb0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fr)"/>
+<line x1="495.0" y1="1127" x2="495.0" y2="1092" stroke="#5b3fb0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fr)"/>
+<line x1="712.0" y1="1127" x2="712.0" y2="1092" stroke="#5b3fb0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fr)"/>
+<line x1="1146.0" y1="1127" x2="1146.0" y2="1092" stroke="#5b3fb0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fr)"/>
+<line x1="1363.0" y1="1127" x2="1363.0" y2="1092" stroke="#5b3fb0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#fr)"/>
 <text x="288.0" y="298" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9" font-weight="600" fill="#1f7a6d" text-anchor="start">livraison</text>
 <text x="939.0" y="298" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9" font-weight="600" fill="#1f7a6d" text-anchor="start">données</text>
 <text x="1156.0" y="298" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9" font-weight="600" fill="#b8651b" text-anchor="start">alertes</text>
-<rect x="176.0" y="1139" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="404.5" y="1155" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="188.0" y="1173" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Simulateur</text>
-<text x="188.0" y="1188" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Livraisons de test avec</text>
-<text x="188.0" y="1201" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">anomalies à la demande</text>
-<rect x="429.5" y="1139" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="658.0" y="1155" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="441.5" y="1173" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Journée de test</text>
-<text x="441.5" y="1188" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Une journée multi-usines,</text>
-<text x="441.5" y="1201" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">rejouée le lendemain</text>
-<rect x="683.0" y="1139" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="911.5" y="1155" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="695.0" y="1173" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Tests unitaires</text>
-<text x="695.0" y="1188" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Écrits avant le code,</text>
-<text x="695.0" y="1201" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">sabotage pour les prouver</text>
-<rect x="936.5" y="1139" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="1165.0" y="1155" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="948.5" y="1173" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">CI GitHub</text>
-<text x="948.5" y="1188" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Style puis tests à</text>
-<text x="948.5" y="1201" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">chaque Pull Request</text>
-<rect x="1190.0" y="1139" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="1418.5" y="1155" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="1202.0" y="1173" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Journal des changements</text>
-<text x="1202.0" y="1188" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Le projet raconté en</text>
-<text x="1202.0" y="1201" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">langage clair</text>
-<rect x="1443.5" y="1139" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
-<text x="1672.0" y="1155" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
-<text x="1455.5" y="1173" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Revue et squash</text>
-<text x="1455.5" y="1188" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Modèle de PR, revue,</text>
-<text x="1455.5" y="1201" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">historique lisible</text>
-<line x1="44" y1="1230" x2="1690" y2="1230" stroke="#cfd8de" stroke-width="1"/>
-<text x="52" y="1250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">FEUILLE 1/1</text>
-<text x="160" y="1250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">PLAN GLOBAL</text>
-<text x="280" y="1250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="700" fill="#1b2733" text-anchor="start" letter-spacing="1.5">37 BLOCS  ·  3 STATUTS  ·  3 TYPES DE FLUX  ·  7 ÉTAPES</text>
-<text x="1682" y="1250" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="end" letter-spacing="1.5">RÉV. 6  ·  2026-11-14</text>
+<rect x="176.0" y="1231" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="404.5" y="1247" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="188.0" y="1265" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Simulateur</text>
+<text x="188.0" y="1280" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Livraisons de test avec</text>
+<text x="188.0" y="1293" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">anomalies à la demande</text>
+<rect x="429.5" y="1231" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="658.0" y="1247" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="441.5" y="1265" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Journée de test</text>
+<text x="441.5" y="1280" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Une journée multi-usines,</text>
+<text x="441.5" y="1293" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">rejouée le lendemain</text>
+<rect x="683.0" y="1231" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="911.5" y="1247" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="695.0" y="1265" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Tests unitaires</text>
+<text x="695.0" y="1280" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Écrits avant le code,</text>
+<text x="695.0" y="1293" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">sabotage pour les prouver</text>
+<rect x="936.5" y="1231" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="1165.0" y="1247" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="948.5" y="1265" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">CI GitHub</text>
+<text x="948.5" y="1280" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Style puis tests à</text>
+<text x="948.5" y="1293" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">chaque Pull Request</text>
+<rect x="1190.0" y="1231" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="1418.5" y="1247" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="1202.0" y="1265" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Journal des changements</text>
+<text x="1202.0" y="1280" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Le projet raconté en</text>
+<text x="1202.0" y="1293" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">langage clair</text>
+<rect x="1443.5" y="1231" width="238.5" height="68" rx="8" fill="#eaf5f2" stroke="#86bdb2" stroke-width="1.2"/>
+<text x="1672.0" y="1247" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="8.5" font-weight="700" fill="#1f7a6d" text-anchor="end" letter-spacing="0.6">FAIT</text>
+<text x="1455.5" y="1265" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="13.5" font-weight="700" fill="#1b2733" text-anchor="start">Revue et squash</text>
+<text x="1455.5" y="1280" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">Modèle de PR, revue,</text>
+<text x="1455.5" y="1293" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="10" font-weight="400" fill="#5b6b7a" text-anchor="start">historique lisible</text>
+<line x1="44" y1="1322" x2="1690" y2="1322" stroke="#cfd8de" stroke-width="1"/>
+<text x="52" y="1342" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">FEUILLE 1/1</text>
+<text x="160" y="1342" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="start" letter-spacing="1.5">PLAN GLOBAL</text>
+<text x="280" y="1342" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="700" fill="#1b2733" text-anchor="start" letter-spacing="1.5">38 BLOCS  ·  3 STATUTS  ·  3 TYPES DE FLUX  ·  7 ÉTAPES</text>
+<text x="1682" y="1342" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="9.5" font-weight="600" fill="#5b6b7a" text-anchor="end" letter-spacing="1.5">RÉV. 7  ·  2026-11-14</text>
 </svg>

@@ -86,7 +86,8 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 
 - ⚪ **Orchestration** : les étapes enchaînées en jobs Databricks, un passage par livraison.
 - ⚪ **Ingestion incrémentale** : ne traiter que les nouveaux fichiers du dossier d'arrivée.
-- ⚪ **Surveillance** : fraîcheur des livraisons, volumes, taux de rejet par usine, échecs.
+- 🟢 **Surveillance : délais** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : les sources en retard, jamais livrées, ou inconnues ; des constats, sans envoi.
+- ⚪ **Surveillance : volumes** : volumes et taux de rejet anormaux par source.
 - ⚪ **Retraitement** : reprendre une livraison corrigée ou rejugée sous un autre contrat, avec un signal de reclassification.
 - ⚪ **Droits et secrets** : qui accède à quoi (catalogues), et où vivent les jetons.
 - ⚪ **Évolution du contrat** : changer de version sans casser l'historique ni les lignes déjà intégrées.
@@ -138,6 +139,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ; une requête interrompue au clavier est annulée côté entrepôt ;
   - `sondage.py` : la première exécution sur un workspace, en lecture seule : des essais de conversion et la présence de nos tables, avec le délai réglable, les durées affichées et l'interruption propre ;
   - `gold.py` : la production par jour, pays, usine et ligne de fabrication, calculée depuis le silver (une fonction pure, sans écrire) ;
+  - `surveillance.py` : la fraîcheur des livraisons : les sources qui n'ont pas livré à temps, comparées au registre (fonction pure) ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet, fichiers abîmés) ;
@@ -224,6 +226,38 @@ for ligne in calculer_production_quotidienne(etat.lignes_silver)[:3]:
 ```
 
 Les valeurs de la journée de test sont fabriquées par le simulateur : ce ne sont pas des chiffres réels. La table `gold.production_quotidienne` est décrite dans [`tables.py`](src/rd_manuf/tables.py) mais pas encore créée : le calcul en SQL sur Databricks, comparé à cette référence, est un bloc à part.
+
+## Surveillance : la fraîcheur des livraisons
+
+Le pipeline ne réagit qu'aux fichiers qui arrivent : une usine qui n'envoie plus rien ne déclenche aucune alerte. Le fichier [`contracts/surveillance/sources_attendues.yaml`](contracts/surveillance/sources_attendues.yaml) déclare donc les sources attendues (pays, usine, ligne de production, comme dans le nom du fichier) et le délai maximal, en heures, entre deux livraisons. Il est relu en Pull Request, comme un contrat ; la ligne de production s'y écrit **entre guillemets** (`"001"`), sans quoi YAML la lit comme le nombre 1. Les valeurs du dépôt sont synthétiques.
+
+La fonction `controler_fraicheur` ([`surveillance.py`](src/rd_manuf/surveillance.py)) compare le registre à l'instant « maintenant » (avec fuseau) et rend des constats :
+
+- `LIVRAISON_EN_RETARD` : la dernière livraison **intégrée** (acceptée, ou acceptée avec rejets) a plus que le délai maximal, strictement ;
+- `AUCUNE_LIVRAISON_INTEGREE` : la source n'a jamais eu de livraison intégrée ; elle a peut-être livré, mais refusé ou bloqué ;
+- `SOURCE_INCONNUE` : une origine livre sans être déclarée.
+
+Une livraison bloquée, refusée ou rejouée ne rafraîchit pas une source : ses données n'ont pas atteint le silver. Chaque constat dit le statut de la livraison la plus récente, pour distinguer une usine silencieuse d'une usine dont les envois sont refusés. C'est une fonction pure : elle n'écrit rien et ne prévient personne (l'annuaire et l'envoi sont des blocs à venir). Il n'y a pas de calendrier : une usine arrêtée le week-end demande un délai qui le couvre. Sur la journée de test, depuis la racine du dépôt :
+
+```python
+from datetime import timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from rd_manuf.alertes import charger_catalogue
+from rd_manuf.contrat import charger_contrat
+from rd_manuf.journee import PREMIERE_ARRIVEE, Etat, jouer, journee_multi_usines
+from rd_manuf.surveillance import charger_sources_attendues, controler_fraicheur
+
+contrat = charger_contrat(Path("contracts/data/livraison_production.yaml"))
+catalogue = charger_catalogue(Path("contracts/alertes/catalogue.yaml"))
+sources = charger_sources_attendues(Path("contracts/surveillance/sources_attendues.yaml"))
+etat = Etat()
+with TemporaryDirectory() as dossier:
+    jouer(contrat, catalogue, journee_multi_usines(contrat), Path(dossier), etat)
+for constat in controler_fraicheur(etat.registre, sources, PREMIERE_ARRIVEE + timedelta(hours=30)):
+    print(constat)
+```
 
 ## Travailler sur le projet
 
