@@ -133,6 +133,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `silver.py` : les lignes valides typées et la quarantaine d'une livraison, rejugées depuis le bronze comme à la réception ;
   - `tables.py` : les schémas des cinq tables (registre, bronze, lignes coupées, silver, quarantaine) et leur SQL de création, sans rien écrire ;
   - `ecriture.py` : l'écrivain, sans workspace : les conversions lignes ↔ tables, un magasin en mémoire ou en SQL, et l'état adossé à un magasin ;
+  - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet, fichiers abîmés) ;

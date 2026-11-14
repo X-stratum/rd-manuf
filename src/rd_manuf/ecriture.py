@@ -58,8 +58,9 @@ TAILLE_LOT = 1000       # enregistrements par requête : un choix prudent, la li
 Enregistrement = dict[str, Any]
 Executeur = Callable[[str, dict[str, str]], list[dict[str, Any]]]
 """`executeur(sql, paramètres)` : lance la requête et rend ses lignes (vide pour une écriture). Les valeurs rendues doivent déjà avoir les
-types Python des schémas (entier, décimal, date, instant UTC, liste, dictionnaire) : c'est à l'exécuteur réel de convertir ce que le service
-rend en texte."""
+types Python des schémas (entier, décimal, date, instant `datetime` AVEC fuseau et en UTC, liste, dictionnaire) : c'est à l'exécuteur réel
+de convertir ce que le service rend en texte (`executeur_databricks.ExecuteurDatabricks` le fait). Un instant sans fuseau ferait lever une
+erreur de comparaison dans l'état."""
 
 
 # ==============================================================================
@@ -351,7 +352,7 @@ def _vers_json(valeur: Any) -> Any:
             raise ValueError(f"Un décimal infini ou indéfini ne s'écrit pas en JSON : {valeur}.")
         return valeur
     if isinstance(valeur, datetime):                          # avant `date` : un instant est aussi une date en Python
-        return _utc(valeur).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        return _utc(valeur).isoformat(timespec="microseconds").replace("+00:00", "Z")     # `%Y` n'écrit pas l'an 1 sur quatre chiffres
     if isinstance(valeur, date):
         return valeur.isoformat()
     if isinstance(valeur, (list, tuple)):
@@ -385,6 +386,11 @@ class MagasinSql:
 
     Insérer ce qui manque est un `MERGE` insert-seul sur la clé, avec l'égalité tolérante au NULL (`<=>`) : `NULL = NULL` n'est pas vrai en
     SQL, et une clé à partie absente (la quarantaine) serait réinsérée à chaque reprise. Les enregistrements partent par lots.
+
+    Le JSON est lu en mode d'ÉCHEC IMMÉDIAT (`FAILFAST`) : par défaut `from_json` est permissif, une valeur qu'il ne sait pas lire devient
+    NULL sans erreur, même dans une colonne de clé, et l'idempotence se casserait en silence. Deux enregistrements à la même clé dans les
+    enregistrements donnés sont refusés avant tout envoi : un `MERGE` insert-seul les insérerait tous les deux (le magasin en mémoire, lui,
+    n'en garde qu'un : les deux magasins divergent sur ce seul cas d'erreur, qui est un défaut du pipeline).
     """
 
     def __init__(self, executeur: Executeur, catalogue: str, taille_lot: int = TAILLE_LOT) -> None:
@@ -411,13 +417,23 @@ class MagasinSql:
                 raise ValueError(
                     f"Les colonnes de {table.schema}.{table.nom} ne sont pas les siennes : manquantes {manquantes}, en trop {en_trop}."
                 )
+        vues = set()
+        for enregistrement in enregistrements:
+            cle = tuple(enregistrement[nom] for nom in cles)
+            if cle in vues:
+                raise ValueError(
+                    f"Deux enregistrements de {table.schema}.{table.nom} ont la même clé {list(cles)} : un MERGE insert-seul "
+                    f"les insérerait tous les deux."
+                )
+            vues.add(cle)
         if not enregistrements:
             return
         schema = ", ".join(f"`{colonne}` {type_sql}" for colonne, type_sql in colonnes.items())
         condition = " AND ".join(f"cible.`{cle}` <=> source.`{cle}`" for cle in cles)
         sql = (
             f"MERGE INTO {nom} AS cible\n"
-            f"USING (SELECT lignes.* FROM (SELECT explode(from_json(:lignes, 'ARRAY<STRUCT<{schema}>>')) AS lignes)) AS source\n"
+            f"USING (SELECT lignes.* FROM (SELECT explode(from_json(:lignes, 'ARRAY<STRUCT<{schema}>>', map('mode', 'FAILFAST'))) "
+            f"AS lignes)) AS source\n"
             f"ON {condition}\n"
             f"WHEN NOT MATCHED THEN INSERT *"
         )

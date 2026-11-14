@@ -9,7 +9,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5"]
+databricks = ["databricks-sdk>=0.166"]                       # l'exécuteur réel (facultatif : le reste du code n'en a pas besoin)
+dev = ["pytest>=8", "ruff>=0.5", "databricks-sdk>=0.166"]    # le SDK aussi : les tests de l'exécuteur utilisent ses vrais objets
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]                  # `import rd_manuf` fonctionne sans installer le paquet
