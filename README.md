@@ -57,7 +57,8 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 - 🟢 **Bronze** ([`bronze.py`](src/rd_manuf/bronze.py)) : les lignes reçues, en texte, avec leur traçabilité ; les lignes coupées d'un CSV sont gardées à part.
 - 🟢 **Silver : une livraison** ([`silver.py`](src/rd_manuf/silver.py)) : les lignes typées ; les rejetées vont en quarantaine ; il décide comme la réception.
 - 🟢 **Silver : doublons** ([`silver.py`](src/rd_manuf/silver.py)) : un lot (pays, usine, numéro) déjà intégré par une livraison plus ancienne : même contenu ignoré, sinon quarantaine.
-- ⚪ **Gold** : des indicateurs prêts à l'emploi pour le métier.
+- 🟢 **Gold local** ([`gold.py`](src/rd_manuf/gold.py)) : la production par jour, pays, usine et ligne de fabrication, calculée en Python depuis le silver ; la table est décrite, pas encore créée.
+- ⚪ **Gold sur Databricks** : le même calcul en SQL, comparé à la référence Python sur la journée de test.
 
 </details>
 
@@ -136,6 +137,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `ecriture.py` : l'écrivain, sans workspace : les conversions lignes ↔ tables, un magasin en mémoire ou en SQL, et l'état adossé à un magasin ;
   - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ; une requête interrompue au clavier est annulée côté entrepôt ;
   - `sondage.py` : la première exécution sur un workspace, en lecture seule : des essais de conversion et la présence de nos tables, avec le délai réglable, les durées affichées et l'interruption propre ;
+  - `gold.py` : la production par jour, pays, usine et ligne de fabrication, calculée depuis le silver (une fonction pure, sans écrire) ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet, fichiers abîmés) ;
@@ -198,6 +200,30 @@ Si la connexion échoue, le programme affiche l'erreur avec le temps passé (`Co
 `Ctrl+C` interrompt le sondage : la requête en cours est annulée côté entrepôt, y compris pendant que l'entrepôt démarre, le programme dit que rien n'a été créé ni écrit, et sort avec le code 130. Seul l'instant de l'envoi lui-même, de l'ordre de la milliseconde, n'a pas encore d'identifiant à annuler. Un second `Ctrl+C` pendant l'annulation l'interrompt : la requête peut alors rester en file côté entrepôt, sans rien écrire.
 
 Le code de sortie est 0 si tout est conforme, 1 si un essai ou la vérification de présence a échoué, 2 si le lancement est refusé (tout catalogue autre que le playground est refusé avant toute connexion) ou si la connexion échoue, 130 si vous l'avez interrompu. Le résultat s'affiche dans le terminal seulement : le relire avant de le coller dans une PR, il peut citer des noms propres à votre espace de travail.
+
+## Gold local : la production par jour
+
+Le module [`gold.py`](src/rd_manuf/gold.py) calcule, depuis les lignes du silver, une ligne par **pays, usine, ligne de fabrication et jour de production** : le nombre de lots, la production et le rebut totaux, le taux de rebut, et la température (moyenne, minimum, maximum sur les seules mesures présentes). Le taux se calcule sur les sommes, pas en moyennant les taux des lots ; une production nulle donne un taux vide ; la température n'est pas arrondie. C'est une fonction pure : elle n'écrit rien, et le gold se recalcule en entier depuis le silver. Sur la journée de test, depuis la racine du dépôt :
+
+```python
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from rd_manuf.alertes import charger_catalogue
+from rd_manuf.contrat import charger_contrat
+from rd_manuf.gold import calculer_production_quotidienne
+from rd_manuf.journee import Etat, jouer, journee_multi_usines
+
+contrat = charger_contrat(Path("contracts/data/livraison_production.yaml"))
+catalogue = charger_catalogue(Path("contracts/alertes/catalogue.yaml"))
+etat = Etat()
+with TemporaryDirectory() as dossier:
+    jouer(contrat, catalogue, journee_multi_usines(contrat), Path(dossier), etat)
+for ligne in calculer_production_quotidienne(etat.lignes_silver)[:3]:
+    print(ligne)
+```
+
+Les valeurs de la journée de test sont fabriquées par le simulateur : ce ne sont pas des chiffres réels. La table `gold.production_quotidienne` est décrite dans [`tables.py`](src/rd_manuf/tables.py) mais pas encore créée : le calcul en SQL sur Databricks, comparé à cette référence, est un bloc à part.
 
 ## Travailler sur le projet
 

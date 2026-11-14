@@ -22,6 +22,7 @@ from rd_manuf.contrat import TYPE_CHAINE, TYPE_DATE, TYPE_DECIMAL, TYPE_ENTIER, 
 SCHEMA_OPS = "ops"
 SCHEMA_BRONZE = "bronze"
 SCHEMA_SILVER = "silver"
+SCHEMA_GOLD = "gold"
 
 TYPE_SQL_DU_CONTRAT = {TYPE_CHAINE: "STRING", TYPE_ENTIER: "BIGINT", TYPE_DECIMAL: "DOUBLE", TYPE_DATE: "DATE"}
 TYPE_VIOLATIONS = "ARRAY<STRUCT<code: STRING, colonnes: ARRAY<STRING>, message: STRING>>"
@@ -129,6 +130,24 @@ def table_bronze(contrat: Contrat) -> Table:
         _colonne("numero_ligne", "BIGINT"),
         *(_colonne(colonne.nom, "STRING", obligatoire=False) for colonne in contrat.colonnes),
     ))
+
+
+# Le gold : une ligne par pays, usine, ligne de fabrication et jour de production (voir `gold.py`). Les colonnes sont celles de la
+# dataclass, dans le même ordre ; quatre sont vides quand il n'y a rien à calculer (production nulle, aucune mesure de température).
+PRODUCTION_QUOTIDIENNE = Table(SCHEMA_GOLD, "production_quotidienne", (
+    _colonne("pays", "STRING"),
+    _colonne("usine", "STRING"),
+    _colonne("id_ligne", "STRING"),
+    _colonne("date_production", "DATE"),
+    _colonne("nb_lots", "BIGINT"),
+    _colonne("quantite_produite", "BIGINT"),
+    _colonne("quantite_rebut", "BIGINT"),
+    _colonne("taux_rebut", "DOUBLE", obligatoire=False),
+    _colonne("nb_mesures_temperature", "BIGINT"),
+    _colonne("temperature_moyenne", "DOUBLE", obligatoire=False),
+    _colonne("temperature_min", "DOUBLE", obligatoire=False),
+    _colonne("temperature_max", "DOUBLE", obligatoire=False),
+))
 
 
 def table_silver(contrat: Contrat) -> Table:
