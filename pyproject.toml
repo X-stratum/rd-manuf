@@ -1,7 +1,7 @@
 [project]
 name = "rd-manuf"
 version = "0.1.0"
-description = "Pipeline médaillon R&D Manufacturing sur Databricks"
+description = "Contrôle qualité, gouvernance et traçabilité de la donnée R&D Manufacturing (bronze, silver, gold sur Databricks)"
 requires-python = ">=3.12"
 dependencies = [
     "pyyaml>=6",                      # lecture des contrats YAML

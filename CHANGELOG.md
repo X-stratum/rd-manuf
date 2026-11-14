@@ -29,6 +29,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #49 — README : un titre qui dit la nature du projet, pas seulement son stockage
+*2026-11-14 · [PR #49](https://github.com/X-stratum/rd-manuf/pull/49)*
+
+**En clair.** Le README s'ouvrait sur « DATA ENGINEER - Workflow Demonstration - » puis sur « architecture médaillon bronze → silver → gold », et la description du paquet disait « Pipeline médaillon ». Or le projet est devenu autre chose qu'une architecture de stockage : un contrat de données lisible par le métier, un contrôle à la réception de chaque livraison, une trace de ce qui est accepté, bloqué ou refusé, des alertes routées par rôle, une surveillance de la fraîcheur et du taux de rejet, et des preuves de test. Le titre est maintenant « rd-manuf : des données industrielles sous contrôle », avec une accroche sur la qualité, la gouvernance et la traçabilité ; le médaillon n'y est plus que le moyen. Le paragraphe « En clair » mentionne aussi la trace de chaque livraison, le premier indicateur de production et la surveillance, et la description du paquet suit. Aucun code ni aucun test ne change.
+**Décisions.** Le titre nomme le sujet (contrôle, gouvernance, traçabilité) et non la technique, et garde la mention de démonstration en sous-titre : le projet reste un workflow construit pas à pas, pas un produit. Le bandeau « Projet en construction » et la phrase « rien n'a encore tourné sur un vrai workspace » restent, et sont même répétés dans « En clair » : le titre promet un sujet, pas un déploiement. Pas de mot comme « plateforme » ou « production », qui ne sont pas encore vrais ; la revue a aussi fait retirer « de bout en bout » et « tout est testé en local », qui promettaient plus que ce qui est prouvé (le sondage et l'écrivain n'ont été éprouvés qu'avec un faux service). La description du paquet n'a pas de flèche, par prudence dans des métadonnées lues par des outils. Aucun test ne figeait le texte du titre : aucun n'a été ajouté non plus, un test qui figerait un titre serait fragile et sans valeur. Ce qui n'est pas prouvé : le rendu du README sur GitHub n'a pas été vu à l'écran.
+
 ## #48 — Surveillance : suivre le taux de rejet de chaque source dans le temps
 *2026-11-14 · [PR #48](https://github.com/X-stratum/rd-manuf/pull/48)*
 
