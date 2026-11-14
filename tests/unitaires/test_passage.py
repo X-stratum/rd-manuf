@@ -20,7 +20,7 @@ import pytest
 
 from rd_manuf import passage
 from rd_manuf.alertes import charger_catalogue
-from rd_manuf.ecriture import EtatMagasin, MagasinEnMemoire
+from rd_manuf.ecriture import EtatMagasin, MagasinEnMemoire, couches
 from rd_manuf.journee import Etat, jouer, journee_multi_usines
 
 RACINE = Path(__file__).resolve().parents[2]
@@ -51,6 +51,30 @@ class FauxExecuteur:
     @property
     def textes(self):
         return [sql for sql, _ in self.envoyes]
+
+
+TABLES_DU_PLAYGROUND = [
+    ("ops", "registre"), ("bronze", "lignes"), ("bronze", "lignes_coupees"), ("silver", "lignes"), ("silver", "quarantaine"),
+]
+
+
+class ExecuteurAvecTables(FauxExecuteur):
+    """Comme le faux exécuteur, mais le catalogue d'information (`information_schema`) dit quelles tables existent."""
+
+    def __init__(self, tables=TABLES_DU_PLAYGROUND, pannes=()):
+        super().__init__(pannes)
+        self.tables = list(tables)
+
+    def __call__(self, sql, parametres):
+        rendu = super().__call__(sql, parametres)
+        if "information_schema.schemata" in sql:
+            return [{"schema_name": schema} for schema in sorted({schema for schema, _ in self.tables})]
+        if "information_schema.tables" in sql:
+            return [{"table_schema": schema, "table_name": nom} for schema, nom in self.tables]
+        return rendu
+
+
+LECTURES_DE_TABLES = "SELECT * FROM `rd_manuf_playground`.`"
 
 
 def _est_une_lecture(sql):
@@ -366,6 +390,167 @@ def test_la_premiere_requete_est_la_sonde_de_connexion(sortie, contrat, livraiso
     _lancer(chemin, executeur, sortie)
 
     assert executeur.textes[0] == passage.SQL_CONNEXION
+
+
+# ------------------------------------------------------------------------------
+# La simulation sur un playground où les tables manquent : la décision est rendue, avec un état supposé vide
+# ------------------------------------------------------------------------------
+def test_en_simulation_sur_un_playground_vierge_la_decision_est_rendue_avec_un_etat_suppose_vide(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "deu-ba-001-avec-rejets", tmp_path)
+    executeur = ExecuteurAvecTables(tables=[], pannes=[("FROM `rd_manuf_playground`.`", RuntimeError("[TABLE_OR_VIEW_NOT_FOUND]"))])
+
+    code = _lancer(chemin, executeur, sortie)
+    texte = _texte(sortie)
+
+    assert code == 0 and "Statut : ACCEPTEE_AVEC_REJETS" in texte
+    assert "Tables absentes ou invisibles pour ce profil" in texte and "supposé vide" in texte
+    assert "Simulation : rien n'a été créé ni écrit" in texte
+    assert not any(sql.startswith(LECTURES_DE_TABLES) for sql in executeur.textes)          # on ne lit pas une table qui n'existe pas
+
+
+def test_avec_une_partie_des_tables_la_simulation_dit_lesquelles_manquent_et_part_d_un_etat_vide(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    executeur = ExecuteurAvecTables(tables=[("ops", "registre")])
+
+    code = _lancer(chemin, executeur, sortie)
+    ligne = next(ligne for ligne in sortie if ligne.startswith("Tables absentes"))
+
+    assert code == 0
+    assert "silver.lignes" in ligne and "silver.quarantaine" in ligne and "bronze.lignes_coupees" in ligne and "ops.registre" not in ligne
+    assert not any(sql.startswith(LECTURES_DE_TABLES) for sql in executeur.textes)
+
+
+def test_quand_les_cinq_tables_existent_la_simulation_les_lit_et_ne_dit_rien_d_absent(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    executeur = ExecuteurAvecTables()
+
+    code = _lancer(chemin, executeur, sortie)
+
+    assert code == 0 and "Tables absentes" not in _texte(sortie)
+    assert any(sql.startswith(LECTURES_DE_TABLES + "ops`.`registre`") for sql in executeur.textes)
+    assert all(_est_une_lecture(sql) for sql in executeur.textes)
+
+
+def test_une_lecture_qui_echoue_alors_que_les_tables_existent_reste_un_echec(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    executeur = ExecuteurAvecTables(pannes=[(LECTURES_DE_TABLES + "ops`.`registre`", RuntimeError("droit manquant"))])
+
+    code = _lancer(chemin, executeur, sortie)
+
+    assert code == 1 and "Lecture de l'état impossible" in _texte(sortie) and "droit manquant" in _texte(sortie)
+
+
+def test_une_verification_de_presence_qui_echoue_est_un_echec_de_lecture(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    executeur = ExecuteurAvecTables(pannes=[("information_schema", RuntimeError("catalogue illisible"))])
+
+    code = _lancer(chemin, executeur, sortie)
+
+    assert code == 1 and "Lecture de l'état impossible" in _texte(sortie) and "catalogue illisible" in _texte(sortie)
+
+
+def test_avec_le_drapeau_les_tables_sont_creees_donc_la_presence_n_est_pas_verifiee(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    executeur = ExecuteurAvecTables(tables=[])
+
+    _lancer(chemin, executeur, sortie, "--ecrire")
+
+    assert not any("information_schema" in sql for sql in executeur.textes) and "Tables absentes" not in _texte(sortie)
+
+
+# ------------------------------------------------------------------------------
+# L'heure affichée est l'heure qui sert de clé
+# ------------------------------------------------------------------------------
+def test_l_heure_par_defaut_est_tronquee_a_la_seconde_pour_que_l_affichage_soit_la_cle(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    executeur = FauxExecuteur(pannes=[("MERGE INTO `rd_manuf_playground`.`silver`.`lignes`", ConnectionError("réseau"))])
+
+    _lancer(chemin, executeur, sortie, "--ecrire", maintenant=lambda: datetime(2026, 11, 14, 12, 0, 0, 654321, tzinfo=UTC))
+    texte = _texte(sortie)
+
+    assert "Arrivée : 2026-11-14 12:00:00 UTC" in texte
+    assert "--heure-arrivee 2026-11-14T12:00:00Z" in texte                  # la reprise reprend exactement ce qui est affiché
+
+
+def test_une_heure_donnee_avec_des_microsecondes_est_affichee_avec_elles(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+
+    _lancer(chemin, FauxExecuteur(), sortie, "--heure-arrivee", "2026-11-12T09:00:00.500000Z")
+
+    assert "Arrivée : 2026-11-12 09:00:00.500000 UTC" in _texte(sortie)
+
+
+# ------------------------------------------------------------------------------
+# Une écriture refusée parce qu'une livraison plus ancienne est à reprendre : le bon conseil, le message entier
+# ------------------------------------------------------------------------------
+def test_une_ecriture_refusee_pour_une_livraison_a_reprendre_dit_de_la_reprendre_d_abord_avec_le_message_entier(
+    monkeypatch, sortie, contrat, livraisons, tmp_path
+):
+    ancienne = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    a_passer = _fichier(contrat, livraisons, "fra-aa-002-parquet-saine", tmp_path)
+    magasin = MagasinEnMemoire()
+    alertes = charger_catalogue(CHEMIN_ALERTES)
+    resultat = passage.passer(contrat, alertes, ancienne[0], MagasinEnMemoire(), ancienne[1].arrivee, ecrire=False).resultat
+    bronze = couches(contrat)["bronze"]
+    enregistrements = [bronze.vers_enregistrement(ligne) for ligne in resultat.lignes_bronze]
+    magasin.inserer_absentes(bronze.table, bronze.cles, enregistrements)                       # les lignes, sans leur registre
+    monkeypatch.setattr(passage, "MagasinSql", lambda executeur, catalogue: magasin)
+    arrivee = a_passer[1].arrivee.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    code = _lancer(a_passer[0], FauxExecuteur(), sortie, "--ecrire", "--heure-arrivee", arrivee)
+    texte = _texte(sortie)
+
+    assert code == 1 and "Écriture refusée, rien n'a été écrit" in texte
+    assert ancienne[1].nom in texte and "arrivée 2026-11-12 09:00:00 UTC" in texte               # le message entier : de quoi agir
+    assert "n'ont pas de ligne de registre" in texte                                            # jusqu'au bout : pas borné à 200 caractères
+    assert "Reprendre d'abord la livraison citée" in texte
+    assert "Des couches ont pu être écrites" not in texte and "sans rien dupliquer" not in texte
+
+
+# ------------------------------------------------------------------------------
+# Ctrl+C : un message par phase
+# ------------------------------------------------------------------------------
+def test_une_interruption_pendant_la_connexion_avec_le_drapeau_dit_que_rien_n_a_ete_cree(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+
+    def interrompue(profil, entrepot, attente_max=None):
+        raise KeyboardInterrupt
+
+    code = _lancer(chemin, None, sortie, "--ecrire", fabriquer=interrompue)
+
+    assert code == 130 and "Rien n'a été créé ni écrit" in _texte(sortie) and "ont pu être créées" not in _texte(sortie)
+
+
+def test_une_interruption_pendant_la_lecture_avec_le_drapeau_dit_que_les_tables_existent_et_qu_aucune_ligne_n_est_ecrite(
+    sortie, contrat, livraisons, tmp_path
+):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+
+    code = _lancer(chemin, FauxExecuteur(pannes=[("SELECT * FROM", KeyboardInterrupt())]), sortie, "--ecrire")
+
+    assert code == 130 and "les tables existent" in _texte(sortie) and "aucune ligne de la livraison n'a été écrite" in _texte(sortie)
+
+
+def test_une_interruption_pendant_le_traitement_avec_le_drapeau_dit_que_les_tables_existent(
+    monkeypatch, sortie, contrat, livraisons, tmp_path
+):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+
+    def interrompu(*_args, **_kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(passage, "traiter_livraison", interrompu)
+    code = _lancer(chemin, FauxExecuteur(), sortie, "--ecrire")
+
+    assert code == 130 and "les tables existent" in _texte(sortie) and "aucune ligne de la livraison n'a été écrite" in _texte(sortie)
+
+
+def test_une_interruption_pendant_la_creation_dit_que_des_tables_ont_pu_etre_creees(sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+
+    code = _lancer(chemin, FauxExecuteur(pannes=[("CREATE SCHEMA", KeyboardInterrupt())]), sortie, "--ecrire")
+
+    assert code == 130 and "des tables ont pu être créées" in _texte(sortie) and "aucune de ses lignes n'a été écrite" in _texte(sortie)
 
 
 def test_la_simulation_dit_la_decision_les_comptes_et_comment_ecrire(sortie, contrat, livraisons, tmp_path):

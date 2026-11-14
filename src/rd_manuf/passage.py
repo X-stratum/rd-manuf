@@ -35,7 +35,7 @@ from typing import Any
 from rd_manuf.alertes import Catalogue, CatalogueInvalide, charger_catalogue
 from rd_manuf.config import CATALOGUE_PAR_DEFAUT
 from rd_manuf.contrat import Contrat, ContratInvalide, charger_contrat
-from rd_manuf.ecriture import EtatMagasin, Magasin, MagasinSql, creer_tables
+from rd_manuf.ecriture import DecisionManquante, EtatMagasin, Magasin, MagasinSql, creer_tables
 from rd_manuf.pipeline import ResultatLivraison, traiter_livraison
 from rd_manuf.registre import LigneRegistre
 from rd_manuf.silver import LigneSilver
@@ -49,6 +49,7 @@ from rd_manuf.sondage import (
     delai_positif,
     duree,
     fabriquer_executeur_reel,
+    verifier_la_presence,
 )
 
 ALERTES_PAR_DEFAUT = "contracts/alertes/catalogue.yaml"           # relatif à la racine du dépôt, d'où le programme se lance
@@ -111,7 +112,7 @@ def _lecteur_d_arguments() -> argparse.ArgumentParser:
 def _lire_l_heure(texte: str | None, maintenant: Callable[[], datetime]) -> datetime:
     """L'heure d'arrivée, en UTC : refusée sans fuseau (une heure sans fuseau est ambiguë) ou illisible."""
     if texte is None:
-        instant = maintenant()
+        instant = maintenant().replace(microsecond=0)         # tronquée : ce qui est affiché est exactement la clé de reprise
     else:
         try:
             instant = datetime.fromisoformat(texte)
@@ -120,6 +121,12 @@ def _lire_l_heure(texte: str | None, maintenant: Callable[[], datetime]) -> date
     if instant.utcoffset() is None:
         raise ValueError(f"« {borne(str(texte))} » n'a pas de fuseau horaire : ajouter Z (UTC) ou un décalage (+01:00).")
     return instant.astimezone(UTC)
+
+
+def _affichee(instant: datetime) -> str:
+    """L'heure d'arrivée telle qu'elle s'affiche : à la seconde, microsecondes comprises SEULEMENT s'il y en a (elles sont dans la clé)."""
+    forme = "%Y-%m-%d %H:%M:%S.%f" if instant.microsecond else "%Y-%m-%d %H:%M:%S"
+    return instant.strftime(forme) + " UTC"
 
 
 def _iso(instant: datetime) -> str:
@@ -185,7 +192,7 @@ def _passer(
         return 2
 
     sortie(f"Passage de {chemin.name} sur le catalogue {arguments.catalogue}.")
-    sortie(f"Arrivée : {heure_arrivee:%Y-%m-%d %H:%M:%S} UTC")
+    sortie(f"Arrivée : {_affichee(heure_arrivee)}")
     sortie(f"Connexion à l'entrepôt… (délai de chaque requête : {arguments.delai:g} s)")
     reprise = f"relancer avec --ecrire --heure-arrivee {_iso(heure_arrivee)}, sans rien dupliquer"
 
@@ -213,7 +220,17 @@ def _passer(
                 return 1
         phase = "lecture"
         try:
-            registre, deja_integrees = lire_l_etat(contrat, magasin)
+            if arguments.ecrire:                                    # les tables viennent d'être créées : on les lit
+                registre, deja_integrees = lire_l_etat(contrat, magasin)
+            else:
+                presence = verifier_la_presence(contrat, arguments.catalogue, executeur)
+                absentes = sorted(nom for nom, presente in presence.tables.items() if not presente)
+                if absentes:
+                    sortie(f"Tables absentes ou invisibles pour ce profil : {', '.join(absentes)} : "
+                           f"l'état est supposé vide, la décision peut différer.")
+                    registre, deja_integrees = [], []
+                else:
+                    registre, deja_integrees = lire_l_etat(contrat, magasin)
         except Exception as erreur:
             sortie(f"Lecture de l'état impossible : {borne(f'{type(erreur).__name__} : {erreur}')}")
             sortie("Si les tables n'existent pas encore, --ecrire les crée.")
@@ -231,6 +248,10 @@ def _passer(
         phase = "ecriture"
         try:
             ecrire_le_resultat(contrat, magasin, resultat)
+        except DecisionManquante as erreur:                         # refusée AVANT d'écrire quoi que ce soit : reprendre l'autre d'abord
+            sortie(f"Écriture refusée, rien n'a été écrit : {erreur}")
+            sortie("Reprendre d'abord la livraison citée, avec son heure d'arrivée, puis relancer celle-ci.")
+            return 1
         except Exception as erreur:
             sortie(f"Écriture impossible : {borne(f'{type(erreur).__name__} : {erreur}')}")
             sortie(f"Des couches ont pu être écrites, pas le registre. Pour reprendre : {reprise}.")
@@ -240,12 +261,13 @@ def _passer(
     except KeyboardInterrupt:
         if phase == "ecriture":
             sortie(f"Interrompu pendant l'écriture. Des couches ont pu être écrites, pas le registre. Pour reprendre : {reprise}.")
-        elif arguments.ecrire:
-            sortie("Interrompu avant l'écriture de la livraison : aucune de ses lignes n'a été écrite (les tables ont pu être créées).")
+        elif not arguments.ecrire or phase == "connexion":
+            sortie("Interrompu. Rien n'a été créé ni écrit" + (" : simulation." if not arguments.ecrire else "."))
+        elif phase == "creation":
+            sortie("Interrompu pendant la création des tables : des tables ont pu être créées, aucune de ses lignes n'a été écrite.")
         else:
-            sortie("Interrompu. Rien n'a été créé ni écrit : simulation.")
+            sortie("Interrompu avant l'écriture : les tables existent, aucune ligne de la livraison n'a été écrite.")
         return 130
-
 
 if __name__ == "__main__":
     raise SystemExit(principal())
