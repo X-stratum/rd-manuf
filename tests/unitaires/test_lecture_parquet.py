@@ -12,11 +12,11 @@ import pytest
 from rd_manuf.contrat import StatutLivraison
 from rd_manuf.lecture import FichierIllisible, lire_parquet
 from rd_manuf.reception import receptionner_livraison
-from rd_manuf.simulateur import generer_livraison
+from rd_manuf.simulateur import generer_livraison, types_arrow_du_contrat
 
 GRAINE = 42
 NB_LIGNES = 5
-TYPES_ARROW = {"chaine": pa.string(), "entier": pa.int64(), "decimal": pa.float64(), "date": pa.date32()}
+TYPES_ARROW = types_arrow_du_contrat()
 
 
 def _ecrire_parquet_sain(chemin, contrat):

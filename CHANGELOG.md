@@ -28,6 +28,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #39 — Simulateur : numéroter les lots, nommer les fichiers, écrire du Parquet
+*2026-11-14 · [PR #39](https://github.com/X-stratum/rd-manuf/pull/39)*
+
+**En clair.** Le simulateur de livraisons fabrique maintenant ce qui entoure les lignes. Il numérote les lots à partir d'un numéro choisi, pour que deux livraisons d'une même usine n'aient pas les mêmes numéros. Il fabrique le nom d'un fichier, avec la convention du projet. Et il écrit une livraison en Parquet, avec des colonnes typées d'après le contrat, comme l'enverrait une usine qui exporte autre chose qu'un CSV. Avant, chaque test écrivait son nom à la main et fabriquait son Parquet à sa façon.
+**Décisions.** Le nom est fabriqué avec les constantes de `nom_fichier.py` puis relu par `lire_nom_fichier`, qui refuse une pièce hors convention : la forme du nom n'est écrite qu'à un seul endroit. Une heure sans fuseau est refusée, comme dans le registre, et une fraction de seconde aussi, parce que le nom s'arrête à la seconde. Les numéros de lot vont de 1 à 999 999, les 6 chiffres du contrat : au-delà, le contrat refuserait le lot, et le simulateur le dit avant plutôt que de fabriquer un lot invalide. Une colonne Parquet est typée : un texte dans une colonne numérique ne peut pas s'y écrire, donc l'anomalie « type invalide » n'existe qu'en CSV, et le simulateur la refuse en Parquet en nommant la colonne et la valeur, sans écrire de fichier. Il refuse de même ce que Parquet convertirait sans rien dire (un décimal non entier dans une colonne entière, une date avec heure), en demandant au contrat plutôt qu'en recopiant ses règles : un fichier ne doit pas dire autre chose que la ligne qu'on lui a donnée. Les six autres anomalies reçoivent la même décision dans les deux formats, ce qu'un test vérifie pour chacune. Pas encore fait : les défauts de structure (colonne manquante, fichier vide, ligne coupée), ce sera la PR suivante, puis le scénario de la journée multi-usines.
+
 ## #38 — Alertes : un conflit de clé avec une livraison plus ancienne prévient l'émetteur
 *2026-11-14 · [PR #38](https://github.com/X-stratum/rd-manuf/pull/38)*
 
