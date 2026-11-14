@@ -13,7 +13,7 @@ from html import escape
 from pathlib import Path
 
 SORTIE = Path(__file__).with_name("plan-global.svg")
-NUMERO_REVISION = 7
+NUMERO_REVISION = 8
 DATE_REVISION = "2026-11-14"
 
 # ==============================================================================
@@ -52,7 +52,8 @@ COLONNES = [
         ("Orchestration", ["Jobs enchaînés, un", "passage par livraison"], A_VENIR),
         ("Ingestion incrémentale", ["Seulement les nouveaux", "fichiers du dossier"], A_VENIR),
         ("Surveillance : délais", ["Sources en retard, jamais", "livrées ou inconnues"], FAIT),
-        ("Surveillance : volumes", ["Volumes et taux de rejet", "anormaux par source"], A_VENIR),
+        ("Surveillance : rejets", ["Taux de rejet par source,", "suivi dans le temps"], FAIT),
+        ("Surveillance : volumes", ["Volumes de livraison", "anormaux par source"], A_VENIR),
         ("Retraitement", ["Reprendre une livraison", "corrigée ou rejugée"], A_VENIR),
         ("Droits et secrets", ["Qui accède à quoi ;", "où vivent les jetons"], A_VENIR),
         ("Évolution du contrat", ["Changer de version", "sans casser l'historique"], A_VENIR),

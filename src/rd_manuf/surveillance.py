@@ -13,6 +13,14 @@ Seule une livraison INTÉGRÉE (acceptée, ou acceptée avec rejets) rafraîchit
 apporté au silver. Une arrivée dans le futur (horloge décalée) n'est pas un retard. Pas de calendrier : une usine arrêtée le week-end
 demande un délai qui le couvre.
 
+Second axe : le TAUX DE REJET dans le temps, par source (`controler_taux_de_rejet`). Le seuil n'est pas inventé ici : c'est celui du
+contrat de données (`taux_rejet_max`), au-dessus duquel une livraison est bloquée. Le niveau de PRÉ-ALERTE en est une part
+(`part_du_seuil`), réglée avec la fenêtre de livraisons (`fenetre_livraisons`) dans la section `taux_de_rejet` du fichier de
+surveillance : si le contrat change son seuil, le niveau suit. Le taux d'une source est celui des SOMMES (rejetés sur reçus, sur ses N
+dernières livraisons jugeables), jamais la moyenne des taux des livraisons ; une livraison bloquée compte (c'est le signal), une
+refusée ou rejouée n'a pas de taux et ne compte pas. Une source qui a moins de N livraisons jugeables n'est pas jugée : une pré-alerte
+sur une seule livraison serait du bruit (l'alerte de blocage existe déjà).
+
 Ce sont des fonctions PURES : elles ne lisent que ce qu'on leur donne (« maintenant » est un paramètre, avec fuseau), n'écrivent rien et ne
 routent rien vers des personnes (annuaire et envoi viendront ailleurs).
 """
@@ -28,15 +36,18 @@ from typing import Any
 
 import yaml
 
+from rd_manuf.contrat import StatutLivraison
 from rd_manuf.nom_fichier import MOTIF_LIGNE, MOTIF_PAYS, MOTIF_USINE
 from rd_manuf.registre import STATUTS_INTEGRES, LigneRegistre
 
 AUCUNE_LIVRAISON_INTEGREE = "AUCUNE_LIVRAISON_INTEGREE"
 LIVRAISON_EN_RETARD = "LIVRAISON_EN_RETARD"
 SOURCE_INCONNUE = "SOURCE_INCONNUE"
+TAUX_DE_REJET_ELEVE = "TAUX_DE_REJET_ELEVE"
 
 CHAMPS_DE_LA_SOURCE = ("pays", "usine", "ligne", "delai_max_heures")
-CHAMPS_DU_FICHIER = ("version", "sources")
+CHAMPS_DU_FICHIER = ("version", "sources", "taux_de_rejet")
+CHAMPS_DU_TAUX_DE_REJET = ("fenetre_livraisons", "part_du_seuil")
 MOTIFS = {"pays": MOTIF_PAYS, "usine": MOTIF_USINE, "ligne": MOTIF_LIGNE}      # la convention du nom de fichier, écrite à un seul endroit
 
 Origine = tuple[str, str, str]                                                  # (pays, usine, ligne de production)
@@ -64,6 +75,42 @@ class Constat:
     age: timedelta | None                       # « maintenant » moins `derniere_arrivee` ; vide s'il n'y a pas de livraison à mesurer
     delai_max: timedelta | None                 # vide pour une source inconnue : personne n'a décidé de son rythme
     dernier_statut: str | None                  # le statut de la livraison la plus récente de l'origine, quel qu'il soit ; vide si aucune
+
+
+def _probleme_fenetre(valeur: Any) -> str | None:
+    if isinstance(valeur, bool) or not isinstance(valeur, int) or valeur < 1:
+        return "« fenetre_livraisons » doit être un entier d'au moins 1."
+    return None
+
+
+def _probleme_part(valeur: Any) -> str | None:
+    if isinstance(valeur, bool) or not isinstance(valeur, (int, float)) or not math.isfinite(valeur) or not 0 < valeur <= 1:
+        return "« part_du_seuil » doit être un nombre fini, supérieur à 0 et au plus 1."
+    return None
+
+
+@dataclass(frozen=True)
+class ParametresTauxRejet:
+    fenetre_livraisons: int                     # combien des dernières livraisons jugeables d'une source on regarde
+    part_du_seuil: float                        # niveau de pré-alerte : cette part du seuil de rejet du contrat (0,5 : la moitié)
+
+    def __post_init__(self) -> None:
+        for probleme in (_probleme_fenetre(self.fenetre_livraisons), _probleme_part(self.part_du_seuil)):
+            if probleme is not None:
+                raise ValueError(probleme)
+
+
+@dataclass(frozen=True)
+class ConstatTauxRejet:
+    code: str
+    pays: str
+    usine: str
+    ligne: str
+    taux: float                                 # rejetés sur reçus, sur les `nb_livraisons` dernières livraisons jugeables
+    niveau: float                               # le niveau d'alerte : `part_du_seuil` × le seuil du contrat
+    seuil_contrat: float                        # le seuil de rejet du contrat, au-dessus duquel une livraison est bloquée
+    nb_livraisons: int
+    nb_bloquees: int                            # parmi elles, combien ont été bloquées
 
 
 # ==============================================================================
@@ -133,15 +180,39 @@ def _valider_source(rang: int, brut: Any) -> SourceAttendue:
     )
 
 
-def charger_sources_attendues(chemin: str | Path) -> tuple[SourceAttendue, ...]:
-    """Les sources déclarées, triées par pays, usine et ligne. Un fichier absent lève l'erreur de fichier habituelle ; un contenu mal formé,
-    `SourcesInvalides`. Refuse tout ce qui est ambigu : champ manquant ou inconnu, doublon, délai nul ou non fini."""
+def _lire_fichier(chemin: str | Path) -> dict[str, Any]:
+    """Le fichier de surveillance lu : un dictionnaire dont les clés sont toutes connues (une faute de frappe ne passe pas)."""
     brut = _lire_yaml(chemin)
     if not isinstance(brut, dict):
-        raise SourcesInvalides("Le fichier des sources attendues doit être un dictionnaire (version, sources).")
+        raise SourcesInvalides(f"Le fichier de surveillance doit être un dictionnaire ({', '.join(CHAMPS_DU_FICHIER)}).")
     for cle in brut:
         if cle not in CHAMPS_DU_FICHIER:
             raise SourcesInvalides(f"Clé inconnue « {cle} » (attendues : {', '.join(CHAMPS_DU_FICHIER)}).")
+    return brut
+
+
+def charger_parametres_taux_rejet(chemin: str | Path) -> ParametresTauxRejet:
+    """La section `taux_de_rejet` du fichier de surveillance : la fenêtre de livraisons et la part du seuil du contrat. `SourcesInvalides`
+    si la section manque, est mal formée, a un champ manquant, inconnu ou répété, ou une valeur hors de ce qui est permis."""
+    section = _lire_fichier(chemin).get("taux_de_rejet")
+    if not isinstance(section, dict) or not section:
+        raise SourcesInvalides(f"La section « taux_de_rejet » manque ou est vide (champs attendus : {', '.join(CHAMPS_DU_TAUX_DE_REJET)}).")
+    for champ in CHAMPS_DU_TAUX_DE_REJET:
+        if champ not in section:
+            raise SourcesInvalides(f"taux_de_rejet : le champ « {champ} » manque.")
+    for champ in section:
+        if champ not in CHAMPS_DU_TAUX_DE_REJET:
+            raise SourcesInvalides(f"taux_de_rejet : champ inconnu « {champ} » (attendus : {', '.join(CHAMPS_DU_TAUX_DE_REJET)}).")
+    for probleme in (_probleme_fenetre(section["fenetre_livraisons"]), _probleme_part(section["part_du_seuil"])):
+        if probleme is not None:
+            raise SourcesInvalides(f"taux_de_rejet : {probleme}")
+    return ParametresTauxRejet(fenetre_livraisons=section["fenetre_livraisons"], part_du_seuil=float(section["part_du_seuil"]))
+
+
+def charger_sources_attendues(chemin: str | Path) -> tuple[SourceAttendue, ...]:
+    """Les sources déclarées, triées par pays, usine et ligne. Un fichier absent lève l'erreur de fichier habituelle ; un contenu mal formé,
+    `SourcesInvalides`. Refuse tout ce qui est ambigu : champ manquant ou inconnu, doublon, délai nul ou non fini."""
+    brut = _lire_fichier(chemin)
     liste = brut.get("sources")
     if not isinstance(liste, list) or not liste:
         raise SourcesInvalides("« sources » doit être une liste d'au moins une source.")
@@ -205,3 +276,48 @@ def controler_fraicheur(registre: Iterable[LigneRegistre], sources: Iterable[Sou
             age = max(timedelta(0), maintenant - derniere.heure_arrivee)         # une arrivée dans le futur (horloge décalée) a un âge nul
             constats.append(Constat(SOURCE_INCONNUE, *origine, derniere.heure_arrivee, age, None, derniere.statut))
     return sorted(constats, key=lambda c: (c.pays, c.usine, c.ligne, c.code))
+
+
+# ==============================================================================
+# 📉 LE TAUX DE REJET
+# ==============================================================================
+STATUTS_AVEC_UN_TAUX = frozenset({*STATUTS_INTEGRES, StatutLivraison.BLOQUEE.value})     # les livraisons dont des lignes ont été jugées
+
+
+def _verifier_le_seuil(seuil: Any) -> float:
+    if isinstance(seuil, bool) or not isinstance(seuil, (int, float)) or not 0 <= seuil <= 1:
+        raise ValueError(f"taux_rejet_max doit être un nombre entre 0 et 1, comme dans le contrat (reçu {seuil!r}).")
+    return float(seuil)
+
+
+def controler_taux_de_rejet(
+    registre: Iterable[LigneRegistre], parametres: ParametresTauxRejet, taux_rejet_max: float
+) -> list[ConstatTauxRejet]:
+    """Les sources dont le taux de rejet, sur leurs `fenetre_livraisons` dernières livraisons jugeables, dépasse (strictement)
+    `part_du_seuil` fois le seuil du contrat. Triés par pays, usine, ligne. Ne modifie pas ses entrées.
+
+    Jugeables : acceptée, acceptée avec rejets et BLOQUÉE (le blocage est le signal), avec au moins une ligne reçue. Une livraison
+    refusée (sa structure est invalide, aucune ligne n'est jugée) ou rejouée n'a pas de taux : elle ne compte pas, même si le registre a
+    gardé un nombre de lignes reçues. Le taux est celui des sommes. Une source qui a moins de livraisons jugeables que la fenêtre n'est
+    pas jugée."""
+    seuil = _verifier_le_seuil(taux_rejet_max)
+    niveau = parametres.part_du_seuil * seuil
+    par_origine: dict[Origine, list[tuple[datetime, int, LigneRegistre]]] = {}
+    for rang, ligne in enumerate(registre):
+        if ligne.pays is None or ligne.usine is None or ligne.ligne is None:
+            continue
+        if ligne.statut not in STATUTS_AVEC_UN_TAUX or ligne.nb_recues <= 0:
+            continue
+        _avec_fuseau(ligne.heure_arrivee, f"L'arrivée de la livraison {ligne.livraison_id}")
+        par_origine.setdefault((ligne.pays, ligne.usine, ligne.ligne), []).append((ligne.heure_arrivee, rang, ligne))
+
+    constats = []
+    for origine, livraisons in sorted(par_origine.items()):
+        fenetre = [ligne for _, _, ligne in sorted(livraisons, key=lambda entree: entree[:2])][-parametres.fenetre_livraisons:]
+        if len(fenetre) < parametres.fenetre_livraisons:
+            continue
+        taux = sum(ligne.nb_rejetees for ligne in fenetre) / sum(ligne.nb_recues for ligne in fenetre)
+        if taux > niveau:
+            bloquees = sum(ligne.statut == StatutLivraison.BLOQUEE.value for ligne in fenetre)
+            constats.append(ConstatTauxRejet(TAUX_DE_REJET_ELEVE, *origine, taux, niveau, seuil, len(fenetre), bloquees))
+    return constats
