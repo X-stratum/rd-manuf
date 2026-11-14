@@ -5,7 +5,8 @@ Les règles viennent de contracts/alertes/catalogue.yaml.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -154,6 +155,31 @@ def router_alertes(catalogue: Catalogue, resultat: ResultatValidation, livraison
         colonnes = tuple(sorted(colonnes_par_code[code]))
         alertes.append(Alerte(livraison_id, code, lignes_par_code[code], regle.agit, _informes(catalogue, regle), colonnes))
     return alertes
+
+
+def ajouter_conflits_entre_livraisons(
+    catalogue: Catalogue, alertes: Sequence[Alerte], livraison_id: str, nb_lignes: int, colonnes: Sequence[str]
+) -> list[Alerte]:
+    """Ajoute aux alertes de la réception celles des lignes en conflit de clé avec une livraison PLUS ANCIENNE (trouvées par le silver).
+
+    Une alerte par (livraison, code) : si la réception a déjà alerté `CLE_EN_CONFLIT` (un conflit DANS la livraison), les lignes s'ajoutent
+    à cette alerte et les colonnes se réunissent, au lieu d'une seconde alerte du même code. La règle de routage vient du catalogue. Les
+    alertes restent dans l'ordre habituel : `LIVRAISON_BLOQUEE` d'abord, puis par code. Les alertes reçues ne sont pas modifiées.
+    """
+    if nb_lignes < 0:
+        raise ValueError(f"Nombre de lignes en conflit négatif : {nb_lignes}.")
+    if nb_lignes == 0:
+        return list(alertes)
+    code = CodeErreur.CLE_EN_CONFLIT.value
+    existante = next((alerte for alerte in alertes if alerte.code == code), None)
+    if existante is None:
+        regle = catalogue.regle(code)
+        conflit = Alerte(livraison_id, code, nb_lignes, regle.agit, _informes(catalogue, regle), tuple(sorted(set(colonnes))))
+    else:
+        reunies = tuple(sorted(set(existante.colonnes) | set(colonnes)))
+        conflit = replace(existante, nb_lignes=existante.nb_lignes + nb_lignes, colonnes=reunies)
+    autres = [alerte for alerte in alertes if alerte.code != code]
+    return sorted([*autres, conflit], key=lambda alerte: (alerte.code != CODE_LIVRAISON_BLOQUEE, alerte.code))
 
 
 def router_alertes_reception(catalogue: Catalogue, reception: Reception) -> list[Alerte]:

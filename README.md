@@ -64,7 +64,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <details>
 <summary><b>05 · Prévenir</b> : qui agit, qui est informé</summary>
 
-- 🟢 **Routage d'alertes** ([`alertes.py`](src/rd_manuf/alertes.py), [`catalogue.yaml`](contracts/alertes/catalogue.yaml)) : pour chaque problème, qui agit et qui est informé (des rôles).
+- 🟢 **Routage d'alertes** ([`alertes.py`](src/rd_manuf/alertes.py), [`catalogue.yaml`](contracts/alertes/catalogue.yaml)) : qui agit et qui est informé (des rôles), y compris pour un lot déjà intégré autrement.
 - ⚪ **Annuaire** : les contacts, gardés hors du dépôt public.
 - ⚪ **Envoi** : prévenir réellement les bonnes personnes (rien n'est encore envoyé).
 

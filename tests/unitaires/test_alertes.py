@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from rd_manuf import alertes as module_alertes
 from rd_manuf.alertes import (
     CODE_LIVRAISON_BLOQUEE,
     Alerte,
@@ -362,3 +363,79 @@ def test_une_livraison_acceptee_avec_rejets_est_routee_comme_avant(contrat_sans_
     alertes = router_alertes_reception(catalogue, reception)
     assert alertes == router_alertes(catalogue, reception.resultat, "LIV-001")
     assert [alerte.code for alerte in alertes] == ["HORS_PLAGE"]
+
+
+# ==============================================================================
+# 8. 🔁 CONFLITS ENTRE LIVRAISONS : le silver les trouve, les alertes les ajoutent SANS doubler celles de la réception
+# ==============================================================================
+# Une alerte par (livraison, code), jamais une par ligne : un conflit de clé DANS la livraison (déjà alerté par la réception) et un conflit
+# AVEC une livraison plus ancienne (trouvé par le silver) forment donc UNE seule alerte `CLE_EN_CONFLIT`, aux lignes additionnées.
+def _ajouter(catalogue, alertes, nb_lignes, colonnes=("id_lot",), livraison_id="LIV-002"):
+    return module_alertes.ajouter_conflits_entre_livraisons(catalogue, alertes, livraison_id, nb_lignes, colonnes)
+
+
+def _alerte(code, nb_lignes, colonnes=(), agit="emetteur", informes=("metier",)):
+    return Alerte("LIV-002", code, nb_lignes, agit, informes, colonnes)
+
+
+def test_un_conflit_entre_livraisons_cree_une_alerte_pour_l_emetteur(catalogue):
+    assert _ajouter(catalogue, [], 20) == [_alerte("CLE_EN_CONFLIT", 20, colonnes=("id_lot",))]
+
+
+def test_les_colonnes_de_l_alerte_creee_sont_triees_et_sans_doublon(catalogue):
+    alerte = _ajouter(catalogue, [], 3, colonnes=("id_lot", "id_lot", "id_ligne"))[0]
+
+    assert alerte.colonnes == ("id_ligne", "id_lot")
+
+
+def test_sans_conflit_les_alertes_sont_inchangees(catalogue):
+    existantes = [_alerte("HORS_PLAGE", 2, colonnes=("temperature_c",))]
+
+    assert _ajouter(catalogue, existantes, 0) == existantes
+
+
+def test_un_conflit_deja_alerte_par_la_reception_est_fusionne_et_non_double(catalogue):
+    existantes = [_alerte("CLE_EN_CONFLIT", 2, colonnes=("id_lot", "zone"))]          # « zone » n'est que dans l'existante
+
+    alertes = _ajouter(catalogue, existantes, 5, colonnes=("id_lot", "id_ligne"))     # « id_ligne » n'est que dans l'ajout
+
+    assert alertes == [_alerte("CLE_EN_CONFLIT", 7, colonnes=("id_ligne", "id_lot", "zone"))]        # lignes et colonnes réunies
+
+
+@pytest.mark.parametrize(
+    "existantes, attendus",
+    [
+        pytest.param(["HORS_PLAGE", "VALEUR_HORS_DOMAINE"], ["CLE_EN_CONFLIT", "HORS_PLAGE", "VALEUR_HORS_DOMAINE"], id="trie-par-code"),
+        pytest.param(["LIVRAISON_BLOQUEE", "HORS_PLAGE"], ["LIVRAISON_BLOQUEE", "CLE_EN_CONFLIT", "HORS_PLAGE"], id="bloquee-en-tete"),
+        pytest.param(["MOTIF_NON_RESPECTE"], ["CLE_EN_CONFLIT", "MOTIF_NON_RESPECTE"], id="un-code-apres-l-autre"),
+    ],
+)
+def test_l_alerte_ajoutee_prend_sa_place_dans_l_ordre_des_alertes(catalogue, existantes, attendus):
+    alertes = _ajouter(catalogue, [_alerte(code, 1) for code in existantes], 3)
+
+    assert [alerte.code for alerte in alertes] == attendus
+
+
+def test_la_regle_de_routage_vient_du_catalogue(tmp_path):
+    def reaffecter(brut):
+        brut["codes"]["CLE_EN_CONFLIT"] = {"agit": "metier", "informe": ["equipe_data"]}      # « metier » est aussi informé de tout
+
+    catalogue_modifie = charger_catalogue(_catalogue_modifie(tmp_path, reaffecter))
+
+    alerte = _ajouter(catalogue_modifie, [], 4)[0]
+
+    assert (alerte.agit, alerte.informes) == ("metier", ("equipe_data",))                    # celui qui agit n'est pas aussi informé
+
+
+def test_l_ajout_ne_modifie_pas_les_alertes_recues(catalogue):
+    existantes = [_alerte("CLE_EN_CONFLIT", 2, colonnes=("id_lot",)), _alerte("HORS_PLAGE", 1)]
+    copie = list(existantes)
+
+    _ajouter(catalogue, existantes, 5)
+
+    assert existantes == copie
+
+
+def test_un_nombre_de_lignes_negatif_est_refuse(catalogue):
+    with pytest.raises(ValueError, match="-1"):
+        _ajouter(catalogue, [], -1)

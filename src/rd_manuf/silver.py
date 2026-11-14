@@ -67,6 +67,9 @@ class LigneQuarantaine:
 class ResultatSilver:
     lignes: list[LigneSilver]
     quarantaine: list[LigneQuarantaine]
+    # Les lignes de la quarantaine en conflit avec une livraison PLUS ANCIENNE. La quarantaine contient aussi les rejets que la réception a
+    # déjà alertés, dont un conflit de clé DANS la livraison : seul le silver sait combien viennent d'une autre livraison.
+    nb_conflits_entre_livraisons: int = 0
 
 
 def _cle(contrat: Contrat, valeurs: dict[str, Any]) -> tuple[str, ...]:
@@ -160,6 +163,7 @@ def construire_silver(
             quarantaine.append(LigneQuarantaine(numero_ligne=None, numero_fichier=numero, contenu=coupee_par_numero[numero].champs,
                                                 violations=rejetee.violations, **reference))
 
+    nb_conflits_entre_livraisons = 0
     anterieures = _lignes_plus_anciennes(contrat, deja_integrees, ligne_registre.livraison_id, ligne_registre.heure_arrivee)
     lignes = []
     for texte in jugement.lignes_valides:
@@ -173,7 +177,8 @@ def construire_silver(
             message = (f"clé primaire {list(contrat.cle_primaire)} déjà intégrée par la livraison {origine.livraison_id} avec un contenu "
                        f"différent : {', '.join(cle)}")
             conflit = Violation(CodeErreur.CLE_EN_CONFLIT, contrat.cle_primaire, message)
+            nb_conflits_entre_livraisons += 1
             quarantaine.append(LigneQuarantaine(numero_ligne=bronze.numero_ligne, numero_fichier=None, contenu=dict(bronze.valeurs),
                                                 violations=(conflit,), **reference))
         # même clé, même contenu : déjà là, ni silver ni quarantaine (comme un doublon exact dans une livraison)
-    return ResultatSilver(lignes=lignes, quarantaine=quarantaine)
+    return ResultatSilver(lignes=lignes, quarantaine=quarantaine, nb_conflits_entre_livraisons=nb_conflits_entre_livraisons)

@@ -223,6 +223,9 @@ def test_une_cle_deja_integree_par_la_meme_usine_va_en_quarantaine(tmp_path, con
     assert seconde.ligne_registre.statut == "ACCEPTEE"                                # le statut décidé à la réception ne change pas
     assert (len(seconde.silver.lignes), len(seconde.silver.quarantaine)) == (0, NB_LIGNES)
     assert {v.code for q in seconde.silver.quarantaine for v in q.violations} == {CodeErreur.CLE_EN_CONFLIT}
+    assert _codes(seconde) == ["CLE_EN_CONFLIT"]                                      # l'émetteur est prévenu, une seule alerte
+    assert (seconde.alertes[0].nb_lignes, seconde.alertes[0].agit, seconde.alertes[0].colonnes) == (NB_LIGNES, "emetteur", ("id_lot",))
+    assert seconde.alertes[0].livraison_id == NOM_SUIVANT                             # l'alerte porte la livraison qui a le conflit
 
 
 def test_les_memes_numeros_de_lot_dans_une_autre_usine_entrent_au_silver(tmp_path, contrat, catalogue):
@@ -233,6 +236,39 @@ def test_les_memes_numeros_de_lot_dans_une_autre_usine_entrent_au_silver(tmp_pat
 
     assert (len(seconde.silver.lignes), seconde.silver.quarantaine) == (NB_LIGNES, [])
     assert {(ligne.pays, ligne.usine) for ligne in seconde.silver.lignes} == {("FRA", "AB")}
+    assert seconde.alertes == []                                                      # pas de conflit, donc pas d'alerte
+
+
+def test_une_ligne_deja_integree_au_meme_contenu_ne_declenche_aucune_alerte(tmp_path, contrat, catalogue):
+    deja = _traiter(contrat, catalogue, _csv(tmp_path, contrat)).silver.lignes
+
+    chemin = _csv(tmp_path, contrat, nom=NOM_SUIVANT)
+
+    seconde = _traiter(contrat, catalogue, chemin, deja_integrees=deja, arrivee=ARRIVEE + timedelta(days=1))
+
+    assert (seconde.silver, seconde.alertes) == (RIEN, [])
+
+
+def test_les_conflits_dans_la_livraison_et_avec_une_plus_ancienne_font_une_seule_alerte(tmp_path, contrat_sans_seuil, catalogue):
+    deja = _traiter(contrat_sans_seuil, catalogue, _csv(tmp_path, contrat_sans_seuil)).silver.lignes
+    chemin = _csv(tmp_path, contrat_sans_seuil, nom=NOM_SUIVANT, anomalies={CodeErreur.CLE_EN_CONFLIT: 2}, modifiees=5)
+
+    seconde = _traiter(contrat_sans_seuil, catalogue, chemin, deja_integrees=deja, arrivee=ARRIVEE + timedelta(days=1))
+
+    assert seconde.ligne_registre.statut == "ACCEPTEE_AVEC_REJETS"
+    assert len(seconde.silver.quarantaine) == 7                                       # 2 dans la livraison, 5 avec la plus ancienne
+    assert _codes(seconde) == ["CLE_EN_CONFLIT"]                                      # une seule alerte
+    assert seconde.alertes[0].nb_lignes == 7                                          # les deux sortes de lignes additionnées
+
+
+def test_l_alerte_de_conflit_prend_sa_place_parmi_les_alertes_de_la_reception(tmp_path, contrat_sans_seuil, catalogue):
+    deja = _traiter(contrat_sans_seuil, catalogue, _csv(tmp_path, contrat_sans_seuil)).silver.lignes
+    chemin = _csv(tmp_path, contrat_sans_seuil, nom=NOM_SUIVANT, anomalies={CodeErreur.HORS_PLAGE: 1}, modifiees=3)
+
+    seconde = _traiter(contrat_sans_seuil, catalogue, chemin, deja_integrees=deja, arrivee=ARRIVEE + timedelta(days=1))
+
+    assert _codes(seconde) == ["CLE_EN_CONFLIT", "HORS_PLAGE"]                        # triées par code, comme celles de la réception
+    assert [alerte.nb_lignes for alerte in seconde.alertes] == [3, 1]
 
 
 # ==============================================================================

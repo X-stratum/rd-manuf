@@ -597,3 +597,71 @@ def test_une_livraison_bloquee_sans_pays_ni_usine_est_aussi_refusee(tmp_path, co
 
     with pytest.raises(ValueError, match="pays et son usine"):
         construire_silver(contrat_strict, replace(ligne_registre, pays=None, usine=None), bronze, [])
+
+
+# ==============================================================================
+# 10. 🔔 LE SILVER COMPTE SES CONFLITS ENTRE LIVRAISONS : les alertes ne doivent compter que ceux-là
+# ==============================================================================
+# La quarantaine contient TOUTES les lignes rejetées, y compris celles que la réception a déjà alertées. Seul le silver sait combien de
+# lignes sont en conflit avec une livraison PLUS ANCIENNE : compter autrement doublerait les alertes de la réception.
+def test_le_silver_compte_les_lignes_en_conflit_avec_une_livraison_plus_ancienne(tmp_path, contrat):
+    deja = _livraison_a(tmp_path, contrat)
+
+    chemin = _livraison_b(tmp_path, contrat, modifiees=3, nb_lignes=22)
+
+    _, resultat = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B, deja_integrees=deja)
+
+    assert resultat.nb_conflits_entre_livraisons == 3 == len(resultat.quarantaine)
+
+
+def test_une_ligne_deja_la_au_meme_contenu_n_est_pas_un_conflit(tmp_path, contrat):
+    deja = _livraison_a(tmp_path, contrat)
+
+    _, resultat = _silver_du_fichier(contrat, _livraison_b(tmp_path, contrat), arrivee=ARRIVEE_B, deja_integrees=deja)
+
+    assert (resultat.nb_conflits_entre_livraisons, resultat.quarantaine) == (0, [])
+
+
+def test_les_memes_numeros_dans_une_autre_usine_ne_sont_pas_des_conflits(tmp_path, contrat):
+    deja = _livraison_a(tmp_path, contrat)
+    chemin = _livraison_b(tmp_path, contrat, modifiees=NB_LIGNES, nom="livraison_production_FRA_AB_001_2026-11-12-09-00-00Z.csv")
+
+    _, resultat = _silver_du_fichier(contrat, chemin, arrivee=ARRIVEE_B, deja_integrees=deja)
+
+    assert (resultat.nb_conflits_entre_livraisons, len(resultat.lignes)) == (0, NB_LIGNES)
+
+
+def test_des_rejets_ordinaires_ne_sont_pas_des_conflits_entre_livraisons(tmp_path, contrat_sans_seuil):
+    chemin = _ecrire(tmp_path, contrat_sans_seuil, anomalies={CodeErreur.HORS_PLAGE: 2})
+
+    _, resultat = _silver_du_fichier(contrat_sans_seuil, chemin)
+
+    assert (len(resultat.quarantaine), resultat.nb_conflits_entre_livraisons) == (2, 0)
+
+
+def test_un_conflit_de_cle_dans_la_livraison_n_est_pas_un_conflit_entre_livraisons(tmp_path, contrat_sans_seuil):
+    """La réception l'alerte déjà : le compter aussi ici le doublerait."""
+    chemin = _ecrire(tmp_path, contrat_sans_seuil, anomalies={CodeErreur.CLE_EN_CONFLIT: 2})
+
+    _, resultat = _silver_du_fichier(contrat_sans_seuil, chemin)
+
+    assert {v.code for q in resultat.quarantaine for v in q.violations} == {CodeErreur.CLE_EN_CONFLIT}
+    assert (len(resultat.quarantaine), resultat.nb_conflits_entre_livraisons) == (2, 0)
+
+
+def test_les_deux_sortes_de_conflits_dans_une_meme_livraison_se_distinguent(tmp_path, contrat_sans_seuil):
+    deja = _livraison_a(tmp_path, contrat_sans_seuil)
+    lignes = generer_livraison(contrat_sans_seuil, NB_LIGNES, GRAINE, {CodeErreur.CLE_EN_CONFLIT: 2})
+    for ligne in lignes[:5]:
+        ligne["quantite_produite"] += 1                       # 5 lots déjà intégrés avec un autre contenu
+    chemin = tmp_path / NOM_B
+    ecrire_livraison_csv(contrat_sans_seuil, lignes, chemin)
+
+    _, resultat = _silver_du_fichier(contrat_sans_seuil, chemin, arrivee=ARRIVEE_B, deja_integrees=deja)
+
+    assert len(resultat.quarantaine) == 7                      # 2 conflits dans la livraison, 5 avec une livraison plus ancienne
+    assert resultat.nb_conflits_entre_livraisons == 5
+
+
+def test_un_resultat_vide_n_a_aucun_conflit():
+    assert RIEN.nb_conflits_entre_livraisons == 0
