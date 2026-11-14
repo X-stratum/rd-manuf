@@ -23,7 +23,7 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 
 ## Plan global
 
-🚧 Projet en construction. 🟢 fait (logique écrite et testée) · 🟠 prochain · ⚪ à venir. Rien n'est encore écrit dans une table. Cliquez sur une étape pour la déplier : les blocs terminés renvoient vers le code.
+🚧 Projet en construction. 🟢 fait (logique écrite et testée) · 🟠 prochain · ⚪ à venir. Rien n'a encore tourné sur un workspace : le code d'écriture existe et est testé, mais n'a jamais été lancé. Cliquez sur une étape pour la déplier : les blocs terminés renvoient vers le code.
 
 <details>
 <summary><b>01 · Recevoir</b> : lire le fichier de l'usine</summary>
@@ -73,8 +73,9 @@ Les règles sont écrites dans un « contrat de données », un fichier lisible 
 <details>
 <summary><b>06 · Livrer</b> : du bac à sable à la production</summary>
 
+- 🟢 **Écrivain** ([`ecriture.py`](src/rd_manuf/ecriture.py), [`executeur_databricks.py`](src/rd_manuf/executeur_databricks.py)) : écrit et relit les cinq tables en SQL ; testé sans workspace.
+- 🟠 **Première exécution** ([`sondage.py`](src/rd_manuf/sondage.py)) : en lecture seule sur le playground : essais de conversion, présence de nos tables. Pas encore lancé.
 - ⚪ **Déploiement dev** ([`databricks.yml`](databricks.yml)) : trois cibles reliées à leurs catalogues, validées par Databricks ; rien n'est déployé.
-- 🟠 **Écrire en tables** : registre, bronze et silver écrits dans Databricks, avec le premier déploiement.
 - ⚪ **Mise en production** : version 0.1.0, puis reprise sur incident.
 
 </details>
@@ -134,6 +135,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `tables.py` : les schémas des cinq tables (registre, bronze, lignes coupées, silver, quarantaine) et leur SQL de création, sans rien écrire ;
   - `ecriture.py` : l'écrivain, sans workspace : les conversions lignes ↔ tables, un magasin en mémoire ou en SQL, et l'état adossé à un magasin ;
   - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ;
+  - `sondage.py` : la première exécution sur un workspace, en lecture seule : des essais de conversion et la présence de nos tables ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet, fichiers abîmés) ;
@@ -177,6 +179,17 @@ databricks bundle validate -t dev                   # idem pour une autre cible 
 ```
 
 Remplacer `ADRESSE_DU_WORKSPACE` par l'adresse du workspace (de la forme `https://…`, sans rien après le nom de domaine). Il faut la CLI Databricks en version 0.218 ou plus récente.
+
+## Databricks : la première exécution (lecture seule)
+
+Le programme [`sondage.py`](src/rd_manuf/sondage.py) ne crée ni n'écrit rien : il n'envoie que des requêtes de lecture (`SELECT`). Il vérifie que les valeurs rendues par un entrepôt SQL ont bien les types attendus par le code, puis dit si nos trois schémas et nos cinq tables existent déjà dans le catalogue playground. « Absent » veut dire absent pour votre profil, qui ne voit que ce sur quoi il a des droits, et une vue de même nom compte comme présente.
+Il faut le SDK Databricks (`pip install -e ".[databricks]"`), un profil de connexion et l'identifiant d'un entrepôt SQL : le dépôt est public, ni l'un ni l'autre n'y est écrit, ils se donnent à chaque lancement. Depuis la racine du dépôt :
+
+```bash
+python -m rd_manuf.sondage --profil NOM_DU_PROFIL --entrepot IDENTIFIANT_DE_L_ENTREPOT
+```
+
+Le code de sortie est 0 si tout est conforme, 1 si un essai ou la vérification de présence a échoué, 2 si le lancement est refusé (tout catalogue autre que le playground est refusé avant toute connexion) ou si la connexion échoue. Le résultat s'affiche dans le terminal seulement : le relire avant de le coller dans une PR, il peut citer des noms propres à votre espace de travail.
 
 ## Travailler sur le projet
 
