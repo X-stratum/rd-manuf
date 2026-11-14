@@ -13,7 +13,7 @@ from html import escape
 from pathlib import Path
 
 SORTIE = Path(__file__).with_name("plan-global.svg")
-NUMERO_REVISION = 8
+NUMERO_REVISION = 9
 DATE_REVISION = "2026-11-14"
 
 # ==============================================================================
@@ -45,6 +45,7 @@ COLONNES = [
         ("Envoi", ["Prévient réellement", "les bonnes personnes"], A_VENIR)]),
     ("06", "LIVRER", [
         ("Écrivain", ["Tables et requêtes SQL,", "testés sans workspace"], FAIT),
+        ("Passage de livraison", ["Traite un fichier ; écrit", "avec --ecrire, simulé"], FAIT),
         ("Première exécution", ["Lecture seule d'abord,", "sur le playground"], PROCHAIN),
         ("Déploiement dev", ["Bundle écrit et validé ;", "rien de déployé"], A_VENIR),
         ("Mise en production", ["Version 0.1.0, puis", "reprise sur incident"], A_VENIR)]),

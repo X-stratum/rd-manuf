@@ -77,6 +77,7 @@ Le code est testé en local, notamment sur une journée simulée de trois pays ;
 <summary><b>06 · Livrer</b> : du bac à sable à la production</summary>
 
 - 🟢 **Écrivain** ([`ecriture.py`](src/rd_manuf/ecriture.py), [`executeur_databricks.py`](src/rd_manuf/executeur_databricks.py)) : écrit et relit les cinq tables en SQL ; testé sans workspace.
+- 🟢 **Passage de livraison** ([`passage.py`](src/rd_manuf/passage.py)) : traite un fichier avec le pipeline et l'écrit dans les tables du playground avec `--ecrire` ; simulation par défaut ; testé sans workspace.
 - 🟠 **Première exécution** ([`sondage.py`](src/rd_manuf/sondage.py)) : en lecture seule sur le playground : essais de conversion, présence de nos tables. Pas encore lancé.
 - ⚪ **Déploiement dev** ([`databricks.yml`](databricks.yml)) : trois cibles reliées à leurs catalogues, validées par Databricks ; rien n'est déployé.
 - ⚪ **Mise en production** : version 0.1.0, puis reprise sur incident.
@@ -141,6 +142,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `ecriture.py` : l'écrivain, sans workspace : les conversions lignes ↔ tables, un magasin en mémoire ou en SQL, et l'état adossé à un magasin ;
   - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ; une requête interrompue au clavier est annulée côté entrepôt ;
   - `sondage.py` : la première exécution sur un workspace, en lecture seule : des essais de conversion et la présence de nos tables, avec le délai réglable, les durées affichées et l'interruption propre ;
+  - `passage.py` : le passage d'une livraison dans les tables du playground : traitée avec le pipeline, puis écrite seulement avec `--ecrire` ;
   - `gold.py` : la production par jour, pays, usine et ligne de fabrication, calculée depuis le silver (une fonction pure, sans écrire) ;
   - `surveillance.py` : la fraîcheur des livraisons (les sources qui n'ont pas livré à temps) et le taux de rejet dans le temps, comparés au registre (fonctions pures) ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
@@ -205,6 +207,20 @@ Si la connexion échoue, le programme affiche l'erreur avec le temps passé (`Co
 `Ctrl+C` interrompt le sondage : la requête en cours est annulée côté entrepôt, y compris pendant que l'entrepôt démarre, le programme dit que rien n'a été créé ni écrit, et sort avec le code 130. Seul l'instant de l'envoi lui-même, de l'ordre de la milliseconde, n'a pas encore d'identifiant à annuler. Un second `Ctrl+C` pendant l'annulation l'interrompt : la requête peut alors rester en file côté entrepôt, sans rien écrire.
 
 Le code de sortie est 0 si tout est conforme, 1 si un essai ou la vérification de présence a échoué, 2 si le lancement est refusé (tout catalogue autre que le playground est refusé avant toute connexion) ou si la connexion échoue, 130 si vous l'avez interrompu. Le résultat s'affiche dans le terminal seulement : le relire avant de le coller dans une PR, il peut citer des noms propres à votre espace de travail.
+
+## Databricks : passer une livraison dans les tables (simulation par défaut)
+
+Le programme [`passage.py`](src/rd_manuf/passage.py) traite **une livraison** avec le pipeline et, seulement si on le demande, l'écrit dans les tables du catalogue playground. Même principe que le sondage : le profil de connexion et l'identifiant de l'entrepôt se donnent à chaque lancement, rien n'est lu ailleurs, et seul le playground est accepté (dev et prod sont refusés avant toute connexion). Il faut le SDK Databricks (`pip install -e ".[databricks]"`). Depuis la racine du dépôt :
+
+```bash
+python -m rd_manuf.passage --profil NOM_DU_PROFIL --entrepot IDENTIFIANT_DE_L_ENTREPOT --fichier CHEMIN_DE_LA_LIVRAISON
+```
+
+**Sans `--ecrire`, c'est une simulation** : il ne part que des lectures (`SELECT`), et le programme dit la décision (statut, lignes reçues, valides et rejetées, codes d'alerte, nombre de lignes par couche) sans rien créer ni écrire. Si les tables n'existent pas encore, la lecture de leur état échoue : le programme le dit, et `--ecrire` les crée. **Avec `--ecrire`**, il crée les schémas et les tables s'ils manquent, puis écrit les couches de données d'abord et le registre en dernier.
+
+La sortie ne montre aucune valeur de ligne, seulement des comptes et des codes. Le **code de sortie** est 0 si la livraison a été traitée, quel que soit son statut (une livraison refusée ou bloquée est un traitement correct, avec ses alertes), 1 si la création, la lecture, le traitement ou l'écriture échoue, 2 si le lancement est refusé (catalogue, fichier, contrat, heure ou connexion), 130 si vous l'interrompez. `--delai` règle le délai de chaque requête (120 secondes par défaut, comme pour le sondage).
+
+**L'heure d'arrivée** est affichée à chaque lancement, en UTC (`--heure-arrivee`, avec fuseau, la fixe ; maintenant par défaut). La clé du registre est le nom du fichier et cette heure : relancer une livraison **interrompue ou en panne avec la même heure** la reprend sans rien dupliquer, alors que la même livraison repassée à une autre heure est un rejeu, enregistré comme tel. Le programme redonne la commande de reprise quand l'écriture échoue. Aucun lancement réel n'a encore eu lieu : seul le premier dira ce que rend le service.
 
 ## Gold local : la production par jour
 

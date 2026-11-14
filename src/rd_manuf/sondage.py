@@ -104,7 +104,7 @@ ESSAIS: tuple[Essai, ...] = (
 )
 
 
-def _borne(texte: str) -> str:
+def borne(texte: str) -> str:
     texte = " ".join(texte.split())
     return texte if len(texte) <= LONGUEUR_MAX_DU_DETAIL else texte[:LONGUEUR_MAX_DU_DETAIL] + "…"
 
@@ -125,18 +125,18 @@ def _jouer(essai: Essai, executeur: Executeur) -> ResultatEssai:
         lignes = executeur(essai.sql, essai.parametres)
     except Exception as erreur:                       # un essai est une SONDE : toute panne est un résultat à rapporter, pas à propager
         if essai.attendu is ErreurService and isinstance(erreur, ErreurService):
-            message = _borne(str(erreur))
+            message = borne(str(erreur))
             if essai.motif_du_refus.lower() in str(erreur).lower():
                 return ResultatEssai(essai.nom, True, f"le service a refusé comme prévu : {message}")
             return ResultatEssai(
                 essai.nom, False, f"refus d'une autre nature que celle attendue (« {essai.motif_du_refus} » absent du message) : {message}"
             )
-        return ResultatEssai(essai.nom, False, _borne(f"{type(erreur).__name__} : {erreur}"))
+        return ResultatEssai(essai.nom, False, borne(f"{type(erreur).__name__} : {erreur}"))
     if essai.attendu is ErreurService:
-        return ResultatEssai(essai.nom, False, f"aurait dû échouer, a rendu {_borne(repr(lignes))}")
+        return ResultatEssai(essai.nom, False, f"aurait dû échouer, a rendu {borne(repr(lignes))}")
     if _identique(lignes, essai.attendu):
         return ResultatEssai(essai.nom, True, "")
-    return ResultatEssai(essai.nom, False, _borne(f"attendu {essai.attendu!r}, obtenu {lignes!r}"))
+    return ResultatEssai(essai.nom, False, borne(f"attendu {essai.attendu!r}, obtenu {lignes!r}"))
 
 
 def jouer_les_essais(executeur: Executeur, horloge: Callable[[], float] = time.monotonic) -> list[ResultatEssai]:
@@ -198,7 +198,7 @@ def fabriquer_executeur_reel(profil: str, entrepot: str, attente_max: float = DE
     return ExecuteurDatabricks(WorkspaceClient(profile=profil), entrepot, attente_max=attente_max)
 
 
-def _delai_positif(texte: str) -> float:
+def delai_positif(texte: str) -> float:
     message = "le délai doit être un nombre de secondes fini et positif"
     try:
         delai = float(texte)
@@ -209,7 +209,7 @@ def _delai_positif(texte: str) -> float:
     return delai
 
 
-def _duree(secondes: float) -> str:
+def duree(secondes: float) -> str:
     return f"{secondes:.1f}".replace(".", ",") + " s"
 
 
@@ -222,7 +222,7 @@ def _lecteur_d_arguments() -> argparse.ArgumentParser:
     lecteur.add_argument("--entrepot", required=True, help="l'identifiant de l'entrepôt SQL à utiliser")
     lecteur.add_argument("--catalogue", default=CATALOGUE_PAR_DEFAUT, help=f"refusé s'il n'est pas le playground ({CATALOGUE_PAR_DEFAUT})")
     lecteur.add_argument("--contrat", default=CONTRAT_PAR_DEFAUT, help="le contrat de données, relatif au dossier courant")
-    lecteur.add_argument("--delai", type=_delai_positif, default=DELAI_PAR_DEFAUT,
+    lecteur.add_argument("--delai", type=delai_positif, default=DELAI_PAR_DEFAUT,
                          help=f"délai maximal de chaque requête, en secondes ({DELAI_PAR_DEFAUT:g} par défaut)")
     return lecteur
 
@@ -251,7 +251,7 @@ def _sonder(
     try:
         contrat = charger_contrat(Path(arguments.contrat))
     except (OSError, ContratInvalide) as erreur:
-        sortie(f"Contrat illisible : {_borne(str(erreur))}. Lancer depuis la racine du dépôt, ou donner le chemin avec --contrat.")
+        sortie(f"Contrat illisible : {borne(str(erreur))}. Lancer depuis la racine du dépôt, ou donner le chemin avec --contrat.")
         return 2
     sortie(f"Sondage en lecture seule du catalogue {arguments.catalogue}.")
     sortie(f"Connexion à l'entrepôt… (délai de chaque requête : {arguments.delai:g} s)")
@@ -260,18 +260,18 @@ def _sonder(
         executeur = fabriquer(arguments.profil, arguments.entrepot, attente_max=arguments.delai)
         executeur(SQL_CONNEXION, {})              # un jeton expiré ou un mauvais entrepôt échoue ICI, une seule fois, pas sur chaque essai
     except Exception as erreur:
-        sortie(f"Connexion impossible après {_duree(horloge() - debut)} : {_borne(f'{type(erreur).__name__} : {erreur}')}")
+        sortie(f"Connexion impossible après {duree(horloge() - debut)} : {borne(f'{type(erreur).__name__} : {erreur}')}")
         if not isinstance(erreur, SdkAbsent):
             sortie(CAUSES_A_VERIFIER)
         return 2
-    sortie(f"Connexion établie ({_duree(horloge() - debut)})")
+    sortie(f"Connexion établie ({duree(horloge() - debut)})")
 
     resultats = jouer_les_essais(executeur, horloge)
     for resultat in resultats:
         sortie(
             f"{'OK' if resultat.reussi else 'ÉCART':<7} {resultat.nom}"
             + (f" : {resultat.detail}" if resultat.detail else "")
-            + f" ({_duree(resultat.duree)})"
+            + f" ({duree(resultat.duree)})"
         )
     conformes = sum(resultat.reussi for resultat in resultats)
     sortie(f"Essais : {conformes} sur {len(resultats)} conformes.")
@@ -280,7 +280,7 @@ def _sonder(
     try:
         presence = verifier_la_presence(contrat, arguments.catalogue, executeur)
     except Exception as erreur:
-        sortie(f"ÉCHEC de la vérification de présence : {_borne(f'{type(erreur).__name__} : {erreur}')}")
+        sortie(f"ÉCHEC de la vérification de présence : {borne(f'{type(erreur).__name__} : {erreur}')}")
         code = 1
     else:
         for schema, present in presence.schemas.items():
