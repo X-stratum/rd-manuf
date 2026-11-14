@@ -1,6 +1,8 @@
 """Les schémas des tables : ce que l'on écrira dans Databricks, décrit sans rien écrire.
 
 Cinq tables, rangées par couche : `ops.registre`, `bronze.lignes`, `bronze.lignes_coupees`, `silver.lignes` et `silver.quarantaine`.
+À part, la table gold `gold.production_quotidienne` (`PRODUCTION_QUOTIDIENNE`, voir `gold.py`) est décrite ici mais n'est PAS dans
+`toutes_les_tables` : c'est la liste de ce que crée `creer_tables` et de ce que cherche le sondage, et le gold aura son propre écrivain.
 Ce module ne touche ni Spark ni Databricks : il décrit les colonnes et fabrique le texte SQL de création. L'écriture viendra ensuite.
 
 Les colonnes de données (bronze, silver) se déduisent du CONTRAT, pas d'une liste écrite ici : le bronze les garde toutes en texte, le
@@ -22,6 +24,7 @@ from rd_manuf.contrat import TYPE_CHAINE, TYPE_DATE, TYPE_DECIMAL, TYPE_ENTIER, 
 SCHEMA_OPS = "ops"
 SCHEMA_BRONZE = "bronze"
 SCHEMA_SILVER = "silver"
+SCHEMA_GOLD = "gold"
 
 TYPE_SQL_DU_CONTRAT = {TYPE_CHAINE: "STRING", TYPE_ENTIER: "BIGINT", TYPE_DECIMAL: "DOUBLE", TYPE_DATE: "DATE"}
 TYPE_VIOLATIONS = "ARRAY<STRUCT<code: STRING, colonnes: ARRAY<STRING>, message: STRING>>"
@@ -129,6 +132,24 @@ def table_bronze(contrat: Contrat) -> Table:
         _colonne("numero_ligne", "BIGINT"),
         *(_colonne(colonne.nom, "STRING", obligatoire=False) for colonne in contrat.colonnes),
     ))
+
+
+# Le gold : une ligne par pays, usine, ligne de fabrication et jour de production (voir `gold.py`). Les colonnes sont celles de la
+# dataclass, dans le même ordre ; quatre sont vides quand il n'y a rien à calculer (production nulle, aucune mesure de température).
+PRODUCTION_QUOTIDIENNE = Table(SCHEMA_GOLD, "production_quotidienne", (
+    _colonne("pays", "STRING"),
+    _colonne("usine", "STRING"),
+    _colonne("id_ligne", "STRING"),
+    _colonne("date_production", "DATE"),
+    _colonne("nb_lots", "BIGINT"),
+    _colonne("quantite_produite", "BIGINT"),
+    _colonne("quantite_rebut", "BIGINT"),
+    _colonne("taux_rebut", "DOUBLE", obligatoire=False),
+    _colonne("nb_mesures_temperature", "BIGINT"),
+    _colonne("temperature_moyenne", "DOUBLE", obligatoire=False),
+    _colonne("temperature_min", "DOUBLE", obligatoire=False),
+    _colonne("temperature_max", "DOUBLE", obligatoire=False),
+))
 
 
 def table_silver(contrat: Contrat) -> Table:

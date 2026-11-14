@@ -13,7 +13,7 @@ from html import escape
 from pathlib import Path
 
 SORTIE = Path(__file__).with_name("plan-global.svg")
-NUMERO_REVISION = 5
+NUMERO_REVISION = 6
 DATE_REVISION = "2026-11-14"
 
 # ==============================================================================
@@ -37,7 +37,8 @@ COLONNES = [
         ("Bronze", ["Lignes reçues en texte,", "coupées à part"], FAIT),
         ("Silver : une livraison", ["Lignes typées ;", "rejets en quarantaine"], FAIT),
         ("Silver : doublons", ["Même clé dans deux", "livraisons"], FAIT),
-        ("Gold", ["Indicateurs prêts", "pour le métier"], A_VENIR)]),
+        ("Gold local", ["Production par jour, usine", "et ligne, en Python"], FAIT),
+        ("Gold sur Databricks", ["Le même calcul en SQL,", "comparé à la référence"], A_VENIR)]),
     ("05", "PRÉVENIR", [
         ("Routage d'alertes", ["Qui agit et qui est", "informé, par rôles"], FAIT),
         ("Annuaire", ["Contacts gardés hors", "du dépôt public"], A_VENIR),
