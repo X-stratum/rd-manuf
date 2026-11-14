@@ -621,6 +621,83 @@ def test_des_lignes_sans_decision_d_une_couche_quelconque_font_attendre_les_livr
         EtatMagasin(contrat, magasin).appliquer(suivante)
 
 
+CAS_D_ORDRE = [
+    # (livraison sans décision, livraison à écrire, même heure d'arrivée ?, nom de la première plus petit ?, l'écriture est-elle refusée ?)
+    pytest.param("fra-aa-001-saine", "fra-aa-003-conflit-de-cle", True, True, True, id="meme-heure-nom-plus-petit-bloque"),
+    pytest.param("fra-aa-003-conflit-de-cle", "fra-aa-001-saine", True, False, False, id="meme-heure-nom-plus-grand-ne-bloque-pas"),
+    pytest.param("usa-ca-001-bloquee", "fra-aa-003-conflit-de-cle", False, False, True, id="heure-plus-tot-nom-plus-grand-bloque"),
+]
+
+
+@pytest.mark.parametrize(("orpheline", "suivante", "meme_heure", "nom_plus_petit", "refusee"), CAS_D_ORDRE)
+def test_le_garde_ordonne_les_livraisons_par_heure_puis_par_nom_comme_le_silver(
+    contrat, journee, jouee, orpheline, suivante, meme_heure, nom_plus_petit, refusee
+):
+    """Le silver classe `(heure d'arrivée, nom)` : à heure égale le nom départage, et l'heure l'emporte sur le nom."""
+    par_etiquette = {livraison.etiquette: resultat for livraison, resultat in zip(journee, jouee[1], strict=True)}
+    sans_decision, a_ecrire = par_etiquette[orpheline], par_etiquette[suivante]
+    heure = a_ecrire.ligne_registre.heure_arrivee
+    assert (sans_decision.ligne_registre.livraison_id < a_ecrire.ligne_registre.livraison_id) == nom_plus_petit
+    if not meme_heure:
+        assert sans_decision.ligne_registre.heure_arrivee < heure, "le cas doit mettre l'heure et le nom en désaccord"
+    bronze = couches(contrat)["bronze"]
+    lignes = [replace(ligne, heure_arrivee=heure) if meme_heure else ligne for ligne in sans_decision.lignes_bronze]
+    magasin = MagasinEnMemoire()
+    magasin.inserer_absentes(bronze.table, bronze.cles, [bronze.vers_enregistrement(ligne) for ligne in lignes])
+    etat = EtatMagasin(contrat, magasin)
+
+    if refusee:
+        with pytest.raises(DecisionManquante, match=sans_decision.ligne_registre.livraison_id):
+            etat.appliquer(a_ecrire)
+    else:
+        etat.appliquer(a_ecrire)
+        assert etat.registre == [a_ecrire.ligne_registre]
+
+
+def test_le_garde_et_le_silver_classent_les_livraisons_de_la_meme_facon_a_heure_egale(contrat, catalogue, journee, tmp_path):
+    """L'ordre `(heure d'arrivée, nom)` est écrit à deux endroits, le silver et le garde : ce test les compare pour que l'un ne change pas
+    sans l'autre. Deux livraisons de même heure et de mêmes lots : le silver met en quarantaine celle qu'il classe après, et c'est celle
+    que le garde refuse d'écrire tant que l'autre n'a pas sa décision."""
+    premiere, seconde = _de_la_journee(journee, "fra-aa-001-saine"), _de_la_journee(journee, "fra-aa-003-conflit-de-cle")
+    meme_heure = replace(premiere, arrivee=seconde.arrivee)
+
+    def en_conflit(livraisons, dossier):
+        resultats = jouer(contrat, catalogue, livraisons, tmp_path / dossier, Etat())
+        return {r.ligne_registre.livraison_id for r in resultats if r.silver.quarantaine}
+
+    def refusee(orpheline, suivante):
+        bronze = couches(contrat)["bronze"]
+        magasin = MagasinEnMemoire()
+        magasin.inserer_absentes(bronze.table, bronze.cles, [bronze.vers_enregistrement(ligne) for ligne in orpheline.lignes_bronze])
+        try:
+            EtatMagasin(contrat, magasin).appliquer(suivante)
+        except DecisionManquante:
+            return True
+        return False
+
+    dans_l_ordre = jouer(contrat, catalogue, [meme_heure, seconde], tmp_path / "ordre", Etat())
+    r_premiere, r_seconde = dans_l_ordre
+    assert r_premiere.ligne_registre.heure_arrivee == r_seconde.ligne_registre.heure_arrivee
+    silver_classe_la_premiere_avant = (en_conflit([meme_heure, seconde], "a") == {seconde.nom}
+                                       and en_conflit([seconde, meme_heure], "b") == set())
+    garde_classe_la_premiere_avant = refusee(r_premiere, r_seconde) and not refusee(r_seconde, r_premiere)
+
+    assert silver_classe_la_premiere_avant == garde_classe_la_premiere_avant == (premiere.nom < seconde.nom)
+
+
+@pytest.mark.parametrize("avec_lignes_sans_decision", [False, True], ids=["magasin-vide", "avec-lignes-sans-decision"])
+def test_une_heure_d_arrivee_sans_fuseau_est_toujours_refusee_par_la_meme_erreur(contrat, jouee, avec_lignes_sans_decision):
+    ancienne, suivante = jouee[1][0], jouee[1][1]
+    magasin = MagasinEnMemoire()
+    if avec_lignes_sans_decision:
+        bronze = couches(contrat)["bronze"]
+        magasin.inserer_absentes(bronze.table, bronze.cles, [bronze.vers_enregistrement(ligne) for ligne in ancienne.lignes_bronze])
+    sans_fuseau = replace(suivante, ligne_registre=replace(suivante.ligne_registre, heure_arrivee=datetime(2026, 11, 12, 9, 30)))
+
+    with pytest.raises(ValueError, match="fuseau"):
+        EtatMagasin(contrat, magasin).appliquer(sans_fuseau)
+
+
 def test_des_lignes_sans_decision_d_une_livraison_plus_tardive_ne_bloquent_pas_une_plus_ancienne(contrat, jouee):
     tardive, ancienne = jouee[1][-2], jouee[1][0]
     assert tardive.ligne_registre.heure_arrivee > ancienne.ligne_registre.heure_arrivee and tardive.lignes_bronze

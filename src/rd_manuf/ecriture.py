@@ -12,7 +12,7 @@ PROTOCOLE D'ÉCRITURE d'une livraison : les couches de données d'abord, le REGI
 d'atomicité ; le registre est ce qui décide d'un rejeu, donc ce qui dit « cette livraison est intégrée ». S'il manque, la livraison
 n'est pas intégrée : on la reprend avec la même heure d'arrivée, et comme chaque écriture n'insère que ce qui manque sur la clé de
 traçabilité, rien n'est dupliqué. Tant qu'une livraison n'a pas sa décision, ses lignes de données ne sont pas lues comme intégrées, et
-aucune livraison plus tardive n'est écrite (`DecisionManquante`) : l'ordre d'arrivée fait foi, la reprise passe avant la suite.
+aucune livraison classée après elle n'est écrite (`DecisionManquante`) : l'ordre du silver fait foi, la reprise passe avant la suite.
 
 Les valeurs viennent de fichiers qu'une usine envoie : aucune n'entre jamais dans le texte d'une requête. Elles voyagent en un
 paramètre JSON, typé par le schéma de la table. Seuls des identifiants (catalogue, schéma, table, colonnes, tous connus du code ou
@@ -309,20 +309,22 @@ class EtatMagasin:
         self._magasin.inserer_absentes(couche.table, couche.cles, [couche.vers_enregistrement(objet) for objet in objets])
 
     def _livraisons_a_reprendre(self, ligne: LigneRegistre) -> list[str]:
-        """Les livraisons arrivées STRICTEMENT plus tôt dont des lignes de données n'ont pas de décision.
+        """Les livraisons classées AVANT celle-ci, dont des lignes de données n'ont pas de décision.
 
-        La reprise d'une livraison garde son heure d'arrivée : ses propres lignes sans décision ne comptent donc pas.
+        Le classement est celui du silver : `(heure d'arrivée, nom)`. À heure égale le nom départage, l'heure l'emporte sur le nom. La
+        reprise d'une livraison garde son heure et son nom : ses propres lignes sans décision ne sont pas classées avant elle.
         """
+        arrivee = _utc(ligne.heure_arrivee)                    # la même erreur qu'à l'écriture, avec ou sans lignes en attente
         en_attente = {(o.livraison_id, o.heure_arrivee) for lignes in self.lignes_sans_decision().values() for o in lignes}
-        plus_tot = [(nom, heure) for nom, heure in en_attente if heure < ligne.heure_arrivee]
+        plus_tot = [(nom, heure) for nom, heure in en_attente if (heure, nom) < (arrivee, ligne.livraison_id)]
         return sorted(f"{nom} (arrivée {heure:%Y-%m-%d %H:%M:%S} UTC)" for nom, heure in plus_tot)
 
     def appliquer(self, resultat: ResultatLivraison) -> None:
         """Ajoute ce qu'une livraison a produit. Reprise possible : rejouée avec la même heure d'arrivée, elle ne duplique rien.
 
-        Refuse, sans rien écrire, d'écrire une livraison tant qu'une livraison arrivée plus tôt a des lignes de données sans registre
-        (`DecisionManquante`) : il faut reprendre celle-là d'abord, puis rejuger celle-ci. Une livraison PLUS TARDIVE sans registre
-        ne gêne pas.
+        Refuse, sans rien écrire, d'écrire une livraison tant qu'une livraison classée avant elle (heure d'arrivée, puis nom, comme au
+        silver) a des lignes de données sans registre (`DecisionManquante`) : il faut reprendre celle-là d'abord, puis rejuger celle-ci.
+        Une livraison classée APRÈS, sans registre, ne gêne pas.
         """
         a_reprendre = self._livraisons_a_reprendre(resultat.ligne_registre)
         if a_reprendre:
