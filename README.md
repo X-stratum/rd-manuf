@@ -134,8 +134,8 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `silver.py` : les lignes valides typées et la quarantaine d'une livraison, rejugées depuis le bronze comme à la réception ;
   - `tables.py` : les schémas des cinq tables (registre, bronze, lignes coupées, silver, quarantaine) et leur SQL de création, sans rien écrire ;
   - `ecriture.py` : l'écrivain, sans workspace : les conversions lignes ↔ tables, un magasin en mémoire ou en SQL, et l'état adossé à un magasin ;
-  - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ;
-  - `sondage.py` : la première exécution sur un workspace, en lecture seule : des essais de conversion et la présence de nos tables ;
+  - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ; une requête interrompue au clavier est annulée côté entrepôt ;
+  - `sondage.py` : la première exécution sur un workspace, en lecture seule : des essais de conversion et la présence de nos tables, avec le délai réglable, les durées affichées et l'interruption propre ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet, fichiers abîmés) ;
@@ -189,7 +189,15 @@ Il faut le SDK Databricks (`pip install -e ".[databricks]"`), un profil de conne
 python -m rd_manuf.sondage --profil NOM_DU_PROFIL --entrepot IDENTIFIANT_DE_L_ENTREPOT
 ```
 
-Le code de sortie est 0 si tout est conforme, 1 si un essai ou la vérification de présence a échoué, 2 si le lancement est refusé (tout catalogue autre que le playground est refusé avant toute connexion) ou si la connexion échoue. Le résultat s'affiche dans le terminal seulement : le relire avant de le coller dans une PR, il peut citer des noms propres à votre espace de travail.
+Option : `--delai 300` pour laisser cinq minutes à chaque requête.
+
+Le programme annonce d'abord « Connexion à l'entrepôt… » avec le délai de chaque requête : un entrepôt arrêté peut mettre du temps à démarrer, ce n'est pas un blocage. Ce délai est de 120 secondes par défaut (un choix prudent, pas une mesure) ; `--delai SECONDES` le change, et doit être un nombre fini et positif. La connexion, puis chaque essai, affichent leur durée en fin de ligne (`(1,5 s)`), ce qui donne les premières mesures réelles. Les requêtes sont envoyées en mode asynchrone : chacune attend au moins une pause de 2 secondes avant sa première interrogation, ce qui ajoute une vingtaine de secondes à un sondage complet. Ce mode d'envoi n'a pas encore été vu sur un vrai service.
+
+Si la connexion échoue, le programme affiche l'erreur avec le temps passé (`Connexion impossible après 120,0 s : …`) puis ce qu'il faut vérifier : le nom du profil, l'identifiant de l'entrepôt, que l'entrepôt est démarré, et qu'il reste du quota ou des crédits de calcul (c'est ce qui bloque un entrepôt de la Free Edition une fois le quota du jour épuisé). Si le SDK n'est pas installé, seule la commande d'installation est affichée.
+
+`Ctrl+C` interrompt le sondage : la requête en cours est annulée côté entrepôt, y compris pendant que l'entrepôt démarre, le programme dit que rien n'a été créé ni écrit, et sort avec le code 130. Seul l'instant de l'envoi lui-même, de l'ordre de la milliseconde, n'a pas encore d'identifiant à annuler. Un second `Ctrl+C` pendant l'annulation l'interrompt : la requête peut alors rester en file côté entrepôt, sans rien écrire.
+
+Le code de sortie est 0 si tout est conforme, 1 si un essai ou la vérification de présence a échoué, 2 si le lancement est refusé (tout catalogue autre que le playground est refusé avant toute connexion) ou si la connexion échoue, 130 si vous l'avez interrompu. Le résultat s'affiche dans le terminal seulement : le relire avant de le coller dans une PR, il peut citer des noms propres à votre espace de travail.
 
 ## Travailler sur le projet
 

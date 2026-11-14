@@ -131,7 +131,7 @@ def test_la_requete_part_avec_son_texte_ses_parametres_nommes_et_l_entrepot_et_r
     assert envoi["statement"] == "MERGE INTO t USING (SELECT :lignes) ON x"
     assert envoi["warehouse_id"] == "entrepot-1"
     assert envoi["parameters"] == [StatementParameterListItem(name="lignes", value='[{"a":1}]', type="STRING")]
-    assert envoi["wait_timeout"] == "50s"
+    assert envoi["wait_timeout"] == "0s"                  # asynchrone : l'identifiant revient tout de suite
     assert envoi["on_wait_timeout"] == ExecuteStatementRequestOnWaitTimeout.CONTINUE
     assert envoi["disposition"] == Disposition.INLINE and envoi["format"] == Format.JSON_ARRAY
     assert set(envoi) == {"statement", "warehouse_id", "parameters", "wait_timeout", "on_wait_timeout", "disposition", "format"}
@@ -402,6 +402,51 @@ def test_une_attente_synchrone_qui_use_tout_le_delai_annule_sans_attendre_davant
     assert horloge.pauses == [] and service.interrogations == [] and service.annulations == ["s1"]
 
 
+class ServiceQuiHonoreLeModeAsynchrone(FauxService):
+    """Tant qu'on ne demande pas l'envoi asynchrone (`wait_timeout` à « 0s »), l'envoi garde la main 50 s avant de rendre un identifiant ;
+    asynchrone, il le rend tout de suite. Avec `interruption`, l'utilisateur fait Ctrl+C dans la première fenêtre où l'on attend."""
+
+    def __init__(self, horloge, premiere, suivantes=(), interruption=False):
+        super().__init__(premiere, suivantes)
+        self.horloge, self.interruption = horloge, interruption
+
+    def execute_statement(self, **options):
+        if options["wait_timeout"] != "0s":
+            self.horloge.instant += 50.0
+            if self.interruption:
+                raise KeyboardInterrupt                      # aucun identifiant n'a été rendu : rien à annuler
+        return super().execute_statement(**options)
+
+    def get_statement(self, statement_id):
+        if self.interruption:
+            self.interrogations.append(statement_id)
+            raise KeyboardInterrupt
+        return super().get_statement(statement_id)
+
+
+def test_un_delai_court_est_respecte_meme_quand_l_entrepot_met_du_temps_a_repondre():
+    horloge = Horloge()
+    service = ServiceQuiHonoreLeModeAsynchrone(
+        horloge, _reponse(StatementState.PENDING), [_reponse(StatementState.PENDING) for _ in range(60)]
+    )
+
+    with pytest.raises(ErreurService, match="délai de 10 s"):
+        _executeur(service, horloge, attente_max=10.0, pause=2.0)("SELECT 1", {})
+
+    assert horloge.instant - DEPART == 10.0 and service.annulations == ["s1"]
+
+
+def test_ctrl_c_pendant_que_l_entrepot_demarre_annule_la_requete():
+    """Le cas du premier lancement réel : l'entrepôt démarre, la requête attend en file ; Ctrl+C doit l'en retirer."""
+    horloge = Horloge()
+    service = ServiceQuiHonoreLeModeAsynchrone(horloge, _reponse(StatementState.PENDING), interruption=True)
+
+    with pytest.raises(KeyboardInterrupt):
+        _executeur(service, horloge)("SELECT 1", {})
+
+    assert service.annulations == ["s1"]
+
+
 def test_les_appels_au_service_respectent_les_signatures_du_vrai_sdk():
     """Le faux service des autres tests accepte n'importe quel mot-clé ; celui-ci a les signatures de la VRAIE classe (`create_autospec`) :
     un mot-clé qu'une version du SDK ne connaîtrait plus, ou une arité fausse, fait échouer l'envoi, l'attente ou la suite des morceaux."""
@@ -439,6 +484,86 @@ def test_une_annulation_qui_echoue_ne_masque_pas_l_erreur_de_delai():
 
     with pytest.raises(ErreurService, match="délai"):
         _executeur(service, horloge, attente_max=3.0, pause=2.0)("SELECT 1", {})
+
+
+# ------------------------------------------------------------------------------
+# L'interruption au clavier (Ctrl+C) : la requête en cours est annulée côté service, puis l'interruption continue
+# ------------------------------------------------------------------------------
+class ServiceInterrompuALInterrogation(FauxService):
+    def get_statement(self, statement_id):
+        self.interrogations.append(statement_id)
+        raise KeyboardInterrupt
+
+
+def test_une_interruption_pendant_une_interrogation_annule_la_requete_puis_est_relancee():
+    service = ServiceInterrompuALInterrogation(_reponse(StatementState.RUNNING))
+
+    with pytest.raises(KeyboardInterrupt):
+        _executeur(service)("SELECT 1", {})
+
+    assert service.annulations == ["s1"]
+
+
+def test_une_interruption_pendant_la_pause_annule_la_requete_puis_est_relancee():
+    def dormir_interrompu(secondes):
+        raise KeyboardInterrupt
+
+    service = FauxService(_reponse(StatementState.RUNNING))
+    executeur = ExecuteurDatabricks(FauxClient(service), "entrepot-1", dormir=dormir_interrompu, horloge=Horloge(), pause=2.0)
+
+    with pytest.raises(KeyboardInterrupt):
+        executeur("SELECT 1", {})
+
+    assert service.annulations == ["s1"]
+
+
+def test_une_annulation_qui_echoue_ne_masque_pas_l_interruption():
+    class AnnulationImpossible(ServiceInterrompuALInterrogation):
+        def cancel_execution(self, statement_id):
+            raise RuntimeError("annulation refusée")
+
+    with pytest.raises(KeyboardInterrupt):
+        _executeur(AnnulationImpossible(_reponse(StatementState.RUNNING)))("SELECT 1", {})
+
+
+def test_une_interruption_pendant_l_envoi_n_annule_rien_faute_d_identifiant():
+    """Tant que le service n'a pas rendu d'identifiant de requête, il n'y a rien à annuler : l'interruption passe seule."""
+    class InterrompuALEnvoi(FauxService):
+        def execute_statement(self, **options):
+            raise KeyboardInterrupt
+
+    service = InterrompuALEnvoi(_reponse(SUCCES))
+
+    with pytest.raises(KeyboardInterrupt):
+        _executeur(service)("SELECT 1", {})
+
+    assert service.annulations == []
+
+
+def test_une_interruption_apres_la_fin_de_la_requete_n_annule_rien():
+    """Pendant la lecture des morceaux la requête est TERMINÉE : l'annuler n'aurait aucun sens."""
+    class InterrompuAUnMorceau(FauxService):
+        def get_statement_result_chunk_n(self, statement_id, chunk_index):
+            raise KeyboardInterrupt
+
+    colonnes = [_colonne("n", "LONG", "BIGINT")]
+    service = InterrompuAUnMorceau(_reponse(SUCCES, colonnes, [["1"]], suivant=1))
+
+    with pytest.raises(KeyboardInterrupt):
+        _executeur(service)("SELECT n FROM t", {})
+
+    assert service.annulations == []
+
+
+def test_l_annulation_sur_interruption_respecte_la_signature_du_vrai_sdk():
+    service = create_autospec(StatementExecutionAPI, instance=True)
+    service.execute_statement.return_value = _reponse(StatementState.RUNNING)
+    service.get_statement.side_effect = KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        _executeur(service)("SELECT 1", {})
+
+    service.cancel_execution.assert_called_once_with("s1")
 
 
 # ==============================================================================
