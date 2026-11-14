@@ -109,8 +109,27 @@ def sortie():
     return []       # les lignes imprimées par le lanceur
 
 
-def _lancer(argv, fabriquer, lignes):
-    return principal(argv, fabriquer=fabriquer, sortie=lignes.append)
+def _lancer(argv, fabriquer, lignes, **options):
+    return principal(argv, fabriquer=fabriquer, sortie=lignes.append, **options)
+
+
+def _lancer_en_cas_d_interruption(argv, fabriquer, lignes):
+    """Si le lanceur laissait passer l'interruption, pytest abandonnerait toute la session : on la transforme en échec lisible."""
+    try:
+        return _lancer(argv, fabriquer, lignes)
+    except KeyboardInterrupt:
+        pytest.fail("le lanceur n'a pas rattrapé l'interruption")
+
+
+class Cadran:
+    """Une horloge qui avance de `pas` secondes à chaque lecture : la durée d'un bloc mesuré par deux lectures vaut toujours `pas`."""
+
+    def __init__(self, pas=1.5):
+        self.instant, self.pas = 100.0, pas
+
+    def __call__(self):
+        self.instant += self.pas
+        return self.instant
 
 
 ARGUMENTS = ["--profil", "mon-profil", "--entrepot", "abc123", "--contrat", str(CHEMIN_CONTRAT)]
@@ -353,7 +372,7 @@ def test_la_presence_refuse_un_catalogue_inconnu_avant_tout_envoi(contrat):
 def test_toute_requete_envoyee_est_un_select_sans_mot_d_ecriture(sortie):
     faux = FauxExecuteur(schemas=["ops"], tables=[("ops", "registre")])
 
-    code = _lancer(ARGUMENTS, lambda profil, entrepot: faux, sortie)
+    code = _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: faux, sortie)
 
     assert code == 0 and faux.envoyes
     for sql, parametres in faux.envoyes:
@@ -375,7 +394,7 @@ def test_les_requetes_de_presence_sont_aussi_en_lecture_seule(contrat):
 def test_le_sondage_n_ecrit_aucun_fichier(tmp_path, monkeypatch, sortie):
     monkeypatch.chdir(tmp_path)
 
-    _lancer(ARGUMENTS, lambda profil, entrepot: FauxExecuteur(), sortie)
+    _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: FauxExecuteur(), sortie)
 
     assert list(tmp_path.iterdir()) == []
 
@@ -386,7 +405,7 @@ def test_le_sondage_n_ecrit_aucun_fichier(tmp_path, monkeypatch, sortie):
 def test_le_lanceur_transmet_le_profil_et_l_entrepot_a_la_fabrique(sortie):
     recus = []
 
-    def fabriquer(profil, entrepot):
+    def fabriquer(profil, entrepot, attente_max=None):
         recus.append((profil, entrepot))
         return FauxExecuteur()
 
@@ -396,7 +415,7 @@ def test_le_lanceur_transmet_le_profil_et_l_entrepot_a_la_fabrique(sortie):
 
 
 def test_tout_conforme_sort_avec_zero_et_dit_que_rien_n_a_ete_ecrit(sortie):
-    code = _lancer(ARGUMENTS, lambda profil, entrepot: FauxExecuteur(), sortie)
+    code = _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: FauxExecuteur(), sortie)
     texte = "\n".join(sortie)
 
     assert code == 0
@@ -405,7 +424,7 @@ def test_tout_conforme_sort_avec_zero_et_dit_que_rien_n_a_ete_ecrit(sortie):
 
 
 def test_un_ecart_sort_avec_un_et_nomme_l_essai(sortie):
-    code = _lancer(ARGUMENTS, lambda profil, entrepot: _repond_sauf("liste", [{"v": ["a"]}]), sortie)
+    code = _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: _repond_sauf("liste", [{"v": ["a"]}]), sortie)
     texte = "\n".join(sortie)
 
     assert code == 1
@@ -417,7 +436,7 @@ def test_un_ecart_sort_avec_un_et_nomme_l_essai(sortie):
 def test_le_sondage_dit_pour_chaque_schema_et_chaque_table_s_il_existe(sortie):
     faux = FauxExecuteur(schemas=["ops"], tables=[("ops", "registre")])
 
-    _lancer(ARGUMENTS, lambda profil, entrepot: faux, sortie)
+    _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: faux, sortie)
     texte = "\n".join(sortie)
 
     assert re.search(r"schéma ops\s*: présent", texte) and re.search(r"schéma bronze\s*: absent", texte)
@@ -427,7 +446,7 @@ def test_le_sondage_dit_pour_chaque_schema_et_chaque_table_s_il_existe(sortie):
 
 def test_la_sortie_dit_que_absent_veut_dire_absent_pour_ce_profil(sortie):
     """`information_schema` ne montre que ce sur quoi le profil a des droits : un « absent » n'est pas une preuve d'absence."""
-    _lancer(ARGUMENTS, lambda profil, entrepot: FauxExecuteur(), sortie)
+    _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: FauxExecuteur(), sortie)
 
     note = "\n".join(ligne for ligne in sortie if "profil" in ligne)
 
@@ -440,7 +459,7 @@ def test_un_echec_de_la_verification_de_presence_sort_avec_un_et_dit_pourquoi(so
             raise ErreurService("La requête a fini à l'état FAILED : catalogue introuvable.")
         return FauxExecuteur()._parfaite(sql, parametres)
 
-    code = _lancer(ARGUMENTS, lambda profil, entrepot: FauxExecuteur(reponse), sortie)
+    code = _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: FauxExecuteur(reponse), sortie)
 
     assert code == 1
     assert "catalogue introuvable" in "\n".join(sortie)
@@ -449,7 +468,7 @@ def test_un_echec_de_la_verification_de_presence_sort_avec_un_et_dit_pourquoi(so
 def test_la_connexion_est_verifiee_par_une_requete_avant_les_essais(sortie):
     faux = FauxExecuteur()
 
-    _lancer(ARGUMENTS, lambda profil, entrepot: faux, sortie)
+    _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: faux, sortie)
 
     assert faux.envoyes[0] == ("SELECT 1 AS v", {})
     assert [sql for sql, _ in faux.envoyes[1:3]] == [ESSAIS[0].sql, ESSAIS[1].sql]
@@ -463,7 +482,7 @@ def test_une_requete_de_connexion_qui_echoue_sort_avec_deux_au_lieu_de_onze_ecar
     """Un jeton expiré ou un mauvais identifiant d'entrepôt échoue sur CHAQUE requête : un seul message, pas onze écarts."""
     faux = FauxExecuteur(_leve(erreur))
 
-    code = _lancer(ARGUMENTS, lambda profil, entrepot: faux, sortie)
+    code = _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: faux, sortie)
     texte = "\n".join(sortie)
 
     assert code == 2
@@ -477,7 +496,7 @@ ERREURS_DE_CONNEXION = [RuntimeError("Le SDK Databricks n'est pas installé."), 
 
 @pytest.mark.parametrize("erreur", ERREURS_DE_CONNEXION)
 def test_une_connexion_impossible_sort_avec_deux_sans_jouer_d_essai(erreur, sortie):
-    def fabriquer(profil, entrepot):
+    def fabriquer(profil, entrepot, attente_max=None):
         raise erreur
 
     code = _lancer(ARGUMENTS, fabriquer, sortie)
@@ -492,7 +511,7 @@ def test_une_connexion_impossible_sort_avec_deux_sans_jouer_d_essai(erreur, sort
 def test_un_catalogue_autre_que_le_playground_est_refuse_avant_toute_connexion(catalogue, sortie):
     appels = []
 
-    code = _lancer([*ARGUMENTS, "--catalogue", catalogue], lambda profil, entrepot: appels.append(1), sortie)
+    code = _lancer([*ARGUMENTS, "--catalogue", catalogue], lambda profil, entrepot, attente_max=None: appels.append(1), sortie)
 
     assert code == 2
     assert appels == []
@@ -502,7 +521,7 @@ def test_un_catalogue_autre_que_le_playground_est_refuse_avant_toute_connexion(c
 def test_le_catalogue_par_defaut_est_le_playground(sortie):
     faux = FauxExecuteur()
 
-    _lancer(ARGUMENTS, lambda profil, entrepot: faux, sortie)
+    _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: faux, sortie)
 
     assert any(f"`{PLAYGROUND}`" in sql for sql, _ in faux.envoyes)
 
@@ -514,7 +533,7 @@ def test_profil_et_entrepot_sont_obligatoires(manquant, sortie):
     del argv[position:position + 2]
 
     with pytest.raises(SystemExit) as sortie_argparse:
-        _lancer(argv, lambda profil, entrepot: FauxExecuteur(), sortie)
+        _lancer(argv, lambda profil, entrepot, attente_max=None: FauxExecuteur(), sortie)
 
     assert sortie_argparse.value.code == 2
 
@@ -523,14 +542,14 @@ def test_le_contrat_par_defaut_est_celui_du_depot(monkeypatch, sortie):
     monkeypatch.chdir(RACINE_DEPOT)
     argv = ["--profil", "mon-profil", "--entrepot", "abc123"]
 
-    assert _lancer(argv, lambda profil, entrepot: FauxExecuteur(), sortie) == 0
+    assert _lancer(argv, lambda profil, entrepot, attente_max=None: FauxExecuteur(), sortie) == 0
 
 
 def test_un_contrat_introuvable_sort_avec_deux_sans_connexion(tmp_path, sortie):
     appels = []
     argv = ["--profil", "mon-profil", "--entrepot", "abc123", "--contrat", str(tmp_path / "absent.yaml")]
 
-    code = _lancer(argv, lambda profil, entrepot: appels.append(1), sortie)
+    code = _lancer(argv, lambda profil, entrepot, attente_max=None: appels.append(1), sortie)
 
     assert code == 2 and appels == []
     assert "racine du dépôt" in "\n".join(sortie) and "--contrat" in "\n".join(sortie)
@@ -612,3 +631,176 @@ def test_le_sondage_lit_le_json_comme_le_magasin_sql():
 
         assert options_de_l_essai == options_de_l_ecrivain
         assert forme_de_l_essai.startswith("ARRAY<STRUCT<") and forme_de_l_ecrivain.startswith("ARRAY<STRUCT<")
+
+
+# ==============================================================================
+# ⏱️ L'ATTENTE : délai réglable, ligne d'attente, durées mesurées, causes à vérifier, interruption
+# ==============================================================================
+def test_le_delai_par_defaut_est_de_120_secondes_et_va_a_la_fabrique(sortie):
+    recus = []
+
+    def fabriquer(profil, entrepot, attente_max=None):
+        recus.append(attente_max)
+        return FauxExecuteur()
+
+    _lancer(ARGUMENTS, fabriquer, sortie)
+
+    assert recus == [120.0]
+
+
+def test_l_argument_delai_est_transmis_a_la_fabrique(sortie):
+    recus = []
+
+    def fabriquer(profil, entrepot, attente_max=None):
+        recus.append(attente_max)
+        return FauxExecuteur()
+
+    _lancer([*ARGUMENTS, "--delai", "30"], fabriquer, sortie)
+
+    assert recus == [30.0]
+
+
+@pytest.mark.parametrize("valeur", ["0", "-5", "abc", "nan", "inf"])
+def test_un_delai_invalide_est_refuse_avant_toute_connexion(valeur, sortie, capsys):
+    appels = []
+
+    with pytest.raises(SystemExit) as sortie_argparse:
+        _lancer([*ARGUMENTS, "--delai", valeur], lambda profil, entrepot, attente_max=None: appels.append(1), sortie)
+
+    assert sortie_argparse.value.code == 2 and appels == []
+    assert "fini et positif" in capsys.readouterr().err
+
+
+def test_la_fabrique_reelle_donne_le_delai_a_l_executeur(monkeypatch):
+    pytest.importorskip("databricks.sdk")
+    import databricks.sdk
+
+    from rd_manuf import sondage
+    from rd_manuf.sondage import fabriquer_executeur_reel
+
+    recus = {}
+
+    class FauxExecuteurDatabricks:
+        def __init__(self, client, entrepot, **options):
+            recus.update(entrepot=entrepot, **options)
+
+    monkeypatch.setattr(databricks.sdk, "WorkspaceClient", lambda **options: object())
+    monkeypatch.setattr(sondage, "ExecuteurDatabricks", FauxExecuteurDatabricks)
+
+    fabriquer_executeur_reel("mon-profil", "abc123", attente_max=45.0)
+
+    assert recus == {"entrepot": "abc123", "attente_max": 45.0}
+
+
+def test_le_lanceur_dit_qu_il_se_connecte_avant_d_envoyer_la_premiere_requete(sortie):
+    vu_avant_l_envoi = []
+    faux = FauxExecuteur()
+
+    def espion(sql, parametres):
+        if not vu_avant_l_envoi:
+            vu_avant_l_envoi.extend(sortie)
+        return faux(sql, parametres)
+
+    _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: espion, sortie)
+
+    assert any("Connexion à l'entrepôt" in ligne for ligne in vu_avant_l_envoi)
+
+
+def test_la_ligne_d_attente_est_affichee_meme_si_la_connexion_echoue(sortie):
+    _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: FauxExecuteur(_leve(PermissionError("jeton expiré"))), sortie)
+
+    assert any("Connexion à l'entrepôt" in ligne for ligne in sortie)
+
+
+def test_la_duree_de_la_connexion_et_de_chaque_essai_est_affichee(sortie):
+    _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: FauxExecuteur(), sortie, horloge=Cadran(1.5))
+    texte = "\n".join(sortie)
+
+    assert re.search(r"Connexion établie \(1,5 s\)", texte)
+    assert re.search(r"^OK\s+entier \(1,5 s\)$", texte, re.MULTILINE)
+    assert len(re.findall(r"\(1,5 s\)$", texte, re.MULTILINE)) == len(ESSAIS) + 1
+
+
+def test_la_duree_d_un_essai_en_ecart_est_affichee_apres_son_detail(sortie):
+    code = _lancer(
+        ARGUMENTS, lambda profil, entrepot, attente_max=None: _repond_sauf("liste", [{"v": ["a"]}]), sortie, horloge=Cadran(2.25)
+    )
+
+    assert code == 1
+    assert re.search(r"^ÉCART\s+liste : attendu .* \(2,2 s\)$", "\n".join(sortie), re.MULTILINE)
+
+
+def test_chaque_essai_porte_sa_duree_mesuree_sur_l_horloge_donnee():
+    resultats = jouer_les_essais(FauxExecuteur(), horloge=Cadran(1.5))
+
+    assert [r.duree for r in resultats] == [1.5] * len(ESSAIS)
+
+
+def test_une_connexion_impossible_liste_les_causes_a_verifier(sortie):
+    code = _lancer(ARGUMENTS, lambda profil, entrepot, attente_max=None: FauxExecuteur(_leve(PermissionError("jeton expiré"))), sortie)
+    texte = "\n".join(sortie)
+
+    assert code == 2
+    for cause in ("profil", "identifiant de l'entrepôt", "SQL Warehouses", "quota"):
+        assert cause in texte, cause
+
+
+def test_une_connexion_impossible_dit_apres_combien_de_temps(sortie):
+    code = _lancer(
+        ARGUMENTS, lambda profil, entrepot, attente_max=None: FauxExecuteur(_leve(PermissionError("jeton expiré"))), sortie,
+        horloge=Cadran(1.5),
+    )
+
+    assert code == 2
+    assert re.search(r"^Connexion impossible après 1,5 s : PermissionError : jeton expiré$", "\n".join(sortie), re.MULTILINE)
+
+
+def test_une_autre_runtimeerror_garde_les_causes_a_verifier(sortie):
+    """Seul le SDK absent les supprime : une panne quelconque, même de type `RuntimeError`, doit les afficher."""
+    def fabriquer(profil, entrepot, attente_max=None):
+        raise RuntimeError("panne quelconque")
+
+    code = _lancer(ARGUMENTS, fabriquer, sortie)
+    texte = "\n".join(sortie)
+
+    assert code == 2
+    assert "panne quelconque" in texte and "À vérifier" in texte and "quota" in texte
+
+
+def test_un_sdk_absent_dit_comment_l_installer_sans_pister_le_profil_ni_le_quota(monkeypatch, sortie):
+    monkeypatch.setitem(sys.modules, "databricks.sdk", None)         # « import databricks.sdk » échoue comme si le SDK était absent
+
+    code = principal(ARGUMENTS, sortie=sortie.append)             # la fabrique réelle, pas un faux
+    texte = "\n".join(sortie)
+
+    assert code == 2
+    assert COMMANDE_D_INSTALLATION in texte
+    assert "À vérifier" not in texte and "quota" not in texte
+
+
+def test_une_interruption_pendant_la_connexion_sort_avec_130_sans_se_dire_une_panne(sortie):
+    def interrompu(sql, parametres):
+        raise KeyboardInterrupt
+
+    code = _lancer_en_cas_d_interruption(ARGUMENTS, lambda profil, entrepot, attente_max=None: FauxExecuteur(interrompu), sortie)
+    texte = "\n".join(sortie)
+
+    assert code == 130
+    assert "Interrompu" in texte and "Connexion impossible" not in texte
+
+
+def test_une_interruption_pendant_les_essais_arrete_les_suivants_et_sort_avec_130(sortie):
+    faux = FauxExecuteur()
+
+    def reponse(sql, parametres):
+        if len(faux.envoyes) == 3:                  # la connexion, le premier essai, puis le deuxième est interrompu
+            raise KeyboardInterrupt
+        return faux._parfaite(sql, parametres)
+
+    faux.reponse = reponse
+
+    code = _lancer_en_cas_d_interruption(ARGUMENTS, lambda profil, entrepot, attente_max=None: faux, sortie)
+    texte = "\n".join(sortie)
+
+    assert code == 130 and len(faux.envoyes) == 3
+    assert "Interrompu" in texte and "schéma" not in texte

@@ -24,7 +24,9 @@ from contextlib import suppress
 from datetime import UTC, date, datetime
 from typing import Any
 
-ATTENTE_SYNCHRONE = "50s"       # le maximum que l'API accepte pour une réponse immédiate ; au-delà on interroge
+# Envoi asynchrone : le service rend tout de suite l'identifiant de la requête, qu'on interroge ensuite. Ainsi Ctrl+C peut l'annuler
+# et le délai est contrôlé à chaque pause, même pendant le démarrage d'un entrepôt.
+ATTENTE_SYNCHRONE = "0s"
 ETATS_EN_COURS = ("PENDING", "RUNNING")
 ETAT_REUSSI = "SUCCEEDED"
 
@@ -133,7 +135,8 @@ class ExecuteurDatabricks:
 
     `client` est un client du SDK (ses requêtes passent par `client.statement_execution`), `entrepot` l'identifiant de l'entrepôt SQL : tous
     deux viennent de l'appelant. `dormir` et `horloge` sont injectables pour que les tests n'attendent pas pour de vrai. Une requête qui ne
-    finit pas dans `attente_max` secondes APRÈS SON ENVOI (l'attente synchrone de l'envoi comprise) est annulée puis refusée.
+    finit pas dans `attente_max` secondes APRÈS SON ENVOI est annulée puis refusée. Une interruption au clavier pendant l'attente
+    l'annule aussi, puis continue ; l'envoi étant asynchrone, seul l'instant de l'envoi lui-même n'a pas encore d'identifiant à annuler.
     """
 
     def __init__(
@@ -178,13 +181,19 @@ class ExecuteurDatabricks:
         return self._lignes(service, reponse)
 
     def _attendre(self, service: Any, reponse: Any, debut: float) -> Any:
-        while _nom_de_l_etat(reponse) in ETATS_EN_COURS:
-            if self._horloge() - debut >= self._attente_max:
-                with suppress(Exception):                      # l'annulation est un effort : son échec ne doit pas masquer le délai
-                    service.cancel_execution(reponse.statement_id)
-                raise ErreurService(f"La requête n'a pas fini dans le délai de {self._attente_max:g} s : elle a été annulée.")
-            self._dormir(self._pause)
-            reponse = service.get_statement(reponse.statement_id)
+        try:
+            while _nom_de_l_etat(reponse) in ETATS_EN_COURS:
+                if self._horloge() - debut >= self._attente_max:
+                    with suppress(Exception):                  # l'annulation est un effort : son échec ne doit pas masquer le délai
+                        service.cancel_execution(reponse.statement_id)
+                    raise ErreurService(f"La requête n'a pas fini dans le délai de {self._attente_max:g} s : elle a été annulée.")
+                self._dormir(self._pause)
+                reponse = service.get_statement(reponse.statement_id)
+        except KeyboardInterrupt:
+            # Arrêter d'interroger n'annule pas la requête côté service : elle partirait plus tard, au démarrage de l'entrepôt.
+            with suppress(Exception):
+                service.cancel_execution(reponse.statement_id)
+            raise
         return reponse
 
     def _lignes(self, service: Any, reponse: Any) -> list[dict[str, Any]]:

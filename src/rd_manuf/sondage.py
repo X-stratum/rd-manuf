@@ -19,14 +19,20 @@ Le profil et l'identifiant de l'entrepôt viennent de la ligne de commande : ils
 lus ailleurs que par le SDK. Le lanceur refuse tout catalogue autre que le playground, avant toute connexion. Ce qu'il affiche va
 au terminal de la personne seulement ; il n'écrit aucun fichier.
 
+Chaque requête a un délai (`--delai`, 120 s par défaut) : une requête qui ne finit pas est annulée puis rapportée. Le lanceur dit qu'il se
+connecte avant d'attendre, affiche la durée de la connexion (démarrage de l'entrepôt compris) et de chaque essai, et, si l'on
+l'interrompt (Ctrl+C), annule la requête en cours côté service.
+
 Codes de sortie : 0 tout est conforme ; 1 un essai ou la vérification de présence a échoué ;
-2 le lancement est refusé (catalogue, contrat, ou connexion : la toute première requête échoue).
+2 le lancement est refusé (catalogue, contrat, ou connexion : la toute première requête échoue) ; 130 interrompu au clavier.
 """
 from __future__ import annotations
 
 import argparse
+import math
+import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -39,6 +45,11 @@ from rd_manuf.tables import SCHEMA_BRONZE, SCHEMA_OPS, SCHEMA_SILVER, toutes_les
 
 CONTRAT_PAR_DEFAUT = "contracts/data/livraison_production.yaml"      # relatif à la racine du dépôt, d'où le programme se lance
 LONGUEUR_MAX_DU_DETAIL = 200
+DELAI_PAR_DEFAUT = 120.0                              # secondes par requête : un choix prudent, non mesuré (le premier lancement le dira)
+CAUSES_A_VERIFIER = (
+    "À vérifier : le nom du profil ; l'identifiant de l'entrepôt ; que l'entrepôt est démarré (SQL Warehouses, état de l'entrepôt) ; "
+    "qu'il reste du quota ou des crédits de calcul (un entrepôt qui ne démarre pas peut venir de là)."
+)
 SQL_CONNEXION = "SELECT 1 AS v"                       # la première requête : si elle échoue, rien d'autre ne marchera
 SCHEMAS = (SCHEMA_OPS, SCHEMA_BRONZE, SCHEMA_SILVER)
 # La lecture JSON demandée dans le mode et la forme de `MagasinSql`.
@@ -67,6 +78,7 @@ class ResultatEssai:
     nom: str
     reussi: bool
     detail: str
+    duree: float = 0.0                # secondes, mesurées sur l'horloge donnée : affichée seulement, jamais comparée
 
 
 MIDI_UTC = datetime(2026, 11, 14, 12, 0, tzinfo=UTC)
@@ -127,9 +139,14 @@ def _jouer(essai: Essai, executeur: Executeur) -> ResultatEssai:
     return ResultatEssai(essai.nom, False, _borne(f"attendu {essai.attendu!r}, obtenu {lignes!r}"))
 
 
-def jouer_les_essais(executeur: Executeur) -> list[ResultatEssai]:
-    """Joue tous les essais dans l'ordre, un par requête ; une panne ou un écart n'arrête pas les suivants."""
-    return [_jouer(essai, executeur) for essai in ESSAIS]
+def jouer_les_essais(executeur: Executeur, horloge: Callable[[], float] = time.monotonic) -> list[ResultatEssai]:
+    """Joue tous les essais dans l'ordre, un par requête ; une panne ou un écart n'arrête pas les suivants. Chaque durée est mesurée."""
+    resultats = []
+    for essai in ESSAIS:
+        debut = horloge()
+        resultat = _jouer(essai, executeur)
+        resultats.append(replace(resultat, duree=horloge() - debut))
+    return resultats
 
 
 # ==============================================================================
@@ -163,15 +180,37 @@ def verifier_la_presence(contrat: Contrat, catalogue: str, executeur: Executeur)
 # ==============================================================================
 # 🚀 LE LANCEUR
 # ==============================================================================
-def fabriquer_executeur_reel(profil: str, entrepot: str) -> Executeur:
-    """L'exécuteur réel : le client du SDK est créé ICI, avec le profil de la personne (le SDK n'est demandé qu'à ce moment)."""
+class SdkAbsent(RuntimeError):
+    """Le SDK Databricks n'est pas installé : le message dit déjà quoi faire, ce n'est pas une panne de connexion."""
+
+
+def fabriquer_executeur_reel(profil: str, entrepot: str, attente_max: float = DELAI_PAR_DEFAUT) -> Executeur:
+    """L'exécuteur réel : le client du SDK est créé ICI, avec le profil de la personne (le SDK n'est demandé qu'à ce moment).
+
+    `attente_max` est le délai, en secondes, de chaque requête (connexion et essais).
+    """
     try:
         from databricks.sdk import WorkspaceClient
     except ImportError as erreur:
-        raise RuntimeError(
+        raise SdkAbsent(
             "Le SDK Databricks n'est pas installé : `pip install -e \".[databricks]\"` depuis la racine du dépôt."
         ) from erreur
-    return ExecuteurDatabricks(WorkspaceClient(profile=profil), entrepot)
+    return ExecuteurDatabricks(WorkspaceClient(profile=profil), entrepot, attente_max=attente_max)
+
+
+def _delai_positif(texte: str) -> float:
+    message = "le délai doit être un nombre de secondes fini et positif"
+    try:
+        delai = float(texte)
+    except ValueError:
+        raise argparse.ArgumentTypeError(message) from None
+    if not math.isfinite(delai) or delai <= 0:
+        raise argparse.ArgumentTypeError(message)
+    return delai
+
+
+def _duree(secondes: float) -> str:
+    return f"{secondes:.1f}".replace(".", ",") + " s"
 
 
 def _lecteur_d_arguments() -> argparse.ArgumentParser:
@@ -183,16 +222,29 @@ def _lecteur_d_arguments() -> argparse.ArgumentParser:
     lecteur.add_argument("--entrepot", required=True, help="l'identifiant de l'entrepôt SQL à utiliser")
     lecteur.add_argument("--catalogue", default=CATALOGUE_PAR_DEFAUT, help=f"refusé s'il n'est pas le playground ({CATALOGUE_PAR_DEFAUT})")
     lecteur.add_argument("--contrat", default=CONTRAT_PAR_DEFAUT, help="le contrat de données, relatif au dossier courant")
+    lecteur.add_argument("--delai", type=_delai_positif, default=DELAI_PAR_DEFAUT,
+                         help=f"délai maximal de chaque requête, en secondes ({DELAI_PAR_DEFAUT:g} par défaut)")
     return lecteur
 
 
 def principal(
     argv: Sequence[str] | None = None,
     *,
-    fabriquer: Callable[[str, str], Executeur] = fabriquer_executeur_reel,
+    fabriquer: Callable[..., Executeur] = fabriquer_executeur_reel,
     sortie: Callable[[str], Any] = print,
+    horloge: Callable[[], float] = time.monotonic,
 ) -> int:
     arguments = _lecteur_d_arguments().parse_args(argv)
+    try:
+        return _sonder(arguments, fabriquer, sortie, horloge)
+    except KeyboardInterrupt:
+        sortie("Interrompu. Rien n'a été créé ni écrit : lecture seule.")
+        return 130
+
+
+def _sonder(
+    arguments: argparse.Namespace, fabriquer: Callable[..., Executeur], sortie: Callable[[str], Any], horloge: Callable[[], float]
+) -> int:
     if arguments.catalogue != CATALOGUE_PAR_DEFAUT:
         sortie(f"Le sondage ne s'exécute que sur le catalogue playground ({CATALOGUE_PAR_DEFAUT}), pas sur « {arguments.catalogue} ».")
         return 2
@@ -201,17 +253,26 @@ def principal(
     except (OSError, ContratInvalide) as erreur:
         sortie(f"Contrat illisible : {_borne(str(erreur))}. Lancer depuis la racine du dépôt, ou donner le chemin avec --contrat.")
         return 2
+    sortie(f"Sondage en lecture seule du catalogue {arguments.catalogue}.")
+    sortie(f"Connexion à l'entrepôt… (délai de chaque requête : {arguments.delai:g} s)")
+    debut = horloge()
     try:
-        executeur = fabriquer(arguments.profil, arguments.entrepot)
+        executeur = fabriquer(arguments.profil, arguments.entrepot, attente_max=arguments.delai)
         executeur(SQL_CONNEXION, {})              # un jeton expiré ou un mauvais entrepôt échoue ICI, une seule fois, pas sur chaque essai
     except Exception as erreur:
-        sortie(f"Connexion impossible : {_borne(f'{type(erreur).__name__} : {erreur}')}")
+        sortie(f"Connexion impossible après {_duree(horloge() - debut)} : {_borne(f'{type(erreur).__name__} : {erreur}')}")
+        if not isinstance(erreur, SdkAbsent):
+            sortie(CAUSES_A_VERIFIER)
         return 2
+    sortie(f"Connexion établie ({_duree(horloge() - debut)})")
 
-    sortie(f"Sondage en lecture seule du catalogue {arguments.catalogue}.")
-    resultats = jouer_les_essais(executeur)
+    resultats = jouer_les_essais(executeur, horloge)
     for resultat in resultats:
-        sortie(f"{'OK' if resultat.reussi else 'ÉCART':<7} {resultat.nom}" + (f" : {resultat.detail}" if resultat.detail else ""))
+        sortie(
+            f"{'OK' if resultat.reussi else 'ÉCART':<7} {resultat.nom}"
+            + (f" : {resultat.detail}" if resultat.detail else "")
+            + f" ({_duree(resultat.duree)})"
+        )
     conformes = sum(resultat.reussi for resultat in resultats)
     sortie(f"Essais : {conformes} sur {len(resultats)} conformes.")
 
