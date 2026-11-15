@@ -139,6 +139,31 @@ def test_un_yaml_illisible_est_refuse(tmp_path):
 
 
 @pytest.mark.parametrize(
+    ("ancien", "nouveau", "cle"),
+    [
+        (None, "\nroles: [emetteur, metier, equipe_data]\n", "roles"),               # même valeur : une copie-colle
+        ("toujours_informes: [metier]\n", "toujours_informes: [metier]\ntoujours_informes: []\n", "toujours_informes"),
+        ("codes:\n", "codes:\n  HORS_PLAGE:\n    agit: metier\n", "HORS_PLAGE"),     # changerait en silence QUI doit agir
+        ("structure:\n", "structure:\n  FICHIER_ILLISIBLE:\n    agit: metier\n", "FICHIER_ILLISIBLE"),
+    ],
+    ids=["roles en fin de fichier", "toujours_informes", "code répété dans codes", "code répété dans structure"],
+)
+def test_une_cle_repetee_dans_le_catalogue_est_refusee_avec_son_nom(tmp_path, ancien, nouveau, cle):
+    """PyYAML garde en silence la DERNIÈRE valeur : un code répété changerait qui doit agir, sans un mot."""
+    texte = CHEMIN_CATALOGUE.read_text(encoding="utf-8")
+    if ancien is None:
+        texte += nouveau
+    else:
+        assert texte.count(ancien) == 1, "le texte de départ a changé : adapter le test"
+        texte = texte.replace(ancien, nouveau)
+    chemin = tmp_path / "catalogue_repete.yaml"
+    chemin.write_text(texte, encoding="utf-8")
+
+    with pytest.raises(CatalogueInvalide, match=f"clé « {cle} » est répétée"):
+        charger_catalogue(chemin)
+
+
+@pytest.mark.parametrize(
     "contenu",
     [
         pytest.param("", id="fichier-vide"),

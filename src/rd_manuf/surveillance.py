@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Hashable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -37,6 +37,7 @@ from typing import Any
 import yaml
 
 from rd_manuf.contrat import StatutLivraison
+from rd_manuf.lecture_yaml import lire_yaml_sans_cle_repetee
 from rd_manuf.nom_fichier import MOTIF_LIGNE, MOTIF_PAYS, MOTIF_USINE
 from rd_manuf.registre import STATUTS_INTEGRES, LigneRegistre
 
@@ -116,26 +117,9 @@ class ConstatTauxRejet:
 # ==============================================================================
 # 📥 LE FICHIER DES SOURCES ATTENDUES
 # ==============================================================================
-class _LecteurSansCleRepetee(yaml.SafeLoader):
-    """PyYAML garde en silence la DERNIÈRE valeur d'une clé répétée : une copie-colle ferait disparaître des sources de la surveillance,
-    ou changerait un délai, sans un mot. Ce lecteur refuse la répétition, avec le nom de la clé et la ligne du fichier."""
-
-    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
-        vues: set[Any] = set()
-        for noeud_cle, _ in node.value:
-            if noeud_cle.tag == "tag:yaml.org,2002:merge":                 # la fusion `<<` a sa propre règle : ses clés se remplacent
-                continue
-            cle = self.construct_object(noeud_cle, deep=True)
-            if isinstance(cle, Hashable):
-                if cle in vues:
-                    raise yaml.constructor.ConstructorError(None, None, f"la clé « {cle} » est répétée", noeud_cle.start_mark)
-                vues.add(cle)
-        return super().construct_mapping(node, deep)
-
-
 def _lire_yaml(chemin: str | Path) -> Any:
     try:
-        return yaml.load(Path(chemin).read_text(encoding="utf-8"), Loader=_LecteurSansCleRepetee)
+        return lire_yaml_sans_cle_repetee(chemin)
     except yaml.YAMLError as erreur:
         raise SourcesInvalides(f"Le fichier de surveillance n'est pas du YAML lisible : {erreur}") from erreur
 

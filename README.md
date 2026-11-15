@@ -147,6 +147,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `surveillance.py` : la fraîcheur des livraisons (les sources qui n'ont pas livré à temps) et le taux de rejet dans le temps, comparés au registre (fonctions pures) ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
+  - `lecture_yaml.py` : la lecture des fichiers YAML du dépôt (contrat, catalogue d'alertes, sources attendues), qui refuse une clé répétée au lieu de garder la dernière ;
   - `simulateur.py` : fabrication de livraisons de test (lignes, numéros de lot, noms de fichiers, CSV et Parquet, fichiers abîmés) ;
   - `journee.py` : une journée multi-usines jouée sur l'enchaînement, avec l'état cumulé et les invariants qui doivent rester vrais ;
   - `config.py` : garde-fou sur le choix de l'environnement.

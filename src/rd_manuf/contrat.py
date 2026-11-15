@@ -16,6 +16,8 @@ from typing import Any
 
 import yaml
 
+from rd_manuf.lecture_yaml import lire_yaml_sans_cle_repetee
+
 # ==============================================================================
 # 1. 📚 VOCABULAIRE DU CONTRAT
 # ==============================================================================
@@ -144,7 +146,7 @@ class ResultatValidation:
 def _lire_yaml(chemin: str | Path) -> dict[str, Any]:
     """Lit le fichier ; tout problème de lecture/syntaxe devient une ContratInvalide claire."""
     try:
-        brut = yaml.safe_load(Path(chemin).read_text(encoding="utf-8"))
+        brut = lire_yaml_sans_cle_repetee(chemin)
     except yaml.YAMLError as erreur:
         raise ContratInvalide(f"{chemin} : YAML illisible ({erreur}).") from erreur
     if not isinstance(brut, dict):

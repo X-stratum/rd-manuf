@@ -236,3 +236,38 @@ def test_un_yaml_illisible_est_refuse_avec_contrat_invalide(tmp_path):
     chemin.write_text("nom: [pas fermé\n  colonnes: : :", encoding="utf-8")
     with pytest.raises(ContratInvalide):
         charger_contrat(chemin)
+
+
+@pytest.mark.parametrize(
+    ("description", "ancien", "nouveau", "cle"),
+    [
+        ("version répétée en fin de fichier", None, '\nversion: "9.9.9"\n', "version"),
+        ("nom répété en tête", "nom: livraison_production\n", "nom: livraison_production\nnom: autre\n", "nom"),
+        (
+            "type répété dans une colonne",
+            "  - nom: id_lot\n    type: chaine\n",
+            "  - nom: id_lot\n    type: chaine\n    type: entier\n",
+            "type",
+        ),
+        (
+            "seuil répété",
+            "seuils_qualite:\n  taux_rejet_max: 0.02",
+            "seuils_qualite:\n  taux_rejet_max: 0.9\n  taux_rejet_max: 0.02",
+            "taux_rejet_max",
+        ),
+    ],
+    ids=["version en fin de fichier", "nom en tête", "type dans une colonne", "seuil de qualité"],
+)
+def test_une_cle_repetee_dans_le_contrat_est_refusee_avec_son_nom(tmp_path, description, ancien, nouveau, cle):
+    """PyYAML garde en silence la DERNIÈRE valeur : un `version:` ajouté en fin de fichier changerait la version jugée, sans un mot."""
+    texte = CHEMIN_CONTRAT_REEL.read_text(encoding="utf-8")
+    if ancien is None:
+        texte += nouveau
+    else:
+        assert texte.count(ancien) == 1, "le texte de départ a changé : adapter le test"
+        texte = texte.replace(ancien, nouveau)
+    chemin = tmp_path / "contrat_repete.yaml"
+    chemin.write_text(texte, encoding="utf-8")
+
+    with pytest.raises(ContratInvalide, match=f"clé « {cle} » est répétée"):
+        charger_contrat(chemin)
