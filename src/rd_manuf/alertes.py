@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 
 from rd_manuf.contrat import CodeErreur, ResultatValidation, StatutLivraison
+from rd_manuf.lecture_yaml import lire_yaml_sans_cle_repetee
 from rd_manuf.reception import Reception
 from rd_manuf.structure import CodeStructure
 
@@ -97,7 +98,7 @@ def _construire_regles(section: Any, attendus: set[str], roles: set[str], nom_se
 def charger_catalogue(chemin: str | Path) -> Catalogue:
     """Lit le YAML et vérifie qu'il est cohérent AVANT de s'en servir (toute erreur = CatalogueInvalide)."""
     try:
-        brut = yaml.safe_load(Path(chemin).read_text(encoding="utf-8"))
+        brut = lire_yaml_sans_cle_repetee(chemin)
     except yaml.YAMLError as erreur:
         raise CatalogueInvalide(f"{chemin} : YAML illisible ({erreur}).") from erreur
     if not isinstance(brut, dict):
