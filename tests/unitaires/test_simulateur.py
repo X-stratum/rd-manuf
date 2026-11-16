@@ -4,6 +4,7 @@ Le VALIDATEUR existant sert d'oracle : on ne recopie aucune règle du contrat da
 `valider_livraison` doit en trouver exactement 3, et rien d'autre.
 """
 import csv
+import random
 from collections import Counter
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -456,3 +457,47 @@ def test_l_ecriture_ne_modifie_pas_les_lignes_recues(tmp_path, contrat):
     _ecrire_parquet(contrat, lignes, tmp_path / NOM_PARQUET)
 
     assert lignes == copie                                                         # les dates restent du texte ISO, comme pour le CSV
+
+
+# ==============================================================================
+# 🧭 UN CONTRAT SANS LA BORNE DONT LE SIMULATEUR A BESOIN : une erreur qui dit laquelle manque
+# ==============================================================================
+# Le simulateur tire ses valeurs dans les bornes et le domaine du contrat (`minimum`, `maximum`, `valeurs_autorisees`), facultatifs
+# dans `Colonne`. Si le contrat en perd un, l'erreur doit nommer la colonne et le champ, pas être un `TypeError` sur `None`.
+BORNES_UTILISEES = [
+    ("quantite_produite", "minimum"),
+    ("quantite_produite", "maximum"),
+    ("quantite_rebut", "minimum"),
+    ("temperature_c", "minimum"),
+    ("temperature_c", "maximum"),
+    ("id_ligne", "valeurs_autorisees"),
+]
+
+
+def _contrat_sans(contrat, nom_colonne, champ):
+    return replace(contrat, colonnes=tuple(replace(c, **{champ: None}) if c.nom == nom_colonne else c for c in contrat.colonnes))
+
+
+@pytest.mark.parametrize(("nom_colonne", "champ"), BORNES_UTILISEES, ids=lambda valeur: valeur)
+def test_une_livraison_dont_le_contrat_perd_une_borne_dit_laquelle_manque(contrat, nom_colonne, champ):
+    with pytest.raises(ValueError) as erreur:
+        generer_livraison(_contrat_sans(contrat, nom_colonne, champ), NB_LIGNES, GRAINE)
+
+    assert nom_colonne in str(erreur.value)
+    assert champ in str(erreur.value)
+
+
+@pytest.mark.parametrize(
+    ("code", "nom_colonne", "champ"),
+    [(CodeErreur.HORS_PLAGE, "temperature_c", "maximum"), (CodeErreur.CLE_EN_CONFLIT, "id_ligne", "valeurs_autorisees")],
+    ids=["hors-plage-sans-maximum", "cle-en-conflit-sans-valeurs"],
+)
+def test_une_anomalie_dont_le_contrat_perd_la_borne_dit_laquelle_manque(contrat, code, nom_colonne, champ):
+    """Les fabriques d'anomalies lisent aussi le contrat : on les appelle seules, sans passer par la fabrication d'une ligne saine."""
+    ligne = generer_livraison(contrat, 1, GRAINE)[0]
+
+    with pytest.raises(ValueError) as erreur:
+        module_simulateur.FABRIQUES_D_ANOMALIES[code](_contrat_sans(contrat, nom_colonne, champ), ligne, random.Random(GRAINE))
+
+    assert nom_colonne in str(erreur.value)
+    assert champ in str(erreur.value)

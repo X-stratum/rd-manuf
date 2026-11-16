@@ -25,7 +25,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, TypedDict
 
 from rd_manuf.bronze import STATUTS_BRONZE, LigneBronze, LigneBronzeCoupee
 from rd_manuf.contrat import (
@@ -61,6 +61,14 @@ class LigneQuarantaine:
     numero_fichier: int | None                 # le numéro de ligne du fichier, pour une ligne coupée ; None sinon
     contenu: dict[str, str | None] | tuple[str, ...]   # tel que reçu : les valeurs en texte, ou les champs bruts d'une ligne coupée
     violations: tuple[Violation, ...]          # chaque code et les colonnes à corriger
+
+
+class _Reference(TypedDict):
+    """Les trois champs que les lignes du silver et de la quarantaine d'une livraison ont en commun (mypy les vérifie un à un)."""
+
+    livraison_id: str
+    heure_arrivee: datetime
+    version_contrat: str
 
 
 @dataclass(frozen=True)
@@ -146,7 +154,7 @@ def construire_silver(
 
     au_bronze = {id(ligne.valeurs): ligne for ligne in lignes_bronze}       # valider_livraison rend les MÊMES dictionnaires qu'il a reçus
     coupee_par_numero = {coupee.numero_fichier: coupee for coupee in lignes_coupees}
-    reference = {
+    reference: _Reference = {
         "livraison_id": ligne_registre.livraison_id,
         "heure_arrivee": ligne_registre.heure_arrivee,
         "version_contrat": contrat.version,

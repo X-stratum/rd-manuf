@@ -29,6 +29,17 @@ class Reception:
     resultat: ResultatValidation | None                   # détail pour les alertes ; None si REFUSEE
     nom_fichier: NomFichier | None = None                 # d'où et de quand ; None si le nom est invalide ou sans fichier
 
+    def __post_init__(self) -> None:
+        """Le détail du jugement n'existe que si les lignes ont été jugées : une livraison REFUSEE n'en a aucune, les autres en ont."""
+        if self.statut == StatutLivraison.REFUSEE and self.resultat is not None:
+            raise ValueError(
+                f"Une réception REFUSEE n'a jugé aucune ligne : elle ne peut pas porter de détail de jugement ({self.livraison_id})."
+            )
+        if self.statut != StatutLivraison.REFUSEE and self.resultat is None:
+            raise ValueError(
+                f"Une réception {self.statut.value} a jugé ses lignes : son détail de jugement ne peut pas manquer ({self.livraison_id})."
+            )
+
 
 def receptionner_livraison(
     contrat: Contrat,

@@ -3,6 +3,10 @@
 Ordre de la décision A : si la structure est invalide, la livraison est REFUSEE sans qu'aucune ligne soit lue ; sinon le statut est celui
 du contrat (ACCEPTEE, ACCEPTEE_AVEC_REJETS, BLOQUEE). Le simulateur fabrique les livraisons, aucune valeur du contrat n'est recopiée ici.
 """
+from dataclasses import replace
+
+import pytest
+
 from rd_manuf.contrat import CodeErreur, LigneMalformee, StatutLivraison
 from rd_manuf.lecture import FichierIllisible
 from rd_manuf.reception import receptionner_livraison, refuser_fichier_illisible
@@ -131,3 +135,57 @@ def test_un_fichier_illisible_est_refuse_avec_son_code_et_le_motif(contrat):
     assert "encodage inconnu" in probleme.message                # le motif technique est conservé pour l'équipe data
     assert (reception.nb_recues, reception.nb_valides, reception.nb_rejetees) == (0, 0, 0)
     assert (reception.version_contrat, reception.resultat) == (contrat.version, None)
+
+
+# ==============================================================================
+# 7. 🔗 INVARIANT : le détail du jugement n'existe que si les lignes ont été jugées
+# ==============================================================================
+# Une livraison REFUSEE n'a eu aucune ligne jugée : `resultat` est None. Toutes les autres ont un résultat. Les alertes s'y appuient.
+STATUTS_JUGES = [statut for statut in StatutLivraison if statut != StatutLivraison.REFUSEE]
+
+
+def _receptions_reelles(contrat, contrat_sans_seuil, contrat_strict, entete):
+    """Une réception de chaque sorte, fabriquée par les trois endroits du code qui construisent une `Reception`."""
+    anomalies = {CodeErreur.HORS_PLAGE: NB_ANOMALIES}
+    return {
+        "acceptée": receptionner_livraison(contrat, LIVRAISON_ID, entete, generer_livraison(contrat, NB_LIGNES, GRAINE)),
+        "acceptée avec rejets": receptionner_livraison(
+            contrat_sans_seuil, LIVRAISON_ID, entete, generer_livraison(contrat_sans_seuil, NB_LIGNES, GRAINE, anomalies=anomalies)
+        ),
+        "bloquée": receptionner_livraison(
+            contrat_strict, LIVRAISON_ID, entete, generer_livraison(contrat_strict, NB_LIGNES, GRAINE, anomalies=anomalies)
+        ),
+        "refusée par la structure": receptionner_livraison(
+            contrat, LIVRAISON_ID, entete[1:], generer_livraison(contrat, NB_LIGNES, GRAINE)
+        ),
+        "refusée, fichier illisible": refuser_fichier_illisible(contrat, LIVRAISON_ID, FichierIllisible("encodage inconnu")),
+    }
+
+
+def test_les_receptions_reelles_respectent_l_invariant(contrat, contrat_sans_seuil, contrat_strict, entete):
+    receptions = _receptions_reelles(contrat, contrat_sans_seuil, contrat_strict, entete)
+
+    assert {reception.statut for reception in receptions.values()} == set(StatutLivraison)     # les quatre statuts sont vus
+    for nom, reception in receptions.items():
+        assert (reception.resultat is None) == (reception.statut == StatutLivraison.REFUSEE), nom
+
+
+@pytest.mark.parametrize("statut", STATUTS_JUGES, ids=lambda statut: statut.value)
+def test_une_reception_jugee_sans_detail_du_jugement_est_refusee(contrat, entete, statut):
+    acceptee = receptionner_livraison(contrat, LIVRAISON_ID, entete, generer_livraison(contrat, NB_LIGNES, GRAINE))
+
+    with pytest.raises(ValueError, match=statut.value):
+        replace(acceptee, statut=statut, resultat=None)
+
+
+@pytest.mark.parametrize("refus", ["structure", "fichier illisible"])
+def test_une_reception_refusee_avec_un_detail_du_jugement_est_refusee(contrat, entete, refus):
+    lignes = generer_livraison(contrat, NB_LIGNES, GRAINE)
+    acceptee = receptionner_livraison(contrat, LIVRAISON_ID, entete, lignes)
+    if refus == "structure":
+        refusee = receptionner_livraison(contrat, LIVRAISON_ID, entete[1:], lignes)
+    else:
+        refusee = refuser_fichier_illisible(contrat, LIVRAISON_ID, FichierIllisible("encodage inconnu"))
+
+    with pytest.raises(ValueError, match="REFUSEE"):
+        replace(refusee, resultat=acceptee.resultat)

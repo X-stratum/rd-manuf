@@ -151,10 +151,10 @@ def router_alertes(catalogue: Catalogue, resultat: ResultatValidation, livraison
         alertes.append(
             Alerte(livraison_id, CODE_LIVRAISON_BLOQUEE, len(resultat.lignes_rejetees), regle.agit, _informes(catalogue, regle), ())
         )
-    for code in sorted(lignes_par_code):
-        regle = catalogue.regle(code)
-        colonnes = tuple(sorted(colonnes_par_code[code]))
-        alertes.append(Alerte(livraison_id, code, lignes_par_code[code], regle.agit, _informes(catalogue, regle), colonnes))
+    for nom_code in sorted(lignes_par_code):
+        regle = catalogue.regle(nom_code)
+        colonnes = tuple(sorted(colonnes_par_code[nom_code]))
+        alertes.append(Alerte(livraison_id, nom_code, lignes_par_code[nom_code], regle.agit, _informes(catalogue, regle), colonnes))
     return alertes
 
 
@@ -190,6 +190,7 @@ def router_alertes_reception(catalogue: Catalogue, reception: Reception) -> list
     refus (aucune n'a été jugée) ; un fichier vide donne 0. Sinon : le routage des lignes, inchangé.
     """
     if reception.statut != StatutLivraison.REFUSEE:
+        assert reception.resultat is not None                    # garanti par `Reception` : seule une livraison refusée n'a pas de détail
         return router_alertes(catalogue, reception.resultat, reception.livraison_id)
 
     alertes = []
