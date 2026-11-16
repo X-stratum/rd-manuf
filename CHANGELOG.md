@@ -29,6 +29,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #55 — Passage : le programme appelle `passer` au lieu de réécrire sa séquence
+*2026-11-16 · [PR #55](https://github.com/X-stratum/rd-manuf/pull/55)*
+
+**En clair.** La séquence « lire l'état, traiter la livraison, l'écrire » était écrite deux fois dans `passage.py` : dans la fonction `passer`, que les tests de la logique utilisent, et dans le programme qu'on lance, qui ne l'appelait pas. Une copie pouvait changer sans l'autre, et rien ne l'aurait signalé. Le programme appelle maintenant `passer`, et un test refuse qu'il réécrive une étape. Ce qu'il affiche, ses codes de sortie et les requêtes qu'il envoie ne changent pas : comparé à l'ancien code sur des centaines de scénarios (panne à chaque requête, Ctrl+C, sortie qui échoue), le résultat est identique à l'octet.
+**Décisions.** `passer` gagne deux paramètres facultatifs, sans effet quand on ne les donne pas : `lire`, la lecture de l'état (la simulation part d'un état vide quand des tables manquent, une règle qui ne regarde que le programme), et `jalon`, appelé avant chaque étape (« lecture », « traitement », « traite » avec le résultat, « ecriture » avec le résultat), pour que le programme sache quelle étape a échoué et affiche le résultat avant d'écrire. Les messages d'échec par étape restent dans le programme : la logique n'a pas à connaître le terminal. Une sortie qui échoue pendant l'affichage du résultat s'échappe comme avant : mesuré, sans cela elle devenait « traitement impossible » avec le code 1. Écarté : faire lever à `passer` une exception par étape, car les tests de la logique attendent les exceptions d'origine (`FileNotFoundError`, `ValueError`). Ce qui n'est pas prouvé : rien n'a tourné sur un vrai workspace, la comparaison simule le service ; elle ne voit pas l'ordre des jalons ni un appel d'étape jamais atteint, que seuls les tests gardent.
+
 ## #54 — Gardes : un module est désigné par son chemin, pas par son nom
 *2026-11-16 · [PR #54](https://github.com/X-stratum/rd-manuf/pull/54)*
 

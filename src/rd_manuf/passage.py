@@ -2,7 +2,7 @@
 
 Deux niveaux. `passer` est la logique : elle travaille sur un MAGASIN quelconque (le magasin en mémoire en test, le magasin SQL d'un
 exécuteur dans le programme), lit l'état déjà écrit, traite le fichier, et l'écrit si `ecrire` est vrai. `principal` est le programme, à
-lancer soi-même depuis la racine du dépôt :
+lancer soi-même depuis la racine du dépôt ; il APPELLE `passer` et ne réécrit aucune de ses étapes (un test le garde) :
 
     python -m rd_manuf.passage --profil NOM_DU_PROFIL --entrepot IDENTIFIANT --fichier CHEMIN_DE_LA_LIVRAISON [--ecrire]
 
@@ -77,13 +77,29 @@ def ecrire_le_resultat(contrat: Contrat, magasin: Magasin, resultat: ResultatLiv
 
 
 def passer(
-    contrat: Contrat, alertes: Catalogue, chemin: str | Path, magasin: Magasin, heure_arrivee: datetime, *, ecrire: bool
+    contrat: Contrat, alertes: Catalogue, chemin: str | Path, magasin: Magasin, heure_arrivee: datetime, *, ecrire: bool,
+    lire: Callable[[], tuple[list[LigneRegistre], list[LigneSilver]]] | None = None,
+    jalon: Callable[[str, ResultatLivraison | None], None] | None = None,
 ) -> ResultatPassage:
     """Lit l'état, traite la livraison, et l'écrit si `ecrire`. Un fichier introuvable lève `FileNotFoundError`, une heure sans fuseau
-    `ValueError` : ce sont des erreurs de l'appelant, pas des défauts de la livraison."""
-    registre, deja_integrees = lire_l_etat(contrat, magasin)
+    `ValueError` : ce sont des erreurs de l'appelant, pas des défauts de la livraison.
+
+    C'est LA séquence : le programme l'appelle, il ne la réécrit pas (un test le garde). Deux options pour lui, sans effet par défaut :
+    `lire` donne la lecture de l'état à la place de celle du magasin (la simulation part d'un état vide quand des tables manquent), et
+    `jalon(nom, résultat)` est appelé AVANT chaque étape : « lecture », « traitement », puis « traite » (avec le résultat, avant toute
+    écriture) et, seulement si `ecrire`, « ecriture » (avec le résultat). Une panne est donc celle de la dernière étape annoncée."""
+
+    def annoncer(nom: str, resultat: ResultatLivraison | None = None) -> None:
+        if jalon is not None:
+            jalon(nom, resultat)
+
+    annoncer("lecture")
+    registre, deja_integrees = lire() if lire is not None else lire_l_etat(contrat, magasin)
+    annoncer("traitement")
     resultat = traiter_livraison(contrat, alertes, chemin, registre, deja_integrees, heure_arrivee)
+    annoncer("traite", resultat)
     if ecrire:
+        annoncer("ecriture", resultat)
         ecrire_le_resultat(contrat, magasin, resultat)
     return ResultatPassage(resultat, heure_arrivee, ecrire)
 
@@ -145,6 +161,41 @@ def _conclure_le_resultat(passage: ResultatLivraison, sortie: Callable[[str], An
         f"Couches : bronze {len(passage.lignes_bronze)}, coupées {len(passage.lignes_coupees)}, "
         f"silver {len(passage.silver.lignes)}, quarantaine {len(passage.silver.quarantaine)}"
     )
+
+
+def _lecture_de_la_simulation(
+    contrat: Contrat, catalogue: str, executeur: Callable[..., Any], magasin: MagasinSql, sortie: Callable[[str], Any]
+) -> Callable[[], tuple[list[LigneRegistre], list[LigneSilver]]]:
+    """La lecture de l'état en simulation : les tables ne sont pas créées, donc on regarde d'abord lesquelles existent ; s'il en manque,
+    l'état est supposé vide (et on le dit), sinon on le lit comme `passer` le ferait."""
+
+    def lire() -> tuple[list[LigneRegistre], list[LigneSilver]]:
+        presence = verifier_la_presence(contrat, catalogue, executeur)
+        absentes = sorted(nom for nom, presente in presence.tables.items() if not presente)
+        if absentes:
+            sortie(f"Tables absentes ou invisibles pour ce profil : {', '.join(absentes)} : "
+                   f"l'état est supposé vide, la décision peut différer.")
+            return [], []
+        return lire_l_etat(contrat, magasin)
+
+    return lire
+
+
+def _echec(phase: str, erreur: Exception, sortie: Callable[[str], Any], reprise: str) -> int:
+    """Ce que le programme dit quand `passer` échoue, selon la dernière étape annoncée : toujours le code 1."""
+    cause = borne(f"{type(erreur).__name__} : {erreur}")
+    if phase == "lecture":
+        sortie(f"Lecture de l'état impossible : {cause}")
+        sortie("Si les tables n'existent pas encore, --ecrire les crée.")
+    elif phase == "traitement":
+        sortie(f"Traitement de la livraison impossible : {cause}")
+    elif isinstance(erreur, DecisionManquante):                      # refusée AVANT d'écrire quoi que ce soit : reprendre l'autre d'abord
+        sortie(f"Écriture refusée, rien n'a été écrit : {erreur}")
+        sortie("Reprendre d'abord la livraison citée, avec son heure d'arrivée, puis relancer celle-ci.")
+    else:
+        sortie(f"Écriture impossible : {cause}")
+        sortie(f"Des couches ont pu être écrites, pas le registre. Pour reprendre : {reprise}.")
+    return 1
 
 
 def principal(
@@ -218,44 +269,26 @@ def _passer(
             except Exception as erreur:
                 sortie(f"Création des tables impossible : {borne(f'{type(erreur).__name__} : {erreur}')}")
                 return 1
-        phase = "lecture"
-        try:
-            if arguments.ecrire:                                    # les tables viennent d'être créées : on les lit
-                registre, deja_integrees = lire_l_etat(contrat, magasin)
+        lire = None if arguments.ecrire else _lecture_de_la_simulation(contrat, arguments.catalogue, executeur, magasin, sortie)
+
+        def jalon(nom: str, rendu: ResultatLivraison | None) -> None:
+            nonlocal phase
+            if nom == "traite":
+                assert rendu is not None
+                phase = "conclusion"                        # une sortie qui échoue ici n'est pas une panne du traitement : elle s'échappe
+                _conclure_le_resultat(rendu, sortie)
             else:
-                presence = verifier_la_presence(contrat, arguments.catalogue, executeur)
-                absentes = sorted(nom for nom, presente in presence.tables.items() if not presente)
-                if absentes:
-                    sortie(f"Tables absentes ou invisibles pour ce profil : {', '.join(absentes)} : "
-                           f"l'état est supposé vide, la décision peut différer.")
-                    registre, deja_integrees = [], []
-                else:
-                    registre, deja_integrees = lire_l_etat(contrat, magasin)
-        except Exception as erreur:
-            sortie(f"Lecture de l'état impossible : {borne(f'{type(erreur).__name__} : {erreur}')}")
-            sortie("Si les tables n'existent pas encore, --ecrire les crée.")
-            return 1
-        phase = "traitement"
+                phase = nom
+
         try:
-            resultat = traiter_livraison(contrat, alertes, chemin, registre, deja_integrees, heure_arrivee)
+            passer(contrat, alertes, chemin, magasin, heure_arrivee, ecrire=arguments.ecrire, lire=lire, jalon=jalon)
         except Exception as erreur:
-            sortie(f"Traitement de la livraison impossible : {borne(f'{type(erreur).__name__} : {erreur}')}")
-            return 1
-        _conclure_le_resultat(resultat, sortie)
+            if phase == "conclusion":
+                raise
+            return _echec(phase, erreur, sortie, reprise)
         if not arguments.ecrire:
             sortie("Simulation : rien n'a été créé ni écrit. Relancer avec --ecrire pour écrire dans les tables.")
             return 0
-        phase = "ecriture"
-        try:
-            ecrire_le_resultat(contrat, magasin, resultat)
-        except DecisionManquante as erreur:                         # refusée AVANT d'écrire quoi que ce soit : reprendre l'autre d'abord
-            sortie(f"Écriture refusée, rien n'a été écrit : {erreur}")
-            sortie("Reprendre d'abord la livraison citée, avec son heure d'arrivée, puis relancer celle-ci.")
-            return 1
-        except Exception as erreur:
-            sortie(f"Écriture impossible : {borne(f'{type(erreur).__name__} : {erreur}')}")
-            sortie(f"Des couches ont pu être écrites, pas le registre. Pour reprendre : {reprise}.")
-            return 1
         sortie(f"Écrit dans {arguments.catalogue} : les couches de données d'abord, le registre en dernier.")
         return 0
     except KeyboardInterrupt:
