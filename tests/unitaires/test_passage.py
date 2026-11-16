@@ -977,16 +977,45 @@ def test_une_sortie_qui_echoue_en_affichant_le_resultat_n_est_pas_une_panne_du_t
 ETAPES_DU_PASSAGE = {"lire_l_etat", "traiter_livraison", "ecrire_le_resultat"}
 
 
+def _alias(arbre):
+    """Les noms sous lesquels une fonction est aussi connue dans le module : `from m import a as b` et `b = a` (b -> a)."""
+    alias = {}
+    for noeud in ast.walk(arbre):
+        if isinstance(noeud, ast.ImportFrom):
+            alias |= {nom.asname: nom.name for nom in noeud.names if nom.asname}
+        elif isinstance(noeud, ast.Assign) and isinstance(noeud.value, ast.Name):
+            alias |= {cible.id: noeud.value.id for cible in noeud.targets if isinstance(cible, ast.Name)}
+    return alias
+
+
+def _nom_d_origine(nom, alias):
+    """Le nom qu'une fonction porte à l'origine, en suivant les alias (un cycle s'arrête au lieu de boucler)."""
+    vus = set()
+    while nom in alias and nom not in vus:
+        vus.add(nom)
+        nom = alias[nom]
+    return nom
+
+
 def _appels_directs(source, fonction):
-    """Les noms de tout ce que `fonction` appelle (`nom(...)` ou `objet.nom(...)`), fonctions imbriquées comprises."""
+    """Les noms d'origine de tout ce que `fonction` appelle (`nom(...)` ou `objet.nom(...)`), fonctions imbriquées et alias compris."""
     arbre = ast.parse(source)
+    alias = _alias(arbre)
     noeud = next(n for n in ast.walk(arbre) if isinstance(n, ast.FunctionDef) and n.name == fonction)
     noms = set()
     for appel in ast.walk(noeud):
         if isinstance(appel, ast.Call):
             cible = appel.func
-            noms.add(cible.id if isinstance(cible, ast.Name) else cible.attr if isinstance(cible, ast.Attribute) else "")
+            nom = cible.id if isinstance(cible, ast.Name) else cible.attr if isinstance(cible, ast.Attribute) else ""
+            noms.add(_nom_d_origine(nom, alias))
     return noms
+
+
+def test_le_garde_trouve_une_etape_appelee_sous_un_autre_nom():
+    """Le cas de la revue : `from rd_manuf.pipeline import traiter_livraison as traiter`, puis `traiter(...)` dans le programme."""
+    source = "from rd_manuf.pipeline import traiter_livraison as traiter\ndef _passer():\n    return traiter(a)\n"
+
+    assert _appels_directs(source, "_passer") & ETAPES_DU_PASSAGE == {"traiter_livraison"}
 
 
 def test_le_programme_ne_reecrit_pas_la_sequence_de_passer():
@@ -1006,8 +1035,13 @@ def test_le_programme_ne_reecrit_pas_la_sequence_de_passer():
         ("def f():\n    def g():\n        return lire_l_etat(a)\n    return g()\n", {"g", "lire_l_etat"}),   # dans une fonction imbriquée
         ("def f():\n    return 1\ndef g():\n    return traiter_livraison(a)\n", set()),                         # une autre fonction
         ("def f():\n    return fabriquer()(x)\n", {"fabriquer", ""}),                                          # un appel d'appel
+        ("from m import traiter_livraison as traiter\ndef f():\n    return traiter(a)\n", {"traiter_livraison"}),     # un alias d'import
+        ("def f():\n    t = traiter_livraison\n    return t(a)\n", {"traiter_livraison"}),                          # un alias d'affectation
+        ("from m import x as y\nfrom n import y as z\ndef f():\n    return z(a)\n", {"x"}),                         # un alias d'alias
+        ("a = b\nb = a\ndef f():\n    return a(x)\n", {"a"}),                                                       # un cycle ne boucle pas
     ],
-    ids=["propre", "réécrit", "attribut", "imbriquée", "autre fonction", "appel d'appel"],
+    ids=["propre", "réécrit", "attribut", "imbriquée", "autre fonction", "appel d'appel", "alias d'import", "alias d'affectation",
+         "alias d'alias", "cycle"],
 )
 def test_le_garde_voit_les_appels_d_une_fonction(source, attendu):
     assert _appels_directs(source, "f") == attendu
