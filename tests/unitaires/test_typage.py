@@ -106,7 +106,8 @@ def test_la_version_de_python_de_mypy_est_celle_testee_par_la_ci():
 # ==============================================================================
 # `# type: ignore` fait taire une erreur sur une ligne, `# mypy: ignore-errors` (ou `disable-error-code`) tout un module : la
 # configuration est gardée plus haut, ces commentaires la contourneraient sans qu'aucun test le voie. Il n'y en a aucun aujourd'hui.
-# En cas de besoin réel : l'écrire ICI, avec le nom du module, le nombre, et pourquoi (en commentaire), pour que ce soit un choix vu.
+# En cas de besoin réel : l'écrire ICI, avec le chemin du module (depuis `src/rd_manuf`), le nombre, et pourquoi (en commentaire),
+# pour que ce soit un choix vu.
 IGNORES_DECIDES: dict[str, int] = {}
 ASSOUPLISSEMENT_EN_LIGNE = re.compile(r"#\s*(type:\s*ignore\b|mypy:)")
 
@@ -134,9 +135,13 @@ def _ecarts_avec_la_liste_decidee(trouves, decides):
 
 
 def _ecarts_du_dossier(dossier, decides):
-    """Le nombre de modules regardés, et les écarts entre ce que les modules de `dossier` contiennent et ce qui est décidé."""
+    """Le nombre de modules regardés, et les écarts entre ce que les modules de `dossier` contiennent et ce qui est décidé.
+
+    Les modules sont désignés par leur CHEMIN dans `dossier` : deux modules de même nom (deux `__init__.py`) ne s'écrasent pas."""
     modules = sorted(dossier.rglob("*.py"))
-    trouves = {module.name: _assouplissements_en_ligne(module.read_text(encoding="utf-8")) for module in modules}
+    trouves = {}
+    for module in modules:
+        trouves[module.relative_to(dossier).as_posix()] = _assouplissements_en_ligne(module.read_text(encoding="utf-8"))
     return len(modules), _ecarts_avec_la_liste_decidee(trouves, decides)
 
 
@@ -155,8 +160,27 @@ def test_le_garde_lit_les_fichiers_d_un_dossier_et_nomme_le_module_fautif(tmp_pa
     nombre, ecarts = _ecarts_du_dossier(tmp_path, {})
 
     assert nombre == 2                                                      # le sous-dossier est parcouru aussi
-    assert len(ecarts) == 1 and "fautif.py" in ecarts[0] and "[2]" in ecarts[0] and "propre.py" not in ecarts[0]
-    assert _ecarts_du_dossier(tmp_path, {"fautif.py": 1})[1] == []          # une fois décidé, au nombre près, il n'y a plus d'écart
+    assert len(ecarts) == 1 and "sous_dossier/fautif.py" in ecarts[0] and "[2]" in ecarts[0] and "propre.py" not in ecarts[0]
+    assert _ecarts_du_dossier(tmp_path, {"sous_dossier/fautif.py": 1})[1] == []     # décidé par son CHEMIN, au nombre près : plus d'écart
+
+
+def test_deux_modules_de_meme_nom_ne_se_cachent_pas_l_un_l_autre(tmp_path):
+    """Le cas d'un futur sous-paquet : deux `__init__.py`, le premier fautif, le second propre (et l'inverse)."""
+    (tmp_path / "__init__.py").write_text("x: int = 'a'  # type: ignore\n", encoding="utf-8")
+    (tmp_path / "sous").mkdir()
+    (tmp_path / "sous" / "__init__.py").write_text("y = 2\n", encoding="utf-8")
+
+    nombre, ecarts = _ecarts_du_dossier(tmp_path, {})
+
+    assert nombre == 2
+    assert len(ecarts) == 1 and ecarts[0].startswith("__init__.py :")
+
+    (tmp_path / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "sous" / "__init__.py").write_text("y: int = 'a'  # type: ignore\n", encoding="utf-8")
+
+    assert len(_ecarts_du_dossier(tmp_path, {})[1]) == 1
+    assert _ecarts_du_dossier(tmp_path, {"sous/__init__.py": 1})[1] == []             # décidé pour le sous-paquet, pas pour l'autre
+    assert len(_ecarts_du_dossier(tmp_path, {"__init__.py": 1})[1]) == 2              # décidé pour le mauvais : un manque, un reste
 
 
 @pytest.mark.parametrize(

@@ -118,14 +118,48 @@ def _lectures_yaml(source):
     return sorted(lignes)
 
 
+def _lectures_hors_du_lecteur(dossier):
+    """Le nombre de modules regardés, et les lectures YAML (`chemin:ligne`) de tous ceux qui ne sont pas le lecteur lui-même.
+
+    Les modules sont désignés par leur CHEMIN dans `dossier` : le lecteur est `lecture_yaml.py` à la racine, pas tout module de ce nom."""
+    chemins = {module: module.relative_to(dossier).as_posix() for module in sorted(dossier.rglob("*.py"))}
+    modules = [module for module, chemin in chemins.items() if chemin != "lecture_yaml.py"]
+    fautifs = [f"{chemins[module]}:{ligne}" for module in modules for ligne in _lectures_yaml(module.read_text(encoding="utf-8"))]
+    return len(modules), fautifs
+
+
 def test_aucun_module_du_code_ne_lit_du_yaml_en_dehors_de_lecture_yaml():
     """Un nouveau fichier YAML lu par `yaml.safe_load` retrouverait le défaut de cette PR : la dernière clé répétée gagnerait en silence."""
-    modules = [module for module in sorted(SRC.rglob("*.py")) if module.name != "lecture_yaml.py"]
-    assert len(modules) > 10, "le garde ne regarde presque rien : le chemin du code a changé"
+    nombre, fautifs = _lectures_hors_du_lecteur(SRC)
 
-    fautifs = [f"{module.name}:{ligne}" for module in modules for ligne in _lectures_yaml(module.read_text(encoding="utf-8"))]
-
+    assert nombre > 10, "le garde ne regarde presque rien : le chemin du code a changé"
     assert fautifs == [], f"lecture YAML hors de `lecture_yaml.py` (utiliser `lire_yaml_sans_cle_repetee`) : {fautifs}"
+
+
+LECTURE = "import yaml\nbrut = yaml.safe_load(texte)\n"
+
+
+def test_seul_le_lecteur_a_la_racine_du_code_est_exempte(tmp_path):
+    """L'exemption est celle du CHEMIN `lecture_yaml.py`, pas du nom : un `sous/lecture_yaml.py` serait un autre module, à garder."""
+    (tmp_path / "lecture_yaml.py").write_text(LECTURE, encoding="utf-8")
+    (tmp_path / "autre.py").write_text("x = 1\n", encoding="utf-8")
+    assert _lectures_hors_du_lecteur(tmp_path) == (1, [])
+
+    (tmp_path / "sous").mkdir()
+    (tmp_path / "sous" / "lecture_yaml.py").write_text(LECTURE, encoding="utf-8")
+
+    nombre, fautifs = _lectures_hors_du_lecteur(tmp_path)
+
+    assert nombre == 2
+    assert fautifs == ["sous/lecture_yaml.py:2"]
+
+
+def test_deux_modules_de_meme_nom_sont_distingues_dans_le_message(tmp_path):
+    (tmp_path / "__init__.py").write_text(LECTURE, encoding="utf-8")
+    (tmp_path / "sous").mkdir()
+    (tmp_path / "sous" / "__init__.py").write_text(LECTURE, encoding="utf-8")
+
+    assert _lectures_hors_du_lecteur(tmp_path)[1] == ["__init__.py:2", "sous/__init__.py:2"]
 
 
 @pytest.mark.parametrize(

@@ -29,6 +29,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #54 — Gardes : un module est désigné par son chemin, pas par son nom
+*2026-11-16 · [PR #54](https://github.com/X-stratum/rd-manuf/pull/54)*
+
+**En clair.** Trois contrôles automatiques du code (aucun commentaire qui fait taire `mypy`, aucune lecture YAML hors du lecteur sûr, aucune adresse de workspace) désignaient les fichiers par leur seul nom. Deux modules de même nom dans des dossiers différents, comme l'`__init__.py` d'un futur sous-paquet, se cachaient l'un l'autre : mesuré, un `# type: ignore` dans l'`__init__.py` de la racine passait si celui du sous-paquet était propre, et une lecture YAML dans un `sous/lecture_yaml.py` était exemptée parce qu'elle portait le nom du lecteur. Rien n'était caché aujourd'hui, `src` est plat ; ces contrôles désignent maintenant chaque fichier par son chemin, et le message dit lequel est fautif. Aucun code du paquet ne change.
+**Décisions.** Le chemin se compte depuis le dossier gardé (`src/rd_manuf`), en séparateurs `/`, comme dans `test_couverture.py` : la liste `IGNORES_DECIDES`, le jour où elle servira, s'écrit avec ces chemins. Le lecteur YAML n'est exempté que s'il est à la racine du code, pas tout module qui porte son nom. Pour la confidentialité, le défaut n'était pas une détection manquée (mesuré : une adresse dans un sous-paquet était vue) mais un message ambigu, qui nommait deux fois `__init__.py` : il est corrigé pour la même raison, avec un test. Écarté : interdire les noms de module en double, une règle de plus à tenir là où désigner par le chemin suffit. Ce qui n'est pas prouvé : seuls ces trois contrôles ont été regardés ; d'autres tests parcourent `src` et n'ont pas été relus pour ce défaut.
+
 ## #53 — Couverture : tout le code est testé, et la CI l'exige à 100 %
 *2026-11-16 · [PR #53](https://github.com/X-stratum/rd-manuf/pull/53)*
 
