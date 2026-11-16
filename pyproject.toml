@@ -10,7 +10,7 @@ dependencies = [
 
 [project.optional-dependencies]
 databricks = ["databricks-sdk>=0.166"]                       # l'exécuteur réel (facultatif : le reste du code n'en a pas besoin)
-dev = ["pytest>=8", "ruff>=0.5", "mypy>=2.4", "types-PyYAML", "databricks-sdk>=0.166"]    # le SDK aussi : les tests de l'exécuteur utilisent ses vrais objets
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=2.4", "types-PyYAML", "pytest-cov>=7", "databricks-sdk>=0.166"]    # le SDK aussi : les tests de l'exécuteur utilisent ses vrais objets
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]                  # `import rd_manuf` fonctionne sans installer le paquet
@@ -32,3 +32,12 @@ strict = true                         # toutes les vérifications : pas de fonct
 [[tool.mypy.overrides]]
 module = ["pyarrow", "pyarrow.*"]     # pyarrow ne publie pas ses types : seule exception, pour ses imports
 ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["rd_manuf"]                 # tout le code du paquet, y compris un module qu'aucun test n'importerait
+branch = true                         # les branches aussi : un `if` dont un seul côté est joué n'est pas couvert
+
+[tool.coverage.report]
+fail_under = 100                      # tout le code est testé ; une exception se décide (voir test_couverture.py), elle ne se glisse pas
+show_missing = true
+skip_covered = true

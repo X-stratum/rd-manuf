@@ -7,7 +7,16 @@ import pyarrow.parquet as pq
 import pytest
 import yaml
 
-from rd_manuf.contrat import CodeErreur, ContratInvalide, StatutLivraison, charger_contrat, controler_ligne, est_absente, valider_livraison
+from rd_manuf.contrat import (
+    CodeErreur,
+    ContratInvalide,
+    StatutLivraison,
+    charger_contrat,
+    controler_ligne,
+    convertir_valeur,
+    est_absente,
+    valider_livraison,
+)
 from rd_manuf.lecture import lire_parquet
 from rd_manuf.simulateur import generer_livraison
 
@@ -229,6 +238,36 @@ def test_le_contrat_reel_a_les_valeurs_que_les_tests_supposent(contrat):
 def test_un_contrat_mal_forme_est_refuse(tmp_path, description, modification):
     with pytest.raises(ContratInvalide):
         charger_contrat(_contrat_modifie(tmp_path, modification))
+
+
+@pytest.mark.parametrize(
+    ("description", "modification", "message"),
+    [
+        ("une colonne", lambda brut: brut.update(colonnes=[1, "texte"]), "Une colonne doit être un dictionnaire"),
+        ("une règle", lambda brut: brut.update(regles_inter_colonnes=["texte"]), "Une règle doit être un dictionnaire"),
+    ],
+)
+def test_un_element_qui_n_est_pas_un_dictionnaire_est_refuse_en_le_disant(tmp_path, description, modification, message):
+    """Sans cette garde, un texte déclencherait une erreur sans rapport (`AttributeError`, ou « clés manquantes ») : le message doit être
+    celui de la bonne garde."""
+    with pytest.raises(ContratInvalide, match=message):
+        charger_contrat(_contrat_modifie(tmp_path, modification))
+
+
+def test_un_contrat_dont_la_racine_n_est_pas_un_dictionnaire_est_refuse(tmp_path):
+    """Un fichier qui est une liste (ou un simple texte) n'a pas de clés à vérifier : il doit le dire, pas lever un `TypeError`."""
+    for contenu in ("- nom\n- colonnes\n", "juste du texte\n"):
+        chemin = tmp_path / "contrat.yaml"                                       # un nom qui ne contient pas le mot cherché : le
+        chemin.write_text(contenu, encoding="utf-8")                              # message cite le chemin, il ne doit pas suffire
+
+        with pytest.raises(ContratInvalide, match="le contrat doit être un dictionnaire"):
+            charger_contrat(chemin)
+
+
+def test_un_type_de_colonne_inconnu_ne_se_convertit_pas():
+    """`charger_contrat` refuse déjà un type inconnu ; la conversion le refuse aussi si on l'appelle directement avec un autre nom."""
+    with pytest.raises(ValueError, match="type inconnu texte"):
+        convertir_valeur("texte", "a")
 
 
 def test_un_yaml_illisible_est_refuse_avec_contrat_invalide(tmp_path):

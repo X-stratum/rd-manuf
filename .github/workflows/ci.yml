@@ -44,7 +44,7 @@ jobs:
         run: mypy
 
   # ----------------------------------------------------------------------------
-  # 2. Unitaires : logique pure, sans Databricks (quelques secondes)
+  # 2. Unitaires : logique pure, sans Databricks, avec la couverture exigée à 100 % (quelques secondes)
   # ----------------------------------------------------------------------------
   unitaires:
     needs: statique                         # ne démarre que si « statique » est vert
@@ -57,4 +57,4 @@ jobs:
           python-version: ${{ env.VERSION_PYTHON }}
           cache: pip
       - run: pip install -e ".[dev]"
-      - run: pytest tests/unitaires -v
+      - run: pytest tests/unitaires -v --cov

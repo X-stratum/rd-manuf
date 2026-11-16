@@ -131,6 +131,20 @@ def test_un_catalogue_mal_forme_est_refuse(tmp_path, description, modification):
         charger_catalogue(_catalogue_modifie(tmp_path, modification))
 
 
+@pytest.mark.parametrize(
+    ("description", "modification"),
+    [
+        ("toujours_informes", lambda brut: brut.update(toujours_informes="metier")),
+        ("informe d'un code", lambda brut: brut["codes"]["HORS_PLAGE"].update(informe="metier")),
+    ],
+)
+def test_une_liste_de_roles_qui_n_en_est_pas_une_est_refusee_en_le_disant(tmp_path, description, modification):
+    """Un texte se parcourt lettre par lettre : sans cette garde, « metier » serait refusé pour ses lettres (« rôles inconnus »), par
+    un autre chemin et avec un message qui ne dit pas quoi corriger. Le message doit être celui de la bonne garde."""
+    with pytest.raises(CatalogueInvalide, match="doit être une liste de rôles"):
+        charger_catalogue(_catalogue_modifie(tmp_path, modification))
+
+
 def test_un_yaml_illisible_est_refuse(tmp_path):
     chemin = tmp_path / "casse.yaml"
     chemin.write_text("roles: [pas fermé\n  codes: : :", encoding="utf-8")
