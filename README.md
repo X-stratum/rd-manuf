@@ -166,6 +166,7 @@ conda env create -f environment.yml   # crée l'environnement « rd-manuf » : P
 conda activate rd-manuf               # l'active (à refaire dans chaque nouveau terminal)
 python -m pytest                      # lance les tests
 ruff check .                          # vérifie le style du code
+mypy                                  # vérifie les types du code, en mode strict
 ```
 
 Après un changement de dépendances dans `pyproject.toml`, on met l'environnement à jour avec `conda env update -f environment.yml --prune`.
@@ -173,7 +174,8 @@ Sans conda, `pip install -e ".[dev]"` installe la même chose dans l'environneme
 
 La liste des dépendances reste dans `pyproject.toml` : `environment.yml` ne fournit que Python et lance la même installation que la CI.
 Un test vérifie que la version de Python y est la même que dans le projet et dans la CI.
-La CI lance ces vérifications (style, puis tests) à chaque Pull Request, sur un environnement neuf.
+La CI lance ces vérifications (style, types, puis tests) à chaque Pull Request, sur un environnement neuf.
+Le contrôle des types est strict sur `src` : sa configuration est dans `pyproject.toml`, et un test garde que la CI le lance et qu'aucun réglage ne l'assouplit en silence.
 
 ## Databricks : le bundle
 

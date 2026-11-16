@@ -10,7 +10,7 @@ dependencies = [
 
 [project.optional-dependencies]
 databricks = ["databricks-sdk>=0.166"]                       # l'exécuteur réel (facultatif : le reste du code n'en a pas besoin)
-dev = ["pytest>=8", "ruff>=0.5", "databricks-sdk>=0.166"]    # le SDK aussi : les tests de l'exécuteur utilisent ses vrais objets
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=2.4", "types-PyYAML", "databricks-sdk>=0.166"]    # le SDK aussi : les tests de l'exécuteur utilisent ses vrais objets
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]                  # `import rd_manuf` fonctionne sans installer le paquet
@@ -23,3 +23,12 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]                       # le code ; les tests ne sont, pour l'essentiel, pas annotés
+strict = true                         # toutes les vérifications : pas de fonction sans types, pas de type générique sans paramètre
+
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]     # pyarrow ne publie pas ses types : seule exception, pour ses imports
+ignore_missing_imports = true

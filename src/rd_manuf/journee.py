@@ -18,6 +18,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Protocol
 
 from rd_manuf.alertes import CODE_LIVRAISON_BLOQUEE, Alerte, Catalogue
 from rd_manuf.bronze import STATUTS_BRONZE, LigneBronze, LigneBronzeCoupee
@@ -154,7 +155,9 @@ REJEU = Attendu(STATUT_REJEU, (), 0, 0, 0, 0)
 # ==============================================================================
 # 🛠️ LES RECETTES : chacune fabrique un fichier avec le simulateur
 # ==============================================================================
-def _csv(graine: int, premier_lot: int = 1, anomalies: dict[CodeErreur, int] | None = None, defauts: dict[D, int] | None = None):
+def _csv(
+    graine: int, premier_lot: int = 1, anomalies: dict[CodeErreur, int] | None = None, defauts: dict[D, int] | None = None
+) -> Callable[[Contrat, Path], None]:
     def ecrire(contrat: Contrat, chemin: Path) -> None:
         lignes = generer_livraison(contrat, NB_LIGNES, graine, anomalies, premier_lot)
         ecrire_livraison_csv(contrat, lignes, chemin, defauts=defauts)
@@ -162,7 +165,7 @@ def _csv(graine: int, premier_lot: int = 1, anomalies: dict[CodeErreur, int] | N
     return ecrire
 
 
-def _parquet(graine: int, premier_lot: int = 1, defauts: dict[D, int] | None = None):
+def _parquet(graine: int, premier_lot: int = 1, defauts: dict[D, int] | None = None) -> Callable[[Contrat, Path], None]:
     def ecrire(contrat: Contrat, chemin: Path) -> None:
         ecrire_livraison_parquet(contrat, generer_livraison(contrat, NB_LIGNES, graine, premier_lot=premier_lot), chemin, defauts=defauts)
 
@@ -278,6 +281,16 @@ def jouer(
 # ==============================================================================
 # 📐 LES INVARIANTS : ce qui doit rester vrai de toute journée, quelles que soient ses livraisons
 # ==============================================================================
+class _AvecArrivee(Protocol):
+    """Ce que `compter` lit sur une ligne d'une couche (bronze, silver, quarantaine) : sa livraison et son heure d'arrivée."""
+
+    @property
+    def livraison_id(self) -> str: ...
+
+    @property
+    def heure_arrivee(self) -> datetime: ...
+
+
 def verifier_invariants(
     contrat: Contrat, catalogue: Catalogue, etat: Etat, resultats: Sequence[ResultatLivraison]
 ) -> list[str]:
@@ -294,7 +307,7 @@ def verifier_invariants(
     if len(etat.registre) != len(resultats):
         violations.append(f"registre : {len(etat.registre)} lignes pour {len(resultats)} livraisons reçues.")
 
-    vus: dict[tuple, list[str]] = defaultdict(list)
+    vus: dict[tuple[str, str, tuple[str, ...]], list[str]] = defaultdict(list)
     for ligne in etat.lignes_silver:
         cle = tuple(str(ligne.valeurs[nom]) for nom in contrat.cle_primaire)
         vus[(ligne.pays, ligne.usine, cle)].append(ligne.livraison_id)
@@ -302,20 +315,22 @@ def verifier_invariants(
         if len(livraisons) > 1:
             violations.append(f"doublon : le lot {lot} est {len(livraisons)} fois au silver (livraisons {', '.join(livraisons)}).")
 
-    def compter(lignes, ligne_registre) -> int:
+    def compter(lignes: Sequence[_AvecArrivee], ligne_registre: LigneRegistre) -> int:
         cle = (ligne_registre.livraison_id, ligne_registre.heure_arrivee)
         return sum(1 for ligne in lignes if (ligne.livraison_id, ligne.heure_arrivee) == cle)
 
-    for ligne in etat.registre:
-        bronze, coupees = compter(etat.lignes_bronze, ligne), compter(etat.lignes_coupees, ligne)
-        silver, quarantaine = compter(etat.lignes_silver, ligne), compter(etat.quarantaine, ligne)
-        nom = f"{ligne.livraison_id} ({ligne.statut}, arrivée {ligne.heure_arrivee:%H:%M})"
-        if ligne.statut in STATUTS_BRONZE:
-            if bronze + coupees != ligne.nb_recues:
-                violations.append(f"conservation : {nom} a reçu {ligne.nb_recues} lignes mais en garde {bronze + coupees} au bronze.")
+    for entree_registre in etat.registre:
+        bronze, coupees = compter(etat.lignes_bronze, entree_registre), compter(etat.lignes_coupees, entree_registre)
+        silver, quarantaine = compter(etat.lignes_silver, entree_registre), compter(etat.quarantaine, entree_registre)
+        nom = f"{entree_registre.livraison_id} ({entree_registre.statut}, arrivée {entree_registre.heure_arrivee:%H:%M})"
+        if entree_registre.statut in STATUTS_BRONZE:
+            if bronze + coupees != entree_registre.nb_recues:
+                violations.append(
+                    f"conservation : {nom} a reçu {entree_registre.nb_recues} lignes mais en garde {bronze + coupees} au bronze."
+                )
         elif bronze or coupees:
             violations.append(f"conservation : {nom} n'entre pas, mais a {bronze + coupees} lignes au bronze.")
-        if ligne.statut in STATUTS_INTEGRES:
+        if entree_registre.statut in STATUTS_INTEGRES:
             if silver + quarantaine != bronze + coupees:
                 violations.append(
                     f"conservation : {nom} a {bronze + coupees} lignes au bronze mais {silver} au silver et {quarantaine} en quarantaine."
@@ -325,13 +340,13 @@ def verifier_invariants(
 
     codes_connus = set(catalogue.regles) | set(catalogue.regles_structure) | {CODE_LIVRAISON_BLOQUEE}
     for resultat in resultats:
-        ligne = resultat.ligne_registre
-        if ligne.statut == STATUT_REJEU and resultat.alertes:
-            violations.append(f"alertes : le rejeu {ligne.livraison_id} ne devrait prévenir personne.")
-        saine = ligne.statut == StatutLivraison.ACCEPTEE.value and not resultat.silver.quarantaine and not resultat.lignes_coupees
+        entree_registre = resultat.ligne_registre
+        if entree_registre.statut == STATUT_REJEU and resultat.alertes:
+            violations.append(f"alertes : le rejeu {entree_registre.livraison_id} ne devrait prévenir personne.")
+        saine = entree_registre.statut == StatutLivraison.ACCEPTEE.value and not resultat.silver.quarantaine and not resultat.lignes_coupees
         if saine and resultat.alertes:
-            violations.append(f"alertes : la livraison saine {ligne.livraison_id} ne devrait prévenir personne.")
+            violations.append(f"alertes : la livraison saine {entree_registre.livraison_id} ne devrait prévenir personne.")
         for alerte in resultat.alertes:
             if alerte.code not in codes_connus:
-                violations.append(f"alertes : le code {alerte.code} de {ligne.livraison_id} est absent du catalogue.")
+                violations.append(f"alertes : le code {alerte.code} de {entree_registre.livraison_id} est absent du catalogue.")
     return violations

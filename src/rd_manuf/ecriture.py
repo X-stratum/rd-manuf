@@ -30,7 +30,7 @@ import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, overload
 
 from rd_manuf.alertes import Alerte
 from rd_manuf.bronze import STATUTS_BRONZE, LigneBronze, LigneBronzeCoupee
@@ -66,6 +66,10 @@ erreur de comparaison dans l'état."""
 # ==============================================================================
 # 🧬 LES CONVERSIONS
 # ==============================================================================
+@overload
+def _utc(instant: datetime) -> datetime: ...
+@overload
+def _utc(instant: None) -> None: ...
 def _utc(instant: datetime | None) -> datetime | None:
     """Un instant s'écrit toujours en UTC : sans fuseau il ne se compare pas, on le refuse plutôt que de le deviner."""
     if instant is None:
@@ -115,12 +119,13 @@ def _coupee_depuis(e: Enregistrement) -> LigneBronzeCoupee:
 
 
 def _quarantaine_vers(ligne: LigneQuarantaine) -> Enregistrement:
-    bien_formee = isinstance(ligne.contenu, dict)
+    contenu = ligne.contenu
+    texte, brut = (dict(contenu), None) if isinstance(contenu, dict) else (None, list(contenu))
     return _dans_l_ordre(QUARANTAINE, {
         "livraison_id": ligne.livraison_id, "heure_arrivee": _utc(ligne.heure_arrivee), "version_contrat": ligne.version_contrat,
         "numero_ligne": ligne.numero_ligne, "numero_fichier": ligne.numero_fichier,
-        "contenu_texte": dict(ligne.contenu) if bien_formee else None,
-        "champs_bruts": None if bien_formee else list(ligne.contenu),
+        "contenu_texte": texte,
+        "champs_bruts": brut,
         "violations": [{"code": v.code.value, "colonnes": list(v.colonnes), "message": v.message} for v in ligne.violations],
     })
 
@@ -174,7 +179,7 @@ class Couche:
     depuis_enregistrement: Callable[[Enregistrement], Any]
 
 
-def _couche(table: Table, cles: tuple[str, ...], vers: Callable, depuis: Callable) -> Couche:
+def _couche(table: Table, cles: tuple[str, ...], vers: Callable[[Any], Enregistrement], depuis: Callable[[Enregistrement], Any]) -> Couche:
     return Couche(table, cles, ("heure_arrivee", "livraison_id", *cles[2:]), vers, depuis)
 
 
@@ -206,7 +211,7 @@ class Magasin(Protocol):
     def lire(self, table: Table, ordre: tuple[str, ...]) -> list[Enregistrement]: ...
 
 
-def _cle_de_tri(enregistrement: Enregistrement, ordre: tuple[str, ...]) -> tuple:
+def _cle_de_tri(enregistrement: Enregistrement, ordre: tuple[str, ...]) -> tuple[tuple[bool, Any], ...]:
     """Les valeurs absentes d'abord, comme Spark pour un tri croissant."""
     return tuple((enregistrement[nom] is not None, enregistrement[nom] if enregistrement[nom] is not None else 0) for nom in ordre)
 
@@ -272,7 +277,7 @@ class EtatMagasin:
         statuts = STATUTS_QUI_FONT_ENTRER[nom]
         return {(e["livraison_id"], e["heure_arrivee"]) for e in self._enregistrements("registre") if e["statut"] in statuts}
 
-    def _lire_donnees(self, nom: str, avec_decision: bool) -> list:
+    def _lire_donnees(self, nom: str, avec_decision: bool) -> list[Any]:
         decisions = self._decisions(nom)
         couche = self._couches[nom]
         return [
@@ -301,7 +306,7 @@ class EtatMagasin:
     def quarantaine(self) -> list[LigneQuarantaine]:
         return self._lire_donnees("quarantaine", True)
 
-    def lignes_sans_decision(self) -> dict[str, list]:
+    def lignes_sans_decision(self) -> dict[str, list[Any]]:
         """Les lignes de données écrites dont le registre ne dit pas (encore) qu'elles comptent, par couche : à diagnostiquer."""
         return {nom: self._lire_donnees(nom, False) for nom in STATUTS_QUI_FONT_ENTRER}
 

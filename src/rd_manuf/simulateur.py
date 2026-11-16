@@ -47,6 +47,26 @@ def _colonne(contrat: Contrat, nom: str) -> Colonne:
     return next(colonne for colonne in contrat.colonnes if colonne.nom == nom)
 
 
+# Le simulateur tire ses valeurs dans les bornes et le domaine du contrat, facultatifs dans `Colonne` : si le contrat en perd un, l'erreur
+# dit lequel (colonne et champ) au lieu d'un `TypeError` sur `None`.
+def _minimum(colonne: Colonne) -> float:
+    if colonne.minimum is None:
+        raise ValueError(f"« {colonne.nom} » : le contrat ne donne pas de minimum, dont le simulateur a besoin.")
+    return colonne.minimum
+
+
+def _maximum(colonne: Colonne) -> float:
+    if colonne.maximum is None:
+        raise ValueError(f"« {colonne.nom} » : le contrat ne donne pas de maximum, dont le simulateur a besoin.")
+    return colonne.maximum
+
+
+def _valeurs_autorisees(colonne: Colonne) -> tuple[str, ...]:
+    if colonne.valeurs_autorisees is None:
+        raise ValueError(f"« {colonne.nom} » : le contrat ne donne pas de valeurs_autorisees, dont le simulateur a besoin.")
+    return colonne.valeurs_autorisees
+
+
 # ==============================================================================
 # ✅ UNE LIGNE SAINE
 # ==============================================================================
@@ -55,15 +75,15 @@ def _ligne_saine(contrat: Contrat, rng: random.Random, numero: int) -> Ligne:
     rebut = _colonne(contrat, "quantite_rebut")
     temperature = _colonne(contrat, "temperature_c")
 
-    quantite = rng.randint(int(produite.minimum), int(produite.maximum))
+    quantite = rng.randint(int(_minimum(produite)), int(_maximum(produite)))
     temperature_absente = rng.random() < PROBABILITE_TEMPERATURE_ABSENTE
-    valeur_temperature = rng.uniform(temperature.minimum, temperature.maximum)
+    valeur_temperature = rng.uniform(_minimum(temperature), _maximum(temperature))
     return {
         "id_lot": f"LOT-{numero:06d}",
-        "id_ligne": rng.choice(_colonne(contrat, "id_ligne").valeurs_autorisees),
+        "id_ligne": rng.choice(_valeurs_autorisees(_colonne(contrat, "id_ligne"))),
         "date_production": (DATE_DEBUT + timedelta(days=rng.randrange(NB_JOURS_SIMULES))).isoformat(),
         "quantite_produite": quantite,
-        "quantite_rebut": rng.randint(int(rebut.minimum), quantite),   # la règle du contrat : rebut <= production
+        "quantite_rebut": rng.randint(int(_minimum(rebut)), quantite),   # la règle du contrat : rebut <= production
         "temperature_c": None if temperature_absente else round(valeur_temperature, DECIMALES_TEMPERATURE),
     }
 
@@ -72,7 +92,7 @@ def _ligne_saine(contrat: Contrat, rng: random.Random, numero: int) -> Ligne:
 # 💥 UNE ANOMALIE PAR CODE : chaque fabrique ne viole QUE son code
 # ==============================================================================
 def _hors_plage(contrat: Contrat, ligne: Ligne, rng: random.Random) -> Ligne:
-    return {**ligne, "temperature_c": _colonne(contrat, "temperature_c").maximum + 1}
+    return {**ligne, "temperature_c": _maximum(_colonne(contrat, "temperature_c")) + 1}
 
 
 def _obligatoire_manquant(contrat: Contrat, ligne: Ligne, rng: random.Random) -> Ligne:
@@ -97,7 +117,7 @@ def _regle_entre_colonnes(contrat: Contrat, ligne: Ligne, rng: random.Random) ->
 
 def _cle_en_conflit(contrat: Contrat, ligne: Ligne, rng: random.Random) -> Ligne:
     """`ligne` est la COPIE d'une ligne saine : même clé, autre ligne de fabrication (donc contenu différent mais valide)."""
-    autres = [valeur for valeur in _colonne(contrat, "id_ligne").valeurs_autorisees if valeur != ligne["id_ligne"]]
+    autres = [valeur for valeur in _valeurs_autorisees(_colonne(contrat, "id_ligne")) if valeur != ligne["id_ligne"]]
     return {**ligne, "id_ligne": rng.choice(autres)}
 
 
@@ -326,8 +346,8 @@ def ecrire_livraison_parquet(
         ) from cause
     par_nom = {colonne.nom: tableau for colonne, tableau in zip(contrat.colonnes, colonnes, strict=True)}
     ecrites = []
-    for nom, colonne in _colonnes_du_fichier(contrat, demandes):
-        tableau = pa.array([VALEUR_COLONNE_INCONNUE] * len(lignes), type=pa.string()) if colonne is None else par_nom[nom]
+    for nom, colonne_du_fichier in _colonnes_du_fichier(contrat, demandes):
+        tableau = pa.array([VALEUR_COLONNE_INCONNUE] * len(lignes), type=pa.string()) if colonne_du_fichier is None else par_nom[nom]
         ecrites.append((nom, tableau))
     schema = pa.schema([(nom, tableau.type) for nom, tableau in ecrites])
     pq.write_table(pa.Table.from_arrays([tableau for _, tableau in ecrites], schema=schema), chemin)
