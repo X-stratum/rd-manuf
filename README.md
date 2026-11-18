@@ -165,7 +165,7 @@ Il faut Python 3.12 ou plus récent. Le plus simple est de passer par conda, qui
 conda env create -f environment.yml   # crée l'environnement « rd-manuf » : Python 3.12, le projet et ses outils de test
 conda activate rd-manuf               # l'active (à refaire dans chaque nouveau terminal)
 python -m pytest                      # lance les tests
-ruff check .                          # vérifie le style du code
+ruff check src tests                  # vérifie le style du code (les mêmes dossiers que la CI)
 mypy                                  # vérifie les types du code, en mode strict
 python -m pytest --cov                # lance les tests et mesure la couverture : la CI l'exige à 100 %
 ```

@@ -951,6 +951,20 @@ def test_le_programme_passe_par_passer_avec_le_drapeau_qu_on_lui_donne(monkeypat
     assert code == 0 and appels == [bool(options)]
 
 
+def test_un_jalon_du_traitement_sans_resultat_est_une_erreur_du_programme_qui_s_echappe(monkeypatch, sortie, contrat, livraisons, tmp_path):
+    """`passer` donne toujours le résultat au jalon « traite ». Si ce contrat est rompu, le programme s'arrête sur une erreur qui le dit :
+    il ne la rend ni en « échec de l'étape » ni en code de sortie, et elle ne dépend pas de `assert`, que `python -O` supprime."""
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+
+    def passer_sans_resultat(*_args, jalon, **_kwargs):
+        jalon("traite", None)
+
+    monkeypatch.setattr(passage, "passer", passer_sans_resultat)
+
+    with pytest.raises(RuntimeError, match="sans résultat"):
+        _lancer(chemin, ExecuteurAvecTables(), sortie)
+
+
 @pytest.mark.parametrize("options", [[], ["--ecrire"]], ids=["simulation", "ecrire"])
 def test_une_sortie_qui_echoue_en_affichant_le_resultat_n_est_pas_une_panne_du_traitement(options, contrat, livraisons, tmp_path):
     """Le programme ne rattrape que les pannes du service et du pipeline : une sortie coupée (tube fermé) s'échappe, comme avant, au lieu

@@ -274,8 +274,9 @@ def _passer(
         def jalon(nom: str, rendu: ResultatLivraison | None) -> None:
             nonlocal phase
             if nom == "traite":
-                assert rendu is not None
                 phase = "conclusion"                        # une sortie qui échoue ici n'est pas une panne du traitement : elle s'échappe
+                if rendu is None:                           # `passer` le donne toujours ; un `assert` disparaîtrait avec `python -O`
+                    raise RuntimeError("passer a annoncé « traite » sans résultat")
                 _conclure_le_resultat(rendu, sortie)
             else:
                 phase = nom

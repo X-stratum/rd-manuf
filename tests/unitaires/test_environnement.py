@@ -12,6 +12,7 @@ RACINE = Path(__file__).resolve().parents[2]
 ENVIRONNEMENT = RACINE / "environment.yml"
 PYPROJECT = RACINE / "pyproject.toml"
 WORKFLOW = RACINE / ".github" / "workflows" / "ci.yml"
+README = RACINE / "README.md"
 
 
 def _environnement():
@@ -42,3 +43,14 @@ def test_l_environnement_installe_le_projet_avec_ses_outils_de_developpement():
     """Même commande que la CI : `pip install -e ".[dev]"`, pour avoir exactement les mêmes dépendances."""
     pip = next(d["pip"] for d in _environnement()["dependencies"] if isinstance(d, dict))
     assert '-e ".[dev]"' in pip or "-e .[dev]" in pip
+
+
+def test_le_readme_donne_les_commandes_de_controle_que_la_ci_lance():
+    """Le README dit comment refaire en local les contrôles de la CI : `ruff check .` contre `ruff check src tests` ferait réussir en local
+    ce que la CI ne regarde pas, ou l'inverse. Chaque commande `ruff` ou `mypy` du job « statique » doit y être écrite à l'identique."""
+    etapes = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["statique"]["steps"]
+    commandes = [etape["run"] for etape in etapes if etape.get("run", "").startswith(("ruff", "mypy"))]
+    lignes_du_readme = {ligne.split("#")[0].strip() for ligne in README.read_text(encoding="utf-8").splitlines()}
+
+    assert len(commandes) == 2
+    assert all(commande in lignes_du_readme for commande in commandes)
