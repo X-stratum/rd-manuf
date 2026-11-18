@@ -91,7 +91,7 @@ Le code est testé en local, notamment sur une journée simulée de trois pays ;
 - 🟢 **Ingestion incrémentale** ([`ingestion.py`](src/rd_manuf/ingestion.py)) : du dossier d'arrivée, seuls les fichiers que le registre n'a pas déjà vus (même nom, même contenu). Pas encore de programme.
 - 🟢 **Surveillance : délais** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : les sources en retard, jamais livrées, ou inconnues ; des constats, sans envoi.
 - 🟢 **Surveillance : rejets** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : le taux de rejet de chaque source sur ses dernières livraisons, comparé à une part du seuil du contrat ; des constats, sans envoi.
-- ⚪ **Surveillance : volumes** : volumes de livraison anormaux par source.
+- 🟢 **Surveillance : volumes** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : le volume de la dernière livraison de chaque source, comparé à la médiane de ses précédentes ; des constats, sans envoi.
 - ⚪ **Retraitement** : reprendre une livraison corrigée ou rejugée sous un autre contrat, avec un signal de reclassification.
 - ⚪ **Droits et secrets** : qui accède à quoi (catalogues), et où vivent les jetons.
 - ⚪ **Évolution du contrat** : changer de version sans casser l'historique ni les lignes déjà intégrées.
@@ -145,7 +145,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `passage.py` : le passage d'une livraison dans les tables du playground : traitée avec le pipeline, puis écrite seulement avec `--ecrire` ;
   - `ingestion.py` : l'ingestion incrémentale : parmi les fichiers d'un dossier d'arrivée, ceux que le registre n'a pas déjà vus, traités dans l'ordre des noms par `passer` ;
   - `gold.py` : la production par jour, pays, usine et ligne de fabrication, calculée depuis le silver (une fonction pure, sans écrire) ;
-  - `surveillance.py` : la fraîcheur des livraisons (les sources qui n'ont pas livré à temps) et le taux de rejet dans le temps, comparés au registre (fonctions pures) ;
+  - `surveillance.py` : la fraîcheur des livraisons (les sources qui n'ont pas livré à temps), le taux de rejet dans le temps et les volumes de livraison, comparés au registre (fonctions pures) ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
   - `lecture.py` : lecture des fichiers CSV et Parquet, et choix du lecteur selon le format ;
   - `lecture_yaml.py` : la lecture des fichiers YAML du dépôt (contrat, catalogue d'alertes, sources attendues), qui refuse une clé répétée au lieu de garder la dernière ;
@@ -313,6 +313,42 @@ with TemporaryDirectory() as dossier:
     jouer(contrat, catalogue, journee_multi_usines(contrat), Path(dossier), etat)
 parametres = ParametresTauxRejet(fenetre_livraisons=2, part_du_seuil=0.5)
 for constat in controler_taux_de_rejet(etat.registre, parametres, contrat.taux_rejet_max):
+    print(constat)
+```
+
+## Surveillance : les volumes de livraison
+
+Une usine peut livrer à l'heure, sans un seul rejet, et pourtant envoyer la moitié de ses lignes (un export coupé en route) ou le double (un fichier envoyé deux fois) : ni la fraîcheur ni le taux de rejet ne le voient. La fonction `controler_volumes` ([`surveillance.py`](src/rd_manuf/surveillance.py)) compare le **volume** (le nombre de lignes reçues) de la dernière livraison de chaque source à la **médiane** de ses précédentes, et rend un constat `VOLUME_ANORMAL` quand l'écart relatif dépasse, strictement, `ecart_max`, en baisse comme en hausse :
+
+- la référence est la médiane des `fenetre_livraisons` livraisons précédentes (la moyenne des deux valeurs du milieu pour une fenêtre paire), jamais leur moyenne : une livraison passée aberrante ne la dérègle pas ;
+- comptent les mêmes livraisons que pour le taux de rejet : acceptée, acceptée avec rejets et bloquée, avec au moins une ligne reçue ; une livraison refusée ou rejouée n'est ni la dernière ni une référence ;
+- une source qui a moins de `fenetre_livraisons` + 1 livraisons jugeables n'est pas jugée ;
+- le constat dit le volume, la référence, l'écart (négatif pour une baisse), son sens, le nombre de livraisons de référence et l'identifiant de la livraison.
+
+Les deux réglages sont dans la section `volumes` de [`sources_attendues.yaml`](contracts/surveillance/sources_attendues.yaml) : 5 livraisons de référence et un écart de 0,5 (la dernière livraison peut s'écarter de la moitié de la référence, en plus ou en moins). Ce sont des valeurs de départ, pas une mesure. Pas de calendrier : une usine qui livre moins le week-end demande un `ecart_max` qui le couvre. C'est une fonction pure : elle n'écrit rien et ne prévient personne. Sur la journée de test, avec une fenêtre d'une livraison, elle ne signale rien ; en triplant le volume de la dernière livraison d'une source, depuis la racine du dépôt :
+
+```python
+from dataclasses import replace
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from rd_manuf.alertes import charger_catalogue
+from rd_manuf.contrat import charger_contrat
+from rd_manuf.journee import Etat, jouer, journee_multi_usines
+from rd_manuf.surveillance import ParametresVolumes, controler_volumes
+
+contrat = charger_contrat(Path("contracts/data/livraison_production.yaml"))
+catalogue = charger_catalogue(Path("contracts/alertes/catalogue.yaml"))
+etat = Etat()
+with TemporaryDirectory() as dossier:
+    jouer(contrat, catalogue, journee_multi_usines(contrat), Path(dossier), etat)
+parametres = ParametresVolumes(fenetre_livraisons=1, ecart_max=0.5)
+print(controler_volumes(etat.registre, parametres))                   # []
+registre = list(etat.registre)
+derniere = max((ligne for ligne in registre if ligne.pays == "USA" and ligne.usine == "CA" and ligne.ligne == "001" and ligne.nb_recues),
+               key=lambda ligne: ligne.heure_arrivee)
+registre[registre.index(derniere)] = replace(derniere, nb_recues=derniere.nb_recues * 3)
+for constat in controler_volumes(registre, parametres):
     print(constat)
 ```
 
