@@ -75,7 +75,7 @@ def _livraison_deja_integree(registre: Sequence[LigneRegistre], nom: NomFichier)
     return next((entree for entree in integrees if (entree.pays, entree.usine, entree.ligne, entree.horodatage_fichier) == identite), None)
 
 
-def _empreinte(chemin: Path) -> str:
+def empreinte_du_fichier(chemin: Path) -> str:
     with chemin.open("rb") as fichier:
         return hashlib.file_digest(fichier, "sha256").hexdigest()
 
@@ -117,7 +117,7 @@ def traiter_fichier(
         reception = receptionner_fichier(contrat, chemin)             # refuse ce nom, avec son motif, sans lire le fichier
         return reception, construire_ligne_registre(reception, heure)
 
-    empreinte = _empreinte(chemin)
+    empreinte = empreinte_du_fichier(chemin)
     original = _livraison_deja_integree(registre, nom)
     if original is not None and original.empreinte == empreinte:
         return None, _ligne_de_rejeu(chemin, nom, original, heure)
