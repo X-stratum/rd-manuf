@@ -10,6 +10,7 @@ Rien ne tourne sur un vrai workspace : seul le premier lancement réel dira ce q
 Le module est importé par son nom (`passage.passer`) pour qu'un module encore vide fasse échouer chaque test sur son assertion, et non la
 collecte de tout le fichier.
 """
+import ast
 import re
 import subprocess
 import sys
@@ -227,6 +228,73 @@ def test_passer_la_journee_fichier_par_fichier_donne_l_etat_de_la_journee_jouee_
     assert etat.registre == attendu.registre
     assert etat.lignes_bronze == attendu.lignes_bronze and etat.lignes_coupees == attendu.lignes_coupees
     assert etat.lignes_silver == attendu.lignes_silver and etat.quarantaine == attendu.quarantaine
+
+
+def test_passer_annonce_ses_jalons_dans_l_ordre_et_donne_le_resultat_au_jalon_du_traitement(contrat, livraisons, tmp_path):
+    chemin, livraison = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    annonces = []
+
+    resultat = passage.passer(
+        contrat, _alertes(contrat), chemin, MagasinEnMemoire(), livraison.arrivee, ecrire=True,
+        jalon=lambda nom, rendu: annonces.append((nom, rendu)),
+    )
+
+    assert [nom for nom, _ in annonces] == ["lecture", "traitement", "traite", "ecriture"]
+    assert [rendu is None for _, rendu in annonces] == [True, True, False, False]       # le résultat accompagne « traite » et « ecriture »
+    assert annonces[2][1] is resultat.resultat and annonces[3][1] is resultat.resultat
+
+
+def test_passer_en_simulation_n_annonce_pas_l_ecriture(contrat, livraisons, tmp_path):
+    chemin, livraison = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    annonces = []
+
+    passage.passer(
+        contrat, _alertes(contrat), chemin, MagasinEnMemoire(), livraison.arrivee, ecrire=False, jalon=lambda nom, _: annonces.append(nom)
+    )
+
+    assert annonces == ["lecture", "traitement", "traite"]
+
+
+def test_un_jalon_est_annonce_avant_son_etape_donc_une_panne_est_attribuee_a_la_bonne_etape(
+    monkeypatch, contrat, livraisons, tmp_path
+):
+    chemin, livraison = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    annonces = []
+
+    def panne(*_args, **_kwargs):
+        raise RuntimeError("panne du traitement")
+
+    monkeypatch.setattr(passage, "traiter_livraison", panne)
+
+    with pytest.raises(RuntimeError, match="panne du traitement"):
+        passage.passer(
+            contrat, _alertes(contrat), chemin, MagasinEnMemoire(), livraison.arrivee, ecrire=True,
+            jalon=lambda nom, _: annonces.append(nom),
+        )
+
+    assert annonces == ["lecture", "traitement"]                                           # « traite » et « ecriture » n'ont pas eu lieu
+
+
+def test_passer_lit_l_etat_par_la_fonction_donnee_et_pas_par_la_lecture_du_magasin(monkeypatch, contrat, livraisons, tmp_path):
+    chemin, livraison = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    appels = {"donnee": 0, "du_magasin": 0}
+    lecture_du_magasin = passage.lire_l_etat
+
+    def donnee():
+        appels["donnee"] += 1
+        return [], []
+
+    def du_magasin(*args):
+        appels["du_magasin"] += 1
+        return lecture_du_magasin(*args)
+
+    monkeypatch.setattr(passage, "lire_l_etat", du_magasin)
+
+    passage.passer(contrat, _alertes(contrat), chemin, MagasinEnMemoire(), livraison.arrivee, ecrire=False, lire=donnee)
+    assert appels == {"donnee": 1, "du_magasin": 0}
+
+    passage.passer(contrat, _alertes(contrat), chemin, MagasinEnMemoire(), livraison.arrivee, ecrire=False)
+    assert appels == {"donnee": 1, "du_magasin": 1}                                        # sans fonction donnée : la lecture du magasin
 
 
 # ==============================================================================
@@ -864,6 +932,119 @@ def test_le_resultat_du_passage_est_immuable(contrat, livraisons, tmp_path):
 
     with pytest.raises(AttributeError):
         resultat.ecrit = True
+
+
+@pytest.mark.parametrize("options", [[], ["--ecrire"]], ids=["simulation", "ecrire"])
+def test_le_programme_passe_par_passer_avec_le_drapeau_qu_on_lui_donne(monkeypatch, options, sortie, contrat, livraisons, tmp_path):
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    appels = []
+    vraie = passage.passer
+
+    def espionne(*args, **kwargs):
+        appels.append(kwargs["ecrire"])
+        return vraie(*args, **kwargs)
+
+    monkeypatch.setattr(passage, "passer", espionne)
+
+    code = _lancer(chemin, ExecuteurAvecTables(), sortie, *options)
+
+    assert code == 0 and appels == [bool(options)]
+
+
+@pytest.mark.parametrize("options", [[], ["--ecrire"]], ids=["simulation", "ecrire"])
+def test_une_sortie_qui_echoue_en_affichant_le_resultat_n_est_pas_une_panne_du_traitement(options, contrat, livraisons, tmp_path):
+    """Le programme ne rattrape que les pannes du service et du pipeline : une sortie coupée (tube fermé) s'échappe, comme avant, au lieu
+    d'être annoncée « traitement impossible » et suivie d'un code de sortie qui dirait que la livraison n'a pas été traitée."""
+    chemin, _ = _fichier(contrat, livraisons, "fra-aa-001-saine", tmp_path)
+    affichees = []
+
+    def sortie_coupee(texte):
+        if texte.startswith("Statut"):
+            raise OSError("sortie coupée")
+        affichees.append(texte)
+
+    with pytest.raises(OSError, match="sortie coupée"):
+        passage.principal(
+            ["--profil", "p", "--entrepot", "e", "--fichier", str(chemin), *CLES_DE_LIGNE, *options],
+            fabriquer=lambda *_a, **_k: ExecuteurAvecTables(), sortie=sortie_coupee, maintenant=lambda: MAINTENANT,
+        )
+
+    assert not any("impossible" in texte for texte in affichees)
+
+
+# La séquence « lire l'état, traiter, écrire » est écrite UNE fois, dans `passer`. Le programme l'appelle : s'il la réécrivait, les deux
+# copies pourraient dériver sans qu'aucun test le voie (c'est ce qui était écrit deux fois avant).
+ETAPES_DU_PASSAGE = {"lire_l_etat", "traiter_livraison", "ecrire_le_resultat"}
+
+
+def _alias(arbre):
+    """Les noms sous lesquels une fonction est aussi connue dans le module : `from m import a as b` et `b = a` (b -> a)."""
+    alias = {}
+    for noeud in ast.walk(arbre):
+        if isinstance(noeud, ast.ImportFrom):
+            alias |= {nom.asname: nom.name for nom in noeud.names if nom.asname}
+        elif isinstance(noeud, ast.Assign) and isinstance(noeud.value, ast.Name):
+            alias |= {cible.id: noeud.value.id for cible in noeud.targets if isinstance(cible, ast.Name)}
+    return alias
+
+
+def _nom_d_origine(nom, alias):
+    """Le nom qu'une fonction porte à l'origine, en suivant les alias (un cycle s'arrête au lieu de boucler)."""
+    vus = set()
+    while nom in alias and nom not in vus:
+        vus.add(nom)
+        nom = alias[nom]
+    return nom
+
+
+def _appels_directs(source, fonction):
+    """Les noms d'origine de tout ce que `fonction` appelle (`nom(...)` ou `objet.nom(...)`), fonctions imbriquées et alias compris."""
+    arbre = ast.parse(source)
+    alias = _alias(arbre)
+    noeud = next(n for n in ast.walk(arbre) if isinstance(n, ast.FunctionDef) and n.name == fonction)
+    noms = set()
+    for appel in ast.walk(noeud):
+        if isinstance(appel, ast.Call):
+            cible = appel.func
+            nom = cible.id if isinstance(cible, ast.Name) else cible.attr if isinstance(cible, ast.Attribute) else ""
+            noms.add(_nom_d_origine(nom, alias))
+    return noms
+
+
+def test_le_garde_trouve_une_etape_appelee_sous_un_autre_nom():
+    """Le cas de la revue : `from rd_manuf.pipeline import traiter_livraison as traiter`, puis `traiter(...)` dans le programme."""
+    source = "from rd_manuf.pipeline import traiter_livraison as traiter\ndef _passer():\n    return traiter(a)\n"
+
+    assert _appels_directs(source, "_passer") & ETAPES_DU_PASSAGE == {"traiter_livraison"}
+
+
+def test_le_programme_ne_reecrit_pas_la_sequence_de_passer():
+    source = (RACINE / "src" / "rd_manuf" / "passage.py").read_text(encoding="utf-8")
+    appels = _appels_directs(source, "_passer")
+
+    assert "passer" in appels, "le programme doit appeler `passer`"
+    assert appels & ETAPES_DU_PASSAGE == set(), f"le programme réécrit des étapes de `passer` : {sorted(appels & ETAPES_DU_PASSAGE)}"
+
+
+@pytest.mark.parametrize(
+    ("source", "attendu"),
+    [
+        ("def f():\n    return passer(a)\n", {"passer"}),
+        ("def f():\n    x = traiter_livraison(a)\n    return passer(x)\n", {"passer", "traiter_livraison"}),
+        ("def f():\n    return passage.ecrire_le_resultat(a)\n", {"ecrire_le_resultat"}),                 # par un attribut
+        ("def f():\n    def g():\n        return lire_l_etat(a)\n    return g()\n", {"g", "lire_l_etat"}),   # dans une fonction imbriquée
+        ("def f():\n    return 1\ndef g():\n    return traiter_livraison(a)\n", set()),                         # une autre fonction
+        ("def f():\n    return fabriquer()(x)\n", {"fabriquer", ""}),                                          # un appel d'appel
+        ("from m import traiter_livraison as traiter\ndef f():\n    return traiter(a)\n", {"traiter_livraison"}),     # un alias d'import
+        ("def f():\n    t = traiter_livraison\n    return t(a)\n", {"traiter_livraison"}),                          # un alias d'affectation
+        ("from m import x as y\nfrom n import y as z\ndef f():\n    return z(a)\n", {"x"}),                         # un alias d'alias
+        ("a = b\nb = a\ndef f():\n    return a(x)\n", {"a"}),                                                       # un cycle ne boucle pas
+    ],
+    ids=["propre", "réécrit", "attribut", "imbriquée", "autre fonction", "appel d'appel", "alias d'import", "alias d'affectation",
+         "alias d'alias", "cycle"],
+)
+def test_le_garde_voit_les_appels_d_une_fonction(source, attendu):
+    assert _appels_directs(source, "f") == attendu
 
 
 # ==============================================================================
