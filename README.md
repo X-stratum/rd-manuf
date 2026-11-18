@@ -88,7 +88,7 @@ Le code est testé en local, notamment sur une journée simulée de trois pays ;
 <summary><b>07 · Exploiter</b> : faire tourner et surveiller le pipeline</summary>
 
 - ⚪ **Orchestration** : les étapes enchaînées en jobs Databricks, un passage par livraison.
-- ⚪ **Ingestion incrémentale** : ne traiter que les nouveaux fichiers du dossier d'arrivée.
+- 🟢 **Ingestion incrémentale** ([`ingestion.py`](src/rd_manuf/ingestion.py)) : du dossier d'arrivée, seuls les fichiers que le registre n'a pas déjà vus (même nom, même contenu). Pas encore de programme.
 - 🟢 **Surveillance : délais** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : les sources en retard, jamais livrées, ou inconnues ; des constats, sans envoi.
 - 🟢 **Surveillance : rejets** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : le taux de rejet de chaque source sur ses dernières livraisons, comparé à une part du seuil du contrat ; des constats, sans envoi.
 - ⚪ **Surveillance : volumes** : volumes de livraison anormaux par source.
@@ -143,6 +143,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ; une requête interrompue au clavier est annulée côté entrepôt ;
   - `sondage.py` : la première exécution sur un workspace, en lecture seule : des essais de conversion et la présence de nos tables, avec le délai réglable, les durées affichées et l'interruption propre ;
   - `passage.py` : le passage d'une livraison dans les tables du playground : traitée avec le pipeline, puis écrite seulement avec `--ecrire` ;
+  - `ingestion.py` : l'ingestion incrémentale : parmi les fichiers d'un dossier d'arrivée, ceux que le registre n'a pas déjà vus, traités dans l'ordre des noms par `passer` ;
   - `gold.py` : la production par jour, pays, usine et ligne de fabrication, calculée depuis le silver (une fonction pure, sans écrire) ;
   - `surveillance.py` : la fraîcheur des livraisons (les sources qui n'ont pas livré à temps) et le taux de rejet dans le temps, comparés au registre (fonctions pures) ;
   - `alertes.py` : le routage des alertes selon le catalogue ;
