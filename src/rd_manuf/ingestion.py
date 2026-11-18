@@ -15,7 +15,9 @@ et les fichiers dont le nom commence par un point (un dépôt en cours) sont ign
 L'ORDRE est celui des noms, qui est celui du classement du silver `(heure d'arrivée, nom)` quand tous les fichiers du lot ont la même
 heure d'arrivée. Une seule heure par lancement : une panne arrête le lot (rien n'est avalé), ce qui est écrit reste écrit, et relancer avec
 LA MÊME heure reprend sans rien dupliquer, comme pour `passer`. Chaque fichier passe par `passer` : la séquence « lire, traiter, écrire »
-n'est écrite qu'à un endroit (un test le garde).
+n'est écrite qu'à un endroit. Un test refuse que ce module appelle lui-même `lire_l_etat`, `traiter_livraison` ou `ecrire_le_resultat`, par
+leur nom, par un attribut ou par un alias ; une écriture directe dans le magasin, un `getattr` ou une fonction reçue en paramètre ne se
+voient pas par les noms.
 
 Ce que ce module ne fait pas : il n'est pas un programme à lancer (le lancement par un job viendra avec l'orchestration), et il ne regarde
 pas si un fichier est encore en train d'être déposé : l'émetteur doit le déposer sous un nom caché puis le renommer.

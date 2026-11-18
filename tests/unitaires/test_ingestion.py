@@ -7,11 +7,11 @@ Le dossier est un dossier ordinaire (`tmp_path`) rempli avec les fichiers de la 
 Le module est importé par son nom (`ingestion.ingerer`) pour qu'un module encore vide fasse échouer chaque test sur son assertion, et non
 la collecte de tout le fichier.
 """
-import ast
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from appels_ast import appels_du_module
 
 from rd_manuf import ingestion
 from rd_manuf.alertes import charger_catalogue
@@ -219,12 +219,39 @@ def test_l_ingestion_passe_par_passer_avec_le_drapeau_qu_on_lui_donne(monkeypatc
     assert [drapeau for _, drapeau in appels] == [ecrire, ecrire] and len(appels) == 2
 
 
-def test_l_ingestion_ne_reecrit_aucune_etape_de_passer():
-    """Comme le programme de passage : la séquence « traiter, écrire » vit UNE fois, dans `passer` ; une copie dériverait sans bruit."""
-    arbre = ast.parse(Path(ingestion.__file__).read_text(encoding="utf-8"))
-    importes = {nom.name for noeud in ast.walk(arbre) if isinstance(noeud, ast.ImportFrom) for nom in noeud.names}
+# La séquence « lire l'état, traiter, écrire » vit UNE fois, dans `passer` : l'ingestion l'appelle pour chaque fichier. Si elle en
+# réécrivait une étape, les deux copies pourraient dériver sans qu'aucun test le voie (comme le programme de passage avant la #55).
+ETAPES_DE_PASSER = {"lire_l_etat", "traiter_livraison", "ecrire_le_resultat"}
 
-    assert importes.isdisjoint({"traiter_livraison", "ecrire_le_resultat", "lire_l_etat"})
+
+def _etapes_appelees(source):
+    """Les étapes de `passer` que le code appelle lui-même : par leur nom, par un attribut (`module.etape(...)`) ou par un alias."""
+    return appels_du_module(source) & ETAPES_DE_PASSER
+
+
+@pytest.mark.parametrize(
+    ("source", "attendu"),
+    [
+        ("from m import passer\ndef f():\n    return passer(a)\n", set()),
+        ("from m import traiter_livraison\ndef f():\n    return traiter_livraison(a)\n", {"traiter_livraison"}),  # par son nom
+        ("from m import ecrire_le_resultat as ecrire\ndef f():\n    return ecrire(a)\n", {"ecrire_le_resultat"}),  # un alias d'import
+        ("def f():\n    t = traiter_livraison\n    return t(a)\n", {"traiter_livraison"}),  # un alias d'affectation
+        ("from rd_manuf import pipeline\ndef f():\n    return pipeline.traiter_livraison(a)\n", {"traiter_livraison"}),  # un attribut
+        ("from rd_manuf import passage\ndef f():\n    return passage.ecrire_le_resultat(a)\n", {"ecrire_le_resultat"}),  # un autre
+        ("def f():\n    def g():\n        return lire_l_etat(a)\n    return g()\n", {"lire_l_etat"}),  # imbriqué
+        ("traiter_livraison(a)\n", {"traiter_livraison"}),  # hors fonction
+    ],
+    ids=["propre", "nom", "alias d'import", "alias d'affectation", "attribut pipeline", "attribut passage", "imbriqué", "hors fonction"],
+)
+def test_le_garde_de_l_ingestion_voit_les_etapes_de_passer_ou_qu_elles_soient_appelees(source, attendu):
+    assert _etapes_appelees(source) == attendu
+
+
+def test_l_ingestion_appelle_passer_et_ne_reecrit_aucune_de_ses_etapes():
+    source = Path(ingestion.__file__).read_text(encoding="utf-8")
+
+    assert "passer" in appels_du_module(source), "l'ingestion doit appeler `passer`"
+    assert _etapes_appelees(source) == set(), f"l'ingestion réécrit des étapes de `passer` : {sorted(_etapes_appelees(source))}"
 
 
 def test_une_heure_sans_fuseau_est_refusee_comme_pour_un_passage(contrat, livraisons, alertes, tmp_path):

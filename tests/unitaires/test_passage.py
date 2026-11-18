@@ -10,7 +10,6 @@ Rien ne tourne sur un vrai workspace : seul le premier lancement réel dira ce q
 Le module est importé par son nom (`passage.passer`) pour qu'un module encore vide fasse échouer chaque test sur son assertion, et non la
 collecte de tout le fichier.
 """
-import ast
 import re
 import subprocess
 import sys
@@ -18,6 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from appels_ast import appels_directs
 
 from rd_manuf import passage
 from rd_manuf.alertes import charger_catalogue
@@ -991,50 +991,16 @@ def test_une_sortie_qui_echoue_en_affichant_le_resultat_n_est_pas_une_panne_du_t
 ETAPES_DU_PASSAGE = {"lire_l_etat", "traiter_livraison", "ecrire_le_resultat"}
 
 
-def _alias(arbre):
-    """Les noms sous lesquels une fonction est aussi connue dans le module : `from m import a as b` et `b = a` (b -> a)."""
-    alias = {}
-    for noeud in ast.walk(arbre):
-        if isinstance(noeud, ast.ImportFrom):
-            alias |= {nom.asname: nom.name for nom in noeud.names if nom.asname}
-        elif isinstance(noeud, ast.Assign) and isinstance(noeud.value, ast.Name):
-            alias |= {cible.id: noeud.value.id for cible in noeud.targets if isinstance(cible, ast.Name)}
-    return alias
-
-
-def _nom_d_origine(nom, alias):
-    """Le nom qu'une fonction porte à l'origine, en suivant les alias (un cycle s'arrête au lieu de boucler)."""
-    vus = set()
-    while nom in alias and nom not in vus:
-        vus.add(nom)
-        nom = alias[nom]
-    return nom
-
-
-def _appels_directs(source, fonction):
-    """Les noms d'origine de tout ce que `fonction` appelle (`nom(...)` ou `objet.nom(...)`), fonctions imbriquées et alias compris."""
-    arbre = ast.parse(source)
-    alias = _alias(arbre)
-    noeud = next(n for n in ast.walk(arbre) if isinstance(n, ast.FunctionDef) and n.name == fonction)
-    noms = set()
-    for appel in ast.walk(noeud):
-        if isinstance(appel, ast.Call):
-            cible = appel.func
-            nom = cible.id if isinstance(cible, ast.Name) else cible.attr if isinstance(cible, ast.Attribute) else ""
-            noms.add(_nom_d_origine(nom, alias))
-    return noms
-
-
 def test_le_garde_trouve_une_etape_appelee_sous_un_autre_nom():
     """Le cas de la revue : `from rd_manuf.pipeline import traiter_livraison as traiter`, puis `traiter(...)` dans le programme."""
     source = "from rd_manuf.pipeline import traiter_livraison as traiter\ndef _passer():\n    return traiter(a)\n"
 
-    assert _appels_directs(source, "_passer") & ETAPES_DU_PASSAGE == {"traiter_livraison"}
+    assert appels_directs(source, "_passer") & ETAPES_DU_PASSAGE == {"traiter_livraison"}
 
 
 def test_le_programme_ne_reecrit_pas_la_sequence_de_passer():
     source = (RACINE / "src" / "rd_manuf" / "passage.py").read_text(encoding="utf-8")
-    appels = _appels_directs(source, "_passer")
+    appels = appels_directs(source, "_passer")
 
     assert "passer" in appels, "le programme doit appeler `passer`"
     assert appels & ETAPES_DU_PASSAGE == set(), f"le programme réécrit des étapes de `passer` : {sorted(appels & ETAPES_DU_PASSAGE)}"
@@ -1058,7 +1024,7 @@ def test_le_programme_ne_reecrit_pas_la_sequence_de_passer():
          "alias d'alias", "cycle"],
 )
 def test_le_garde_voit_les_appels_d_une_fonction(source, attendu):
-    assert _appels_directs(source, "f") == attendu
+    assert appels_directs(source, "f") == attendu
 
 
 # ==============================================================================
