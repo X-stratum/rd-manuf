@@ -29,6 +29,12 @@ Les messages de commit déjà présents dans `main` ne sont pas réécrits (l'hi
 
 ---
 
+## #56 — Rangement : le README donne les commandes de la CI, et un jalon sans résultat ne repose plus sur un `assert`
+*2026-11-18 · [PR #56](https://github.com/X-stratum/rd-manuf/pull/56)*
+
+**En clair.** Deux petites dettes notées aux PR #53 et #55 sont soldées, sans rien changer de ce que fait le programme quand tout va bien. Le README disait de lancer `ruff check .` alors que la CI lance `ruff check src tests` : un test vérifie maintenant que chaque commande `ruff` et `mypy` de la CI est écrite à l'identique dans le README. Et le programme de passage vérifiait par un `assert` que `passer` lui donne son résultat au bon moment : cette vérification disparaît quand Python est lancé avec l'option `-O`. C'est maintenant un contrôle explicite, qui arrête le programme sur une erreur qui le dit.
+**Décisions.** Le README s'aligne sur la CI, pas l'inverse : la CI est la référence. Le test du README ne compare que `ruff` et `mypy`, pas `pytest`, que le README lance sous une autre forme (`python -m pytest --cov`) pour l'usage local. L'erreur du jalon s'échappe (`RuntimeError`) au lieu d'être rendue en « échec de l'étape » avec un code de sortie : un contrat rompu entre deux fonctions du programme est une erreur de programmation, pas une panne du service. Le second `assert` du code (`alertes.py`) est laissé : il est garanti par la construction de `Reception` (#52). Ce qui n'est pas prouvé : l'erreur du jalon est vue par un test qui remplace `passer`, jamais par un vrai passage, où elle ne peut pas se produire.
+
 ## #55 — Passage : le programme appelle `passer` au lieu de réécrire sa séquence
 *2026-11-16 · [PR #55](https://github.com/X-stratum/rd-manuf/pull/55)*
 
