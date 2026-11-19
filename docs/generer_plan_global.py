@@ -14,7 +14,7 @@ from pathlib import Path
 
 SORTIE = Path(__file__).with_name("plan-global.svg")
 NUMERO_REVISION = 11
-DATE_REVISION = "2026-11-19"
+DATE_REVISION = "2026-11-18"
 
 # ==============================================================================
 # 📋 LE PLAN : c'est ici qu'on change un statut
