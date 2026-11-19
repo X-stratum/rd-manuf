@@ -43,7 +43,7 @@ class LigneRegistre:
     rejeu_de: str | None                       # identifiant de la livraison déjà intégrée dont celle-ci est un rejeu
 
 
-def _en_utc(heure: datetime) -> datetime:
+def en_utc(heure: datetime) -> datetime:
     if heure.utcoffset() is None:
         raise ValueError("L'heure d'arrivée doit avoir un fuseau (UTC attendu) : une heure sans fuseau ne se compare pas.")
     return heure.astimezone(UTC)
@@ -63,7 +63,7 @@ def construire_ligne_registre(reception: Reception, heure_arrivee: datetime, emp
         usine=nom.usine if nom else None,
         ligne=nom.ligne if nom else None,
         horodatage_fichier=nom.horodatage if nom else None,
-        heure_arrivee=_en_utc(heure_arrivee),
+        heure_arrivee=en_utc(heure_arrivee),
         empreinte=empreinte,
         rejeu_de=None,
     )
@@ -110,7 +110,7 @@ def traiter_fichier(
     Rend la réception (None pour un rejeu : rien n'est relu ni rejugé) et la ligne à ajouter au registre.
     """
     chemin = Path(chemin)
-    heure = _en_utc(heure_arrivee)                    # échoue tout de suite si l'heure est « naïve »
+    heure = en_utc(heure_arrivee)                    # échoue tout de suite si l'heure est « naïve »
     try:
         nom = lire_nom_fichier(chemin.name)
     except NomFichierInvalide:
