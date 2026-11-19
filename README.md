@@ -92,7 +92,7 @@ Le code est testé en local, notamment sur une journée simulée de trois pays ;
 - 🟢 **Surveillance : délais** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : les sources en retard, jamais livrées, ou inconnues ; des constats, sans envoi.
 - 🟢 **Surveillance : rejets** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : le taux de rejet de chaque source sur ses dernières livraisons, comparé à une part du seuil du contrat ; des constats, sans envoi.
 - 🟢 **Surveillance : volumes** ([`surveillance.py`](src/rd_manuf/surveillance.py)) : le volume de la dernière livraison de chaque source, comparé à la médiane de ses précédentes ; des constats, sans envoi.
-- ⚪ **Retraitement** : reprendre une livraison corrigée ou rejugée sous un autre contrat, avec un signal de reclassification.
+- 🟢 **Retraitement** ([`retraitement.py`](src/rd_manuf/retraitement.py)) : choisir les livraisons à rejuger sous un autre contrat, les rejuger depuis le bronze, signaler le reclassement ; sans écriture.
 - ⚪ **Droits et secrets** : qui accède à quoi (catalogues), et où vivent les jetons.
 - ⚪ **Évolution du contrat** : changer de version sans casser l'historique ni les lignes déjà intégrées.
 - ⚪ **Tests de volume** : mesurer le pipeline sur de vraies tailles de livraison, pour choisir entre Python et Spark.
@@ -143,6 +143,7 @@ l'environnement se choisit par le paramètre `catalogue`, jamais par une copie d
   - `executeur_databricks.py` : l'exécuteur réel : envoie les requêtes de l'écrivain à un entrepôt SQL Databricks et rend des lignes typées ; une requête interrompue au clavier est annulée côté entrepôt ;
   - `sondage.py` : la première exécution sur un workspace, en lecture seule : des essais de conversion et la présence de nos tables, avec le délai réglable, les durées affichées et l'interruption propre ;
   - `passage.py` : le passage d'une livraison dans les tables du playground : traitée avec le pipeline, puis écrite seulement avec `--ecrire` ;
+  - `retraitement.py` : le retraitement : choisir les livraisons à rejuger sous une autre version du contrat, les rejuger depuis le bronze, et signaler leur reclassement (fonctions pures) ;
   - `ingestion.py` : l'ingestion incrémentale : parmi les fichiers d'un dossier d'arrivée, ceux que le registre n'a pas déjà vus, traités dans l'ordre des noms par `passer` ;
   - `gold.py` : la production par jour, pays, usine et ligne de fabrication, calculée depuis le silver (une fonction pure, sans écrire) ;
   - `surveillance.py` : la fraîcheur des livraisons (les sources qui n'ont pas livré à temps), le taux de rejet dans le temps et les volumes de livraison, comparés au registre (fonctions pures) ;
@@ -350,6 +351,44 @@ derniere = max((ligne for ligne in registre if ligne.pays == "USA" and ligne.usi
 registre[registre.index(derniere)] = replace(derniere, nb_recues=derniere.nb_recues * 3)
 for constat in controler_volumes(registre, parametres):
     print(constat)
+```
+
+## Retraitement : rejuger une livraison sous un autre contrat
+
+Un contrat évolue (un seuil, une plage, une colonne), et les livraisons déjà intégrées ont été jugées sous l'ancienne version. Le module [`retraitement.py`](src/rd_manuf/retraitement.py) choisit celles à rejuger et dit ce que le nouveau jugement change. Il ne refait rien de ce que le code sait déjà : il enchaîne la réception, le registre et le silver sur ce que le bronze a gardé.
+
+- `a_retraiter(registre, contrat)` rend, pour chaque livraison, sa **décision en vigueur** (sa dernière ligne de registre dont les lignes entrent au bronze : acceptée, acceptée avec rejets ou bloquée) quand elle a été jugée sous une **autre version** que celle du contrat donné. Un refus, un rejeu ou un conflit plus récent ne la remplace pas ;
+- `retraiter(contrat, ligne, bronze, coupees, deja_integrees, heure)` rejuge la livraison depuis ses lignes bronze et ses lignes coupées, à une heure **postérieure à son arrivée** (la clé du registre est la livraison et l'heure), et rend la nouvelle ligne de registre, les lignes silver et la quarantaine du nouveau jugement, et un **reclassement** ;
+- `retrouver_arrivee_du_bronze(registre, ligne)` donne l'arrivée dont le bronze porte les lignes d'une livraison : un retraitement ne réécrit pas le bronze, donc une livraison **déjà retraitée** a l'heure de son dernier retraitement mais son bronze d'origine ; on la passe à `retraiter(..., arrivee_du_bronze=…)`, ce qui permet de retraiter autant de fois que le contrat change. Les lignes d'un renvoi corrigé, d'un autre contenu, ne sont jamais prises pour celles de la première version ;
+- le reclassement (`LIVRAISON_RECLASSEE`) dit le statut, la version et les comptes avant et après ; il n'est rendu que si le statut ou les comptes changent. La structure est rejugée aussi : un contrat qui exige une colonne absente du bronze refuse la livraison.
+
+Ce sont des fonctions pures : elles n'écrivent rien et ne préviennent personne. Elles ne disent pas non plus comment le nouveau jugement **remplace** l'ancien dans les tables : sans cette règle, ajouter ses lignes à côté des anciennes ferait compter deux fois la livraison. C'est l'objet de l'évolution du contrat. Sur la journée de test, avec un seuil de rejet à zéro, deux livraisons passent d'acceptée avec rejets à bloquée (`DEU_BA_001` et `USA_CA_002`) ; depuis la racine du dépôt :
+
+```python
+from dataclasses import replace
+from datetime import UTC, datetime
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from rd_manuf.alertes import charger_catalogue
+from rd_manuf.contrat import charger_contrat
+from rd_manuf.journee import Etat, jouer, journee_multi_usines
+from rd_manuf.retraitement import a_retraiter, retraiter
+
+contrat = charger_contrat(Path("contracts/data/livraison_production.yaml"))
+catalogue = charger_catalogue(Path("contracts/alertes/catalogue.yaml"))
+etat = Etat()
+with TemporaryDirectory() as dossier:
+    jouer(contrat, catalogue, journee_multi_usines(contrat), Path(dossier), etat)
+strict = replace(contrat, version="3.0.0", taux_rejet_max=0.0)           # un seuil à zéro : la moindre ligne rejetée bloque la livraison
+heure = datetime(2026, 11, 20, 9, 0, tzinfo=UTC)
+for ligne in a_retraiter(etat.registre, strict):
+    cle = (ligne.livraison_id, ligne.heure_arrivee)
+    bronze = [b for b in etat.lignes_bronze if (b.livraison_id, b.heure_arrivee) == cle]
+    coupees = [c for c in etat.lignes_coupees if (c.livraison_id, c.heure_arrivee) == cle]
+    resultat = retraiter(strict, ligne, bronze, coupees, etat.lignes_silver, heure)
+    if resultat.reclassement is not None:
+        print(resultat.reclassement)
 ```
 
 ## Travailler sur le projet
