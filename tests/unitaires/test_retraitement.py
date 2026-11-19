@@ -63,11 +63,11 @@ def _silver_a_l_arrivee(contrat, ligne, bronze, coupees):
 # ==============================================================================
 # 1. 🎯 QUELLES LIVRAISONS RETRAITER : la décision en vigueur de chaque livraison, jugée sous une autre version
 # ==============================================================================
-def _decision(livraison_id="a.csv", statut=ACCEPTEE, version="2.0.0", heures=0):
+def _decision(livraison_id="a.csv", statut=ACCEPTEE, version="2.0.0", heures=0, empreinte="x"):
     """Une ligne de registre : seuls le nom, le statut, la version et l'arrivée comptent pour choisir."""
     return LigneRegistre(
         livraison_id=livraison_id, statut=statut, version_contrat=version, nb_recues=10, nb_valides=10, nb_rejetees=0, codes_refus=(),
-        pays="FRA", usine="AA", ligne="001", horodatage_fichier=None, heure_arrivee=ARRIVEE + timedelta(hours=heures), empreinte="x",
+        pays="FRA", usine="AA", ligne="001", horodatage_fichier=None, heure_arrivee=ARRIVEE + timedelta(hours=heures), empreinte=empreinte,
         rejeu_de=None,
     )
 
@@ -328,6 +328,105 @@ def test_un_bronze_incomplet_ne_se_retraite_pas(tmp_path, contrat):
         _retraiter(_v3(contrat), ligne, bronze[:-1], coupees)
 
 
+# ==============================================================================
+# 5. 🔗 PLUSIEURS RETRAITEMENTS DE SUITE : le bronze garde l'arrivée d'origine, la ligne en vigueur a l'heure du dernier retraitement
+# ==============================================================================
+V4 = "4.0.0"
+
+
+def _retraitee_une_fois(contrat, tmp_path):
+    """Une livraison jugée sous 2.0.0 puis retraitée sous 3.0.0 : son ancienne ligne, sa ligne en vigueur, son bronze (resté d'origine)."""
+    ligne, bronze, coupees = _livraison(contrat, tmp_path)
+    return ligne, bronze, coupees, _retraiter(_v3(contrat), ligne, bronze, coupees).ligne_registre
+
+
+def test_une_livraison_deja_retraitee_se_retraite_encore_quand_on_dit_de_quelle_arrivee_sont_ses_lignes_bronze(tmp_path, contrat):
+    ligne, bronze, coupees, nouvelle = _retraitee_une_fois(contrat, tmp_path)
+    registre, quatrieme = [ligne, nouvelle], replace(contrat, version=V4)
+    [en_vigueur] = retraitement.a_retraiter(registre, quatrieme)
+    arrivee = retraitement.retrouver_arrivee_du_bronze(registre, en_vigueur)
+
+    plus_tard = RETRAITE_LE + timedelta(days=1)
+    resultat = retraitement.retraiter(quatrieme, en_vigueur, bronze, coupees, (), plus_tard, arrivee_du_bronze=arrivee)
+
+    assert en_vigueur == nouvelle and arrivee == ligne.heure_arrivee
+    assert (resultat.ligne_registre.version_contrat, resultat.ligne_registre.heure_arrivee) == (V4, RETRAITE_LE + timedelta(days=1))
+    assert resultat.reclassement is None and len(resultat.silver.lignes) == 20
+
+
+def test_sans_l_arrivee_du_bronze_une_livraison_deja_retraitee_reste_refusee(tmp_path, contrat):
+    """Par défaut les lignes bronze doivent avoir l'arrivée de la ligne : le garde ne s'est pas relâché."""
+    _, bronze, coupees, nouvelle = _retraitee_une_fois(contrat, tmp_path)
+
+    with pytest.raises(ValueError, match="arrivée"):
+        _retraiter(replace(contrat, version=V4), nouvelle, bronze, coupees, heure=RETRAITE_LE + timedelta(days=1))
+
+
+def test_une_arrivee_du_bronze_qui_n_est_pas_celle_des_lignes_est_refusee(tmp_path, contrat):
+    ligne, bronze, coupees = _livraison(contrat, tmp_path)
+
+    with pytest.raises(ValueError, match="arrivée"):
+        fausse = ligne.heure_arrivee + timedelta(days=1)
+        retraitement.retraiter(_v3(contrat), ligne, bronze, coupees, (), RETRAITE_LE, arrivee_du_bronze=fausse)
+
+
+def test_l_arrivee_d_origine_donnee_explicitement_est_acceptee_comme_par_defaut(tmp_path, contrat):
+    ligne, bronze, coupees = _livraison(contrat, tmp_path)
+
+    resultat = retraitement.retraiter(_v3(contrat), ligne, bronze, coupees, (), RETRAITE_LE, arrivee_du_bronze=ligne.heure_arrivee)
+
+    assert resultat == _retraiter(_v3(contrat), ligne, bronze, coupees)
+
+
+def test_une_livraison_renvoyee_corrigee_ne_prend_pas_les_lignes_bronze_de_la_premiere(tmp_path, contrat):
+    """Bloquée puis renvoyée corrigée sous le même nom : le contenu change, donc l'arrivée des lignes ; les anciennes restent refusées."""
+    premiere, bronze, coupees = _livraison(contrat, tmp_path, anomalies={CodeErreur.HORS_PLAGE: 1})
+    seconde, _, _ = _livraison(contrat, tmp_path, arrivee=ARRIVEE + timedelta(days=1))
+    registre = [premiere, seconde]
+    arrivee = retraitement.retrouver_arrivee_du_bronze(registre, seconde)
+
+    assert premiere.empreinte != seconde.empreinte and arrivee == seconde.heure_arrivee
+    with pytest.raises(ValueError, match="arrivée"):
+        retraitement.retraiter(_v3(contrat), seconde, bronze, coupees, (), RETRAITE_LE, arrivee_du_bronze=arrivee)
+
+
+def test_l_arrivee_du_bronze_d_une_livraison_jamais_retraitee_est_la_sienne():
+    ligne = _decision(heures=3)
+
+    assert retraitement.retrouver_arrivee_du_bronze([ligne], ligne) == ligne.heure_arrivee
+
+
+def test_l_arrivee_du_bronze_d_une_chaine_de_retraitements_est_celle_de_la_premiere_ligne_de_meme_contenu():
+    origine, v3, v4 = _decision(heures=0), _decision(version="3.0.0", heures=5), _decision(version="4.0.0", heures=9)
+    registre = [v4, origine, v3]                                                   # dans le désordre
+
+    assert [retraitement.retrouver_arrivee_du_bronze(registre, ligne) for ligne in (origine, v3, v4)] == [origine.heure_arrivee] * 3
+
+
+def test_un_renvoi_corrige_a_ses_propres_lignes_bronze_donc_sa_propre_arrivee():
+    """Même nom, autre contenu (autre empreinte) : ses lignes bronze ne sont pas celles de la première version, ni après un retraitement."""
+    premiere, corrigee = _decision(statut=BLOQUEE, heures=0, empreinte="E1"), _decision(heures=3, empreinte="E2")
+    corrigee_retraitee = _decision(version="3.0.0", heures=8, empreinte="E2")
+    registre = [premiere, corrigee, corrigee_retraitee]
+
+    assert retraitement.retrouver_arrivee_du_bronze(registre, corrigee_retraitee) == corrigee.heure_arrivee
+    assert retraitement.retrouver_arrivee_du_bronze(registre, premiere) == premiere.heure_arrivee
+
+
+def test_les_lignes_sans_bronze_et_les_autres_livraisons_ne_donnent_pas_l_arrivee_du_bronze():
+    ligne = _decision(heures=4)
+    registre = [_decision(statut=REFUSEE, heures=-2), _decision(statut=STATUT_REJEU, heures=-1), _decision("b.csv", heures=-3), ligne]
+
+    assert retraitement.retrouver_arrivee_du_bronze(registre, ligne) == ligne.heure_arrivee
+
+
+def test_l_arrivee_du_bronze_compte_la_ligne_meme_si_le_registre_donne_ne_la_contient_pas():
+    ancienne, nouvelle = _decision(heures=0), _decision(version="3.0.0", heures=5)
+
+    assert retraitement.retrouver_arrivee_du_bronze([], nouvelle) == nouvelle.heure_arrivee
+    assert retraitement.retrouver_arrivee_du_bronze([ancienne], nouvelle) == ancienne.heure_arrivee
+
+
 def test_le_resultat_est_immuable(tmp_path, contrat):
     ligne, bronze, coupees = _livraison(contrat, tmp_path)
     resultat = _retraiter(_v3(contrat), ligne, bronze, coupees)
@@ -379,6 +478,33 @@ def _silver(lignes):
 
 def _quarantaine(lignes):
     return sorted(str((q.numero_ligne, q.numero_fichier, [v.code.value for v in q.violations])) for q in lignes)
+
+
+def _bronze_de(etat, ligne):
+    cle = (ligne.livraison_id, ligne.heure_arrivee)
+    return ([b for b in etat.lignes_bronze if (b.livraison_id, b.heure_arrivee) == cle],
+            [c for c in etat.lignes_coupees if (c.livraison_id, c.heure_arrivee) == cle])
+
+
+def test_retraiter_deux_fois_toute_la_journee_de_suite_ne_reclasse_aucune_livraison(contrat, etat_de_la_journee):
+    """Sous 3.0.0 puis sous 4.0.0, chaque livraison est retraitée depuis son bronze d'origine, dont l'arrivée se retrouve au registre."""
+    etat, registre, retraitees = etat_de_la_journee, list(etat_de_la_journee.registre), 0
+    for ligne in retraitement.a_retraiter(registre, _v3(contrat)):
+        bronze, coupees = _bronze_de(etat, ligne)
+        premier = _retraiter(_v3(contrat), ligne, bronze, coupees, deja=etat.lignes_silver)
+        registre_apres = [*registre, premier.ligne_registre]
+        choisies = retraitement.a_retraiter(registre_apres, replace(contrat, version=V4))
+        en_vigueur = next(choisie for choisie in choisies if choisie.livraison_id == ligne.livraison_id)
+        arrivee = retraitement.retrouver_arrivee_du_bronze(registre_apres, en_vigueur)
+
+        second = retraitement.retraiter(replace(contrat, version=V4), en_vigueur, bronze, coupees, etat.lignes_silver,
+                                        RETRAITE_LE + timedelta(days=1), arrivee_du_bronze=arrivee)
+
+        assert en_vigueur == premier.ligne_registre and arrivee == ligne.heure_arrivee, ligne.livraison_id
+        assert premier.reclassement is None and second.reclassement is None, ligne.livraison_id
+        assert second.ligne_registre.version_contrat == V4, ligne.livraison_id
+        retraitees += 1
+    assert retraitees >= 8
 
 
 def test_retraiter_toute_la_journee_sous_les_memes_regles_ne_reclasse_aucune_livraison(contrat, etat_de_la_journee):

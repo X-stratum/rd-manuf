@@ -21,6 +21,12 @@ nouvelle version : la clé du registre est `(livraison, heure)`, un retraitement
 jugement. Le silver compare la livraison aux lignes DÉJÀ intégrées à cette heure, comme pour toute livraison : une livraison bloquée
 puis rejugée ne double donc pas des lots qu'une autre a intégrés entre-temps.
 
+PLUSIEURS RETRAITEMENTS : un retraitement ne réécrit pas le bronze. La ligne qu'il ajoute porte l'heure du retraitement, mais les lignes
+bronze gardent l'arrivée d'origine. Pour retraiter une livraison une seconde fois, `retrouver_arrivee_du_bronze` donne cette arrivée
+(celle de la première ligne de même nom et de même contenu) et `retraiter` la prend en `arrivee_du_bronze` ; sans elle, les lignes
+bronze doivent avoir l'arrivée de la ligne, donc celles d'une autre arrivée restent refusées. Le même nom avec un AUTRE contenu (un
+renvoi corrigé) a ses propres lignes, donc sa propre arrivée.
+
 CE QUE CE MODULE NE FAIT PAS : il n'écrit rien, il ne prévient personne (le reclassement est une donnée, comme les constats de
 surveillance), et il ne dit pas comment le nouveau jugement REMPLACE l'ancien dans l'état : sans règle de remplacement, ajouter ses
 lignes à côté des anciennes ferait compter deux fois la livraison. Cette règle (la ligne « en vigueur » d'une livraison, l'historique
@@ -81,8 +87,21 @@ def a_retraiter(registre: Iterable[LigneRegistre], contrat: Contrat) -> list[Lig
     return sorted(a_jour, key=lambda ligne: (ligne.heure_arrivee, ligne.livraison_id))
 
 
+def retrouver_arrivee_du_bronze(registre: Iterable[LigneRegistre], ligne: LigneRegistre) -> datetime:
+    """L'arrivée dont le bronze porte les lignes de `ligne` : celle de la première ligne de même nom, de même contenu (même empreinte) et
+    dont les lignes entrent au bronze.
+
+    Un retraitement ne réécrit pas le bronze : la ligne qu'il ajoute porte l'heure du retraitement, mais ses lignes bronze gardent l'arrivée
+    d'origine. Le même nom avec un AUTRE contenu (un renvoi corrigé) a ses propres lignes, donc sa propre arrivée. Ne modifie pas ses
+    entrées."""
+    memes = [autre.heure_arrivee for autre in registre
+             if autre.livraison_id == ligne.livraison_id and autre.empreinte == ligne.empreinte and autre.statut in STATUTS_BRONZE]
+    return min([ligne.heure_arrivee, *memes])
+
+
 def _verifier_les_entrees(
-    contrat: Contrat, ligne: LigneRegistre, bronze: Sequence[LigneBronze], coupees: Sequence[LigneBronzeCoupee], heure: datetime
+    contrat: Contrat, ligne: LigneRegistre, bronze: Sequence[LigneBronze], coupees: Sequence[LigneBronzeCoupee], heure: datetime,
+    arrivee_du_bronze: datetime,
 ) -> None:
     if ligne.statut not in STATUTS_BRONZE:
         raise ValueError(
@@ -101,9 +120,9 @@ def _verifier_les_entrees(
     for gardee in gardees:
         if gardee.livraison_id != ligne.livraison_id:
             raise ValueError(f"Une ligne du bronze est celle de la livraison {gardee.livraison_id}, pas de {ligne.livraison_id}.")
-        if gardee.heure_arrivee != ligne.heure_arrivee:
+        if gardee.heure_arrivee != arrivee_du_bronze:
             raise ValueError(
-                f"Une ligne du bronze n'est pas celle de l'arrivée {ligne.heure_arrivee:%Y-%m-%d %H:%M:%S} UTC de la livraison "
+                f"Une ligne du bronze n'est pas celle de l'arrivée {arrivee_du_bronze:%Y-%m-%d %H:%M:%S} UTC de la livraison "
                 f"{ligne.livraison_id} (renvoyée sous le même nom, ses lignes sont celles d'une autre arrivée)."
             )
     if len(bronze) + len(coupees) != ligne.nb_recues:
@@ -115,16 +134,21 @@ def _verifier_les_entrees(
 
 def retraiter(
     contrat: Contrat, ligne_registre: LigneRegistre, lignes_bronze: Sequence[LigneBronze], lignes_coupees: Sequence[LigneBronzeCoupee],
-    deja_integrees: Sequence[LigneSilver], heure_arrivee: datetime,
+    deja_integrees: Sequence[LigneSilver], heure_arrivee: datetime, *, arrivee_du_bronze: datetime | None = None,
 ) -> ResultatRetraitement:
     """Rejuge la livraison de `ligne_registre` sous `contrat`, depuis ses lignes bronze et ses lignes coupées, à l'heure `heure_arrivee`.
+
+    `arrivee_du_bronze` : l'arrivée dont les lignes bronze portent la clé, quand elle n'est pas celle de `ligne_registre` : une livraison
+    déjà retraitée a la ligne et l'heure de son dernier retraitement, mais son bronze d'origine (voir `retrouver_arrivee_du_bronze`). Par
+    défaut, l'arrivée de la ligne : les lignes d'un renvoi corrigé ne sont jamais prises pour celles de la première version.
 
     `deja_integrees` : les lignes silver des livraisons déjà intégrées, comme pour `construire_silver` (la livraison ne se compare pas à ses
     propres lignes). Lève `ValueError` si la livraison est déjà jugée sous cette version ou ne vient pas au bronze, si l'heure n'a pas de
     fuseau ou n'est pas postérieure à son arrivée, ou si les lignes données ne sont pas, toutes, celles de cette livraison et de cette
     arrivée, ou ne font pas le compte du registre."""
     heure = en_utc(heure_arrivee)
-    _verifier_les_entrees(contrat, ligne_registre, lignes_bronze, lignes_coupees, heure)
+    arrivee_des_lignes = ligne_registre.heure_arrivee if arrivee_du_bronze is None else arrivee_du_bronze
+    _verifier_les_entrees(contrat, ligne_registre, lignes_bronze, lignes_coupees, heure, arrivee_des_lignes)
     colonnes = list(lignes_bronze[0].valeurs) if lignes_bronze else [colonne.nom for colonne in contrat.colonnes]
     malformees = [LigneMalformee(numero=coupee.numero_fichier, champs=coupee.champs) for coupee in lignes_coupees]
     textes = [ligne.valeurs for ligne in lignes_bronze]
