@@ -272,7 +272,8 @@ def test_le_vrai_fichier_ne_contient_ni_adresse_ni_secret_ni_nom_de_personne():
 
     assert "://" not in texte and "@" not in donnees
     cles = set(re.findall(r"^\s*(?:- )?([a-z_]+):", donnees, re.MULTILINE))
-    attendues = {"version", "sources", "pays", "usine", "ligne", "delai_max_heures", "taux_de_rejet", "fenetre_livraisons", "part_du_seuil"}
+    attendues = {"version", "sources", "pays", "usine", "ligne", "delai_max_heures", "taux_de_rejet", "fenetre_livraisons", "part_du_seuil",
+                 "volumes", "ecart_max"}
     assert cles <= attendues
 
 

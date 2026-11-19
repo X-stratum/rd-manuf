@@ -21,6 +21,13 @@ dernières livraisons jugeables), jamais la moyenne des taux des livraisons ; un
 refusée ou rejouée n'a pas de taux et ne compte pas. Une source qui a moins de N livraisons jugeables n'est pas jugée : une pré-alerte
 sur une seule livraison serait du bruit (l'alerte de blocage existe déjà).
 
+Troisième axe : les VOLUMES (`controler_volumes`). Ni la fraîcheur ni le taux de rejet ne voient une livraison à l'heure, sans rejet,
+mais à moitié vide (un export coupé en route) ou doublée. Le volume d'une livraison est son nombre de lignes reçues ; celui de la
+DERNIÈRE livraison d'une source est comparé à la MÉDIANE de ses `fenetre_livraisons` livraisons précédentes (la médiane, pas la moyenne :
+une livraison passée aberrante ne dérègle pas la référence), et un écart relatif qui dépasse strictement `ecart_max` est un constat, en
+baisse comme en hausse. Mêmes livraisons jugeables que pour le taux de rejet ; une source qui en a moins de `fenetre_livraisons` + 1
+n'est pas jugée. Pas de calendrier : une usine qui livre moins le week-end demande un `ecart_max` qui le couvre.
+
 Ce sont des fonctions PURES : elles ne lisent que ce qu'on leur donne (« maintenant » est un paramètre, avec fuseau), n'écrivent rien et ne
 routent rien vers des personnes (annuaire et envoi viendront ailleurs).
 """
@@ -28,6 +35,7 @@ from __future__ import annotations
 
 import math
 import re
+import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -45,10 +53,12 @@ AUCUNE_LIVRAISON_INTEGREE = "AUCUNE_LIVRAISON_INTEGREE"
 LIVRAISON_EN_RETARD = "LIVRAISON_EN_RETARD"
 SOURCE_INCONNUE = "SOURCE_INCONNUE"
 TAUX_DE_REJET_ELEVE = "TAUX_DE_REJET_ELEVE"
+VOLUME_ANORMAL = "VOLUME_ANORMAL"
 
 CHAMPS_DE_LA_SOURCE = ("pays", "usine", "ligne", "delai_max_heures")
-CHAMPS_DU_FICHIER = ("version", "sources", "taux_de_rejet")
+CHAMPS_DU_FICHIER = ("version", "sources", "taux_de_rejet", "volumes")
 CHAMPS_DU_TAUX_DE_REJET = ("fenetre_livraisons", "part_du_seuil")
+CHAMPS_DES_VOLUMES = ("fenetre_livraisons", "ecart_max")
 MOTIFS = {"pays": MOTIF_PAYS, "usine": MOTIF_USINE, "ligne": MOTIF_LIGNE}      # la convention du nom de fichier, écrite à un seul endroit
 
 Origine = tuple[str, str, str]                                                  # (pays, usine, ligne de production)
@@ -101,6 +111,23 @@ class ParametresTauxRejet:
                 raise ValueError(probleme)
 
 
+def _probleme_ecart(valeur: Any) -> str | None:
+    if isinstance(valeur, bool) or not isinstance(valeur, (int, float)) or not math.isfinite(valeur) or valeur <= 0:
+        return "« ecart_max » doit être un nombre fini et strictement positif."
+    return None
+
+
+@dataclass(frozen=True)
+class ParametresVolumes:
+    fenetre_livraisons: int                     # combien de livraisons précédentes font la référence (leur médiane)
+    ecart_max: float                            # l'écart relatif toléré : 0,5 : la dernière livraison peut s'écarter de moitié
+
+    def __post_init__(self) -> None:
+        for probleme in (_probleme_fenetre(self.fenetre_livraisons), _probleme_ecart(self.ecart_max)):
+            if probleme is not None:
+                raise ValueError(probleme)
+
+
 @dataclass(frozen=True)
 class ConstatTauxRejet:
     code: str
@@ -112,6 +139,21 @@ class ConstatTauxRejet:
     seuil_contrat: float                        # le seuil de rejet du contrat, au-dessus duquel une livraison est bloquée
     nb_livraisons: int
     nb_bloquees: int                            # parmi elles, combien ont été bloquées
+
+
+@dataclass(frozen=True)
+class ConstatVolume:
+    code: str
+    pays: str
+    usine: str
+    ligne: str
+    livraison_id: str                           # la dernière livraison jugeable de la source, celle dont le volume est anormal
+    volume: int                                 # son nombre de lignes reçues
+    reference: float                            # la médiane des volumes des `nb_references` livraisons précédentes
+    ecart: float                                # (volume − référence) ÷ référence : négatif pour une baisse, positif pour une hausse
+    sens: str                                   # « baisse » ou « hausse »
+    nb_references: int
+    ecart_max: float                            # l'écart toléré, que `abs(ecart)` dépasse
 
 
 # ==============================================================================
@@ -175,20 +217,34 @@ def _lire_fichier(chemin: str | Path) -> dict[str, Any]:
     return brut
 
 
-def _parametres_de_la_section(brut: dict[str, Any]) -> ParametresTauxRejet:
-    section = brut.get("taux_de_rejet")
+def _champs_de_la_section(brut: dict[str, Any], nom: str, champs: tuple[str, ...]) -> dict[str, Any]:
+    """La section `nom` du fichier : un dictionnaire non vide qui a tous les champs attendus et aucun autre."""
+    section = brut.get(nom)
     if not isinstance(section, dict) or not section:
-        raise SourcesInvalides(f"La section « taux_de_rejet » manque ou est vide (champs attendus : {', '.join(CHAMPS_DU_TAUX_DE_REJET)}).")
-    for champ in CHAMPS_DU_TAUX_DE_REJET:
+        raise SourcesInvalides(f"La section « {nom} » manque ou est vide (champs attendus : {', '.join(champs)}).")
+    for champ in champs:
         if champ not in section:
-            raise SourcesInvalides(f"taux_de_rejet : le champ « {champ} » manque.")
+            raise SourcesInvalides(f"{nom} : le champ « {champ} » manque.")
     for champ in section:
-        if champ not in CHAMPS_DU_TAUX_DE_REJET:
-            raise SourcesInvalides(f"taux_de_rejet : champ inconnu « {champ} » (attendus : {', '.join(CHAMPS_DU_TAUX_DE_REJET)}).")
+        if champ not in champs:
+            raise SourcesInvalides(f"{nom} : champ inconnu « {champ} » (attendus : {', '.join(champs)}).")
+    return section
+
+
+def _parametres_de_la_section(brut: dict[str, Any]) -> ParametresTauxRejet:
+    section = _champs_de_la_section(brut, "taux_de_rejet", CHAMPS_DU_TAUX_DE_REJET)
     for probleme in (_probleme_fenetre(section["fenetre_livraisons"]), _probleme_part(section["part_du_seuil"])):
         if probleme is not None:
             raise SourcesInvalides(f"taux_de_rejet : {probleme}")
     return ParametresTauxRejet(fenetre_livraisons=section["fenetre_livraisons"], part_du_seuil=float(section["part_du_seuil"]))
+
+
+def _parametres_volumes_de_la_section(brut: dict[str, Any]) -> ParametresVolumes:
+    section = _champs_de_la_section(brut, "volumes", CHAMPS_DES_VOLUMES)
+    for probleme in (_probleme_fenetre(section["fenetre_livraisons"]), _probleme_ecart(section["ecart_max"])):
+        if probleme is not None:
+            raise SourcesInvalides(f"volumes : {probleme}")
+    return ParametresVolumes(fenetre_livraisons=section["fenetre_livraisons"], ecart_max=float(section["ecart_max"]))
 
 
 def charger_parametres_taux_rejet(chemin: str | Path) -> ParametresTauxRejet:
@@ -197,13 +253,21 @@ def charger_parametres_taux_rejet(chemin: str | Path) -> ParametresTauxRejet:
     return _parametres_de_la_section(_lire_fichier(chemin))
 
 
+def charger_parametres_volumes(chemin: str | Path) -> ParametresVolumes:
+    """La section `volumes` du fichier de surveillance : la fenêtre de livraisons de référence et l'écart relatif toléré. `SourcesInvalides`
+    si la section manque, est mal formée, a un champ manquant, inconnu ou répété, ou une valeur hors de ce qui est permis."""
+    return _parametres_volumes_de_la_section(_lire_fichier(chemin))
+
+
 def charger_sources_attendues(chemin: str | Path) -> tuple[SourceAttendue, ...]:
     """Les sources déclarées, triées par pays, usine et ligne. Un fichier absent lève l'erreur de fichier habituelle ; un contenu mal formé,
     `SourcesInvalides`. Refuse tout ce qui est ambigu : champ manquant ou inconnu, doublon, délai nul ou non fini. Une section
-    `taux_de_rejet` présente est validée aussi, même si ce chargeur ne s'en sert pas."""
+    `taux_de_rejet` ou `volumes` présente est validée aussi, même si ce chargeur ne s'en sert pas."""
     brut = _lire_fichier(chemin)
     if "taux_de_rejet" in brut:                  # un fichier, une seule validité : sinon le défaut n'apparaîtrait qu'à l'autre appel
         _parametres_de_la_section(brut)
+    if "volumes" in brut:
+        _parametres_volumes_de_la_section(brut)
     liste = brut.get("sources")
     if not isinstance(liste, list) or not liste:
         raise SourcesInvalides("« sources » doit être une liste d'au moins une source.")
@@ -282,6 +346,21 @@ def _verifier_le_seuil(seuil: Any) -> float:
     return float(seuil)
 
 
+def _jugeables_par_origine(registre: Iterable[LigneRegistre]) -> dict[Origine, list[LigneRegistre]]:
+    """Pour chaque origine, ses livraisons jugeables (acceptée, avec rejets ou BLOQUÉE, avec au moins une ligne reçue) de la plus ancienne à
+    la plus récente ; à arrivée égale, dans l'ordre du registre. Un nom de fichier invalide n'a pas d'origine."""
+    par_origine: dict[Origine, list[tuple[datetime, int, LigneRegistre]]] = {}
+    for rang, ligne in enumerate(registre):
+        if ligne.pays is None or ligne.usine is None or ligne.ligne is None:
+            continue
+        if ligne.statut not in STATUTS_AVEC_UN_TAUX or ligne.nb_recues <= 0:
+            continue
+        _avec_fuseau(ligne.heure_arrivee, f"L'arrivée de la livraison {ligne.livraison_id}")
+        par_origine.setdefault((ligne.pays, ligne.usine, ligne.ligne), []).append((ligne.heure_arrivee, rang, ligne))
+    classees = {origine: sorted(livraisons, key=lambda entree: entree[:2]) for origine, livraisons in par_origine.items()}
+    return {origine: [ligne for _, _, ligne in livraisons] for origine, livraisons in classees.items()}
+
+
 def controler_taux_de_rejet(
     registre: Iterable[LigneRegistre], parametres: ParametresTauxRejet, taux_rejet_max: float
 ) -> list[ConstatTauxRejet]:
@@ -295,22 +374,41 @@ def controler_taux_de_rejet(
     seuil = _verifier_le_seuil(taux_rejet_max)
     # 0,7 × 0,01 vaut 0.006999999999999999 en flottants : sans arrondi, un taux pile au niveau passerait au-dessus
     niveau = round(parametres.part_du_seuil * seuil, CHIFFRES_DU_NIVEAU)
-    par_origine: dict[Origine, list[tuple[datetime, int, LigneRegistre]]] = {}
-    for rang, ligne in enumerate(registre):
-        if ligne.pays is None or ligne.usine is None or ligne.ligne is None:
-            continue
-        if ligne.statut not in STATUTS_AVEC_UN_TAUX or ligne.nb_recues <= 0:
-            continue
-        _avec_fuseau(ligne.heure_arrivee, f"L'arrivée de la livraison {ligne.livraison_id}")
-        par_origine.setdefault((ligne.pays, ligne.usine, ligne.ligne), []).append((ligne.heure_arrivee, rang, ligne))
-
     constats = []
-    for origine, livraisons in sorted(par_origine.items()):
-        fenetre = [ligne for _, _, ligne in sorted(livraisons, key=lambda entree: entree[:2])][-parametres.fenetre_livraisons:]
+    for origine, livraisons in sorted(_jugeables_par_origine(registre).items()):
+        fenetre = livraisons[-parametres.fenetre_livraisons:]
         if len(fenetre) < parametres.fenetre_livraisons:
             continue
         taux = sum(ligne.nb_rejetees for ligne in fenetre) / sum(ligne.nb_recues for ligne in fenetre)
         if taux > niveau:
             bloquees = sum(ligne.statut == StatutLivraison.BLOQUEE.value for ligne in fenetre)
             constats.append(ConstatTauxRejet(TAUX_DE_REJET_ELEVE, *origine, taux, niveau, seuil, len(fenetre), bloquees))
+    return constats
+
+
+# ==============================================================================
+# 📊 LES VOLUMES
+# ==============================================================================
+def controler_volumes(registre: Iterable[LigneRegistre], parametres: ParametresVolumes) -> list[ConstatVolume]:
+    """Les sources dont la DERNIÈRE livraison jugeable a un volume (lignes reçues) qui s'écarte de la médiane de ses `fenetre_livraisons`
+    livraisons jugeables précédentes de plus (strictement) que `ecart_max`, en relatif. Triés par pays, usine, ligne. Ne modifie pas ses
+    entrées.
+
+    Jugeables : les mêmes que pour le taux de rejet (acceptée, avec rejets, BLOQUÉE ; avec au moins une ligne reçue) : une livraison
+    refusée ou rejouée n'est ni la dernière ni une référence, même si le registre a gardé un nombre de lignes. La référence est la médiane
+    (la moyenne des deux valeurs du milieu pour une fenêtre paire), pas la moyenne : une livraison passée aberrante ne la dérègle pas. Une
+    source qui a moins de `fenetre_livraisons` + 1 livraisons jugeables n'est pas jugée."""
+    limite = round(parametres.ecart_max, CHIFFRES_DU_NIVEAU)         # comme le niveau du taux de rejet : 153 pour 90, c'est 0,7 pile
+    constats = []
+    for origine, livraisons in sorted(_jugeables_par_origine(registre).items()):
+        if len(livraisons) <= parametres.fenetre_livraisons:
+            continue
+        derniere = livraisons[-1]
+        references = livraisons[-1 - parametres.fenetre_livraisons:-1]
+        reference = float(statistics.median(ligne.nb_recues for ligne in references))
+        ecart = (derniere.nb_recues - reference) / reference
+        if round(abs(ecart), CHIFFRES_DU_NIVEAU) > limite:
+            sens = "hausse" if ecart > 0 else "baisse"
+            constats.append(ConstatVolume(VOLUME_ANORMAL, *origine, derniere.livraison_id, derniere.nb_recues, reference, ecart, sens,
+                                          len(references), parametres.ecart_max))
     return constats
